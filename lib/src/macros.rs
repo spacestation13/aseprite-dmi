@@ -6,8 +6,8 @@ pub fn safe_lua_function<'lua, A, R, F>(
     multi: A,
 ) -> LuaResult<(Option<R>, Option<String>)>
 where
-    A: FromLuaMulti<'lua>,
-    R: IntoLuaMulti<'lua>,
+    A: FromLuaMulti,
+    R: IntoLuaMulti,
     F: Fn(&'lua Lua, A) -> LuaResult<R>,
 {
     match func(lua, multi) {

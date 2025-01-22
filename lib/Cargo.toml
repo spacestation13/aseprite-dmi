@@ -13,12 +13,12 @@ anyhow = "1.0"
 arboard = "3.4"
 base64 = "0.22.1"
 image = { version = "0.25.5", default-features = false, features = ["png"] }
-mlua = { version = "0.9.9", features = ["module", "lua54", "serialize"] }
+mlua = { version = "0.10.2", features = ["module", "lua54", "serialize"] }
 native-dialog = "0.7.0"
 png = "0.17.16"
 reqwest = { version = "0.12.12", features = ["blocking", "json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-sysinfo = "0.30.5"
+sysinfo = "0.33.1"
 thiserror = "2.0"
 webbrowser = "1.0"
