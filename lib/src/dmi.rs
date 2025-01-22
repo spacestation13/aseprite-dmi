@@ -1,6 +1,6 @@
 use base64::{engine::general_purpose, Engine as _};
 use image::{imageops, ImageBuffer, Rgba};
-use image::{io::Reader as ImageReader, DynamicImage};
+use image::{ImageReader, DynamicImage};
 use png::{Compression, Decoder, Encoder};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
