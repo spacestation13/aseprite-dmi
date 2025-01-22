@@ -1,5 +1,5 @@
 > [!WARNING]
-> ⚠ I'm no longer maintaining this project, It's likely to be broken and not working properly. ⚠
+> ⚠ This project is no longer maintained by the creator, and has been taken under stewardship of the SS13 org to provide small updates and merge PRs. Don't expect significant developer additions. ⚠
 
 # DMI Editor for Aseprite
 
@@ -7,7 +7,7 @@ This project is a DMI (BYOND's Dream Maker icon files) editor extension for Asep
 
 ## Download
 
-The latest version of this extension is available for download from the [Releases](https://github.com/Seefaaa/aseprite-dmi/releases) page on the project's GitHub repository.
+The latest version of this extension is available for download from the [Releases](https://github.com/spacestation13/aseprite-dmi/releases) page on the project's GitHub repository.
 
 ## Usage
 
@@ -44,6 +44,12 @@ The DMI file may be expanded, resized, or cropped via the `File > DMI Editor` me
 
 To build the project, run `tools/build.py` Python script.
 
-## Contact
+### Releasing
 
-For any questions or further discussion, feel free to contact me on Discord at `Seefaaa`.
+Push a tag like `v1.0.8` via `git`, after changing the Cargo.toml and package.json files.
+
+## LICENSE
+
+**GPLv3**, for more details see the [LICENSE](./LICENSE).
+
+Originally created by `Seefaaa`.
