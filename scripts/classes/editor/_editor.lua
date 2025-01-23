@@ -269,25 +269,26 @@ end
 --- @param no_dialog boolean|nil If true, skips the save dialog and overwrites the current file
 --- @return boolean success Whether the DMI file has been saved. May still return true even if the file has not been saved successfully.
 function Editor:save(no_dialog)
-    if not self.dmi then return false end
+	if not self.dmi then return false end
 
-    local path = self:path()
-    local filename = path
-    local error
+	local path = self:path()
+	local filename = path
+	local error
 
-    if not no_dialog then
-        filename, error = libdmi.save_dialog("Save File", app.fs.fileTitle(path), app.fs.filePath(path))
-    end
+	if not no_dialog then
+		local result = libdmi.save_dialog("Save File", app.fs.fileTitle(path), app.fs.filePath(path))
+		filename, error = result or "", nil
+	end
 
-    if (#filename > 0) and not error then
-        self.save_path = filename
-        local _, error = libdmi.save_file(self.dmi, filename --[[@as string]])
-        if not error then
-            self.modified = false
-        end
-        return true
-    end
-    return false
+	if (#filename > 0) and not error then
+		self.save_path = filename
+		local _, err = libdmi.save_file(self.dmi, filename --[[@as string]])
+		if not err then
+			self.modified = false
+		end
+		return true
+	end
+	return false
 end
 
 --- Returns the path of the file to be saved.
