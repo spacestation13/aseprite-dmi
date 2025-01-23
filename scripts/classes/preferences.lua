@@ -27,6 +27,8 @@ function Preferences.show(plugin)
 		selected = Preferences.plugin.preferences.auto_overwrite,
 	}
 
+	dialog:newrow()
+
 	dialog:check {
 		id = "auto_flatten",
 		text = "Flatten layers downwards into directional layers when saving an iconstate.",

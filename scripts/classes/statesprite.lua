@@ -84,6 +84,44 @@ function StateSprite:save()
 		return false
 	end
 
+	-- Store original layers if we need to flatten
+	local original_layers = nil
+	if Preferences.getAutoFlatten() then
+		original_layers = {}
+		for _, layer in ipairs(self.sprite.layers) do
+			table.insert(original_layers, layer)
+			app.alert("Found layer: " .. layer.name)
+		end
+
+		-- Start from top layer, work downwards
+		for i = 1, #self.sprite.layers do
+			local layer = self.sprite.layers[i]
+			if table.index_of(DIRECTION_NAMES, layer.name) == 0 then
+				app.alert("Found non-directional layer: " .. layer.name)
+				-- Find nearest directional layer above this one
+				local found_target = false
+				for j = i - 1, 1, -1 do -- (this is an inverted list)
+					if table.index_of(DIRECTION_NAMES, self.sprite.layers[j].name) > 0 then
+						app.alert("Found target directional layer: " .. self.sprite.layers[j].name)
+						-- Select the layer to merge
+						app.activeLayer = layer
+						app.alert("Set active layer to: " .. layer.name)
+						app.command.MergeDownLayer()
+						app.alert("Merged down layer")
+						found_target = true
+						break
+					end
+				end
+				if not found_target then
+					app.alert("No target directional layer found below " .. layer.name)
+					break -- No more directional layers below
+				end
+			end
+		end
+	else
+		app.alert("Auto-flatten is disabled")
+	end
+
 	self.state.frame_count = #self.sprite.frames
 	self.state.delays = {}
 
@@ -116,9 +154,17 @@ function StateSprite:save()
 			index = index + 1
 		end
 	end
-
 	self.editor:repaint_states()
 	self.editor.modified = true
+
+	-- Restore original layers if we flattened
+	if original_layers then
+		-- Undo all the merges
+		while #original_layers > #self.sprite.layers do
+			app.command.Undo()
+		end
+	end
+
 
 	return true
 end
