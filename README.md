@@ -1,5 +1,5 @@
-> [!WARNING]
-> ⚠ This project is no longer maintained by the creator, and has been taken under stewardship of the SS13 org to provide small updates and merge PRs. Don't expect significant developer additions. ⚠
+> [!NOTE]
+> This project is no longer maintained by the original creator, and has been taken under stewardship of the SS13 org to provide small updates and allow for community support.
 
 # DMI Editor for Aseprite
 
@@ -35,6 +35,12 @@ In Aseprite's timeline, new frames can be added and delays between frames can be
 
 The DMI file may be expanded, resized, or cropped via the `File > DMI Editor` menu. It should be noted that the active sprite must be a DMI state in order to utilise these commands.
 
+### Plugin Preferences
+Under the `File > DMI Editor` menu, there is an `Extensions` menu which contains various options:
+
+- **Auto Overwrite**: Automatically overwrites the source DMI file when saving an iconstate.
+- **Auto Flatten** *(Enabled by Default)*: Automatically flattens layers downward into directional layers when saving an iconstate, allowing you to fully use Aseprite layers.
+
 ## Building the Project
 
 ### Requirements
@@ -52,4 +58,4 @@ Push a tag like `v1.0.8` via `git`, after changing the Cargo.toml and package.js
 
 **GPLv3**, for more details see the [LICENSE](./LICENSE).
 
-Originally created by `Seefaaa`.
+Originally created by [Seefaaa](https://github.com/Seefaaa).
