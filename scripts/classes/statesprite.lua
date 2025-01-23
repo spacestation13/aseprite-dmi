@@ -29,6 +29,16 @@ end
 --- Saves the state sprite by exporting each layer as a separate image file.
 --- @return boolean boolean true if the save operation is successful, false otherwise.
 function StateSprite:save()
+	for _, layer in ipairs(self.sprite.layers) do
+		if layer.isTilemap then
+			app.alert {
+				title = self.editor.title,
+				text = "Tilemap layers are not supported in DMI files. Please convert or remove them before saving."
+			}
+			return false
+		end
+	end
+
 	if #self.sprite.layers < self.state.dirs then
 		app.alert { title = self.editor.title, text = "There must be at least " .. math.floor(self.state.dirs) .. " layers matching direction names" }
 		return false
