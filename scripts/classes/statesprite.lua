@@ -84,7 +84,7 @@ function StateSprite:save()
 		return false
 	end
 
-	-- Store original layers if we need to flatten
+	-- Store original layers if we need to auto-flatten
 	local original_layers = nil
 	if Preferences.getAutoFlatten() then
 		original_layers = {}
@@ -153,14 +153,12 @@ function StateSprite:save()
 	self.editor:repaint_states()
 	self.editor.modified = true
 
-	-- Restore original layers if we flattened
+	-- Restore original layers if we flattened by undoing all the merges
 	if original_layers then
-		-- Undo all the merges
 		while #original_layers > #self.sprite.layers do
 			app.command.Undo()
 		end
 	end
-
 
 	return true
 end
