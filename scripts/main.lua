@@ -22,8 +22,8 @@ libdmi = nil
 --- Initializes the plugin. Called when the plugin is loaded.
 --- @param plugin Plugin The plugin object.
 function init(plugin)
-	if app.apiVersion < 25 then
-		return app.alert("This script requires Aseprite v1.3-rc5")
+	if app.apiVersion < 27 then
+		return app.alert("This script requires Aseprite v1.3.3 or above")
 	end
 
 	if not app.isUIAvailable then
