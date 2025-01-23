@@ -106,11 +106,11 @@ function Editor:save_warning()
 	local result = 0
 
 	local dialog = Dialog {
-		title = "Warning",
+		title = "DMI Editor - Warning",
 	}
 
 	dialog:label {
-		text = "Save changes to the sprite",
+		text = "Save changes to the DMI",
 		focus = true
 	}
 
@@ -266,21 +266,28 @@ end
 --- Saves the current DMI file.
 --- If the DMI file is not set, the function returns without doing anything.
 --- Displays a success or failure message using the Aseprite app.alert function.
+--- @param no_dialog boolean|nil If true, skips the save dialog and overwrites the current file
 --- @return boolean success Whether the DMI file has been saved. May still return true even if the file has not been saved successfully.
-function Editor:save()
-	if not self.dmi then return false end
+function Editor:save(no_dialog)
+    if not self.dmi then return false end
 
-	local path = self:path()
-	local filename, error = libdmi.save_dialog("Save File", app.fs.fileTitle(path), app.fs.filePath(path))
-	if #filename > 0 and not error then
-		self.save_path = filename
-		local _, error = libdmi.save_file(self.dmi, filename --[[@as string]])
-		if not error then
-			self.modified = false
-		end
-		return true
-	end
-	return false
+    local path = self:path()
+    local filename = path
+    local error
+
+    if not no_dialog then
+        filename, error = libdmi.save_dialog("Save File", app.fs.fileTitle(path), app.fs.filePath(path))
+    end
+
+    if (#filename > 0) and not error then
+        self.save_path = filename
+        local _, error = libdmi.save_file(self.dmi, filename --[[@as string]])
+        if not error then
+            self.modified = false
+        end
+        return true
+    end
+    return false
 end
 
 --- Returns the path of the file to be saved.
@@ -303,6 +310,9 @@ function Editor:onbeforecommand(ev)
 			if app.sprite == state_sprite.sprite then
 				if not state_sprite:save() then
 					ev.stopPropagation()
+				end
+				if Preferences.getAutoOverwrite and Preferences.getAutoOverwrite() then
+					self:save(true)
 				end
 				break
 			end

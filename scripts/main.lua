@@ -144,6 +144,15 @@ function init(plugin)
 	}
 
 	plugin:newCommand {
+		id = "dmi_preferences",
+		title = "Preferences",
+		group = "dmi_editor",
+		onclick = function()
+			Preferences.show(plugin)
+		end,
+	}
+
+	plugin:newCommand {
 		id = "dmi_report_issue",
 		title = "Report Issue",
 		group = "dmi_editor",

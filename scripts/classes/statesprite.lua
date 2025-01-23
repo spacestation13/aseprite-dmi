@@ -129,7 +129,7 @@ function StateSprite:save_warning()
 	local result = 0
 
 	local dialog = Dialog {
-		title = "Warning",
+		title = "DMI Editor - Warning",
 	}
 
 	local unnamed = false
@@ -138,7 +138,7 @@ function StateSprite:save_warning()
 		unnamed = true
 	end
 
-	local text = "Save changes to the sprite " .. (not unnamed and ('"' .. self.state.name .. '" ') or '') .. 'state of "' .. app.fs.fileName(self.editor:path()) .. '" before closing?'
+	local text = "Save changes to the iconstate " .. (not unnamed and ('"' .. self.state.name .. '" ') or '') .. 'of "' .. app.fs.fileName(self.editor:path()) .. '" before closing?'
 	local lines = string.split_lines(text, 36)
 
 	for i, line in ipairs(lines) do
