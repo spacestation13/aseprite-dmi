@@ -112,7 +112,7 @@ function StateSprite:save()
 				for j = i + 1, #self.sprite.layers do
 					local above_layer = self.sprite.layers[j]
 					if table.index_of(DIRECTION_NAMES, above_layer.name) == 0 then
-						app.activeLayer = above_layer
+						app.layer = above_layer
 						app.command.MergeDownLayer()
 						merged = true
 						break
