@@ -1,19 +1,18 @@
---- @class Preferences
+
 Preferences = {}
+
+--- Initializes the Preferences
+
+-- Store the plugin object in the Preferences class
+Preferences.plugin = plugin
+
+-- Initialize default preferences if not set
+if not Preferences.plugin.preferences.auto_overwrite then
+    Preferences.plugin.preferences.auto_overwrite = false
+end
 
 --- Shows the preferences dialog.
 function Preferences.show(plugin)
-    -- Store the plugin object in the Preferences class
-    Preferences.plugin = plugin
-
-    -- Initialize default preferences if not set
-    if not Preferences.plugin.preferences.auto_overwrite then
-        Preferences.plugin.preferences.auto_overwrite = false
-    end
-    -- if not Preferences.plugin.preferences.auto_flatten then
-    --     Preferences.plugin.preferences.auto_flatten = false
-    -- end
-
     local dialog = Dialog {
         title = "DMI Editor Preferences"
     }

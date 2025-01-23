@@ -311,7 +311,7 @@ function Editor:onbeforecommand(ev)
 				if not state_sprite:save() then
 					ev.stopPropagation()
 				end
-				if Preferences.getAutoOverwrite() then
+				if Preferences.getAutoOverwrite and Preferences.getAutoOverwrite() then
 					self:save(true)
 				end
 				break
