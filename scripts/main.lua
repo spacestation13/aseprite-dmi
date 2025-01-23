@@ -30,6 +30,9 @@ function init(plugin)
 		return
 	end
 
+	-- Initialize Preferences
+	Preferences.initialize(plugin)
+
 	after_listener = app.events:on("aftercommand", function(ev)
 		if ev.name == "OpenFile" then
 			if app.sprite and app.sprite.filename:ends_with(".dmi") then
