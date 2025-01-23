@@ -90,36 +90,32 @@ function StateSprite:save()
 		original_layers = {}
 		for _, layer in ipairs(self.sprite.layers) do
 			table.insert(original_layers, layer)
-			app.alert("Found layer: " .. layer.name)
 		end
 
-		-- Start from top layer, work downwards
-		for i = 1, #self.sprite.layers do
+		-- Process each directional layer, rebuilding layer list after each merge
+		local i = 1
+		while i <= #self.sprite.layers do
 			local layer = self.sprite.layers[i]
-			if table.index_of(DIRECTION_NAMES, layer.name) == 0 then
-				app.alert("Found non-directional layer: " .. layer.name)
-				-- Find nearest directional layer above this one
-				local found_target = false
-				for j = i - 1, 1, -1 do -- (this is an inverted list)
-					if table.index_of(DIRECTION_NAMES, self.sprite.layers[j].name) > 0 then
-						app.alert("Found target directional layer: " .. self.sprite.layers[j].name)
-						-- Select the layer to merge
-						app.activeLayer = layer
-						app.alert("Set active layer to: " .. layer.name)
+			if table.index_of(DIRECTION_NAMES, layer.name) > 0 then
+				-- Look for any non-directional layers above this one
+				local merged = false
+				for j = i + 1, #self.sprite.layers do
+					local above_layer = self.sprite.layers[j]
+					if table.index_of(DIRECTION_NAMES, above_layer.name) == 0 then
+						app.activeLayer = above_layer
 						app.command.MergeDownLayer()
-						app.alert("Merged down layer")
-						found_target = true
+						merged = true
 						break
 					end
 				end
-				if not found_target then
-					app.alert("No target directional layer found below " .. layer.name)
-					break -- No more directional layers below
+				-- Don't increment i if we merged, as we need to check the same position again
+				if not merged then
+					i = i + 1
 				end
+			else
+				i = i + 1
 			end
 		end
-	else
-		app.alert("Auto-flatten is disabled")
 	end
 
 	self.state.frame_count = #self.sprite.frames
