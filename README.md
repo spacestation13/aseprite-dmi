@@ -1,5 +1,5 @@
-> [!WARNING]
-> ⚠ This project is no longer maintained by the creator, and has been taken under stewardship of the SS13 org to provide small updates and merge PRs. Don't expect significant developer additions. ⚠
+> [!NOTE]
+> This project is no longer maintained by the original creator, and has been taken under stewardship of the SS13 org to provide small updates and allow for community support.
 
 # DMI Editor for Aseprite
 
@@ -52,4 +52,4 @@ Push a tag like `v1.0.8` via `git`, after changing the Cargo.toml and package.js
 
 **GPLv3**, for more details see the [LICENSE](./LICENSE).
 
-Originally created by `Seefaaa`.
+Originally created by [Seefaaa](https://github.com/Seefaaa).
