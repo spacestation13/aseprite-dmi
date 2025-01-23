@@ -35,6 +35,12 @@ In Aseprite's timeline, new frames can be added and delays between frames can be
 
 The DMI file may be expanded, resized, or cropped via the `File > DMI Editor` menu. It should be noted that the active sprite must be a DMI state in order to utilise these commands.
 
+### Plugin Preferences
+Under the `File > DMI Editor` menu, there is an `Extensions` menu which contains various options:
+
+- **Auto Overwrite**: Automatically overwrites the source DMI file when saving an iconstate.
+- **Auto Flatten** *(Enabled by Default)*: Automatically flattens layers downward into directional layers when saving an iconstate, allowing you to fully use Aseprite layers.
+
 ## Building the Project
 
 ### Requirements

@@ -11,7 +11,7 @@ function Preferences.initialize(plugin)
 		Preferences.plugin.preferences.auto_overwrite = false
 	end
 	if not Preferences.plugin.preferences.auto_flatten then
-		Preferences.plugin.preferences.auto_flatten = false
+		Preferences.plugin.preferences.auto_flatten = true
 	end
 end
 
