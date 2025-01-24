@@ -99,6 +99,35 @@ function Editor:onpaint(ctx)
 		end
 	end
 
+	-- Add dragging overlay
+	if self.dragging and self.drag_widget then
+		local widget = self.drag_widget --[[ @as IconWidget ]]
+		local drag_bounds = Rectangle(
+			self.mouse.position.x - widget.bounds.width/2,
+			self.mouse.position.y - widget.bounds.height/2,
+			widget.bounds.width,
+			widget.bounds.height
+		)
+
+		ctx.opacity = 128
+		ctx:drawThemeRect(COMMON_STATE.hot.part, drag_bounds)
+		ctx:drawImage(
+			widget.icon,
+			widget.icon.bounds,
+			Rectangle(drag_bounds.x + (drag_bounds.width - self.dmi.width) / 2,
+				drag_bounds.y + (drag_bounds.height - self.dmi.height) / 2,
+				widget.icon.bounds.width,
+				widget.icon.bounds.height)
+		)
+		ctx.opacity = 255
+
+		-- Draw insert indicator
+		if self.drop_index then
+			local drop_bounds = self:box_bounds(self.drop_index)
+			ctx:drawThemeRect("selected", Rectangle(drop_bounds.x - 2, drop_bounds.y - 2, 4, drop_bounds.height + 4))
+		end
+	end
+
 	if self.context_widget then
 		local widget = self.context_widget --[[ @as ContextWidget ]]
 
@@ -273,6 +302,15 @@ function Editor:onmousedown(ev)
 	if ev.button == MouseButton.LEFT then
 		self.mouse.leftClick = true
 		self.focused_widget = nil
+
+		-- Start potential drag
+		for _, widget in ipairs(self.widgets) do
+			if widget.type == "IconWidget" and widget.bounds:contains(Point(ev.x, ev.y)) then
+				self.drag_widget = widget
+				self.drag_start_time = os.clock()
+				break
+			end
+		end
 	elseif ev.button == MouseButton.RIGHT then
 		self.mouse.rightClick = true
 		self.focused_widget = nil
@@ -327,6 +365,55 @@ function Editor:onmouseup(ev)
 			end
 		end
 		if ev.button == MouseButton.LEFT then
+			if self.dragging and self.drag_widget and self.drop_index then
+				-- Find source state index using widget index and scroll offset
+				local source_index = nil
+				local min_index = self.max_in_a_row * self.scroll
+
+				for i, widget in ipairs(self.widgets) do
+					if widget == self.drag_widget then
+						-- Calculate actual state index from widget position
+						local widget_pos = math.floor((i - 1) / 2) + 1  -- Account for text widgets
+						source_index = widget_pos + min_index
+						break
+					end
+				end
+
+				-- Ensure we don't drop past the last valid position
+				local target_index = math.min(self.drop_index or #self.dmi.states, #self.dmi.states)
+
+				if source_index and source_index <= #self.dmi.states then
+					-- Only move if target is different and valid
+					if source_index ~= target_index then
+						local state = table.remove(self.dmi.states, source_index)
+						table.insert(self.dmi.states, target_index, state)
+
+						-- Calculate new scroll position to keep the moved item visible
+						local target_row = math.floor((target_index - 1) / self.max_in_a_row)
+						local visible_rows = self.max_in_a_column
+
+						-- Adjust scroll to ensure target row is visible
+						if target_row < self.scroll then
+							self.scroll = target_row
+						elseif target_row >= self.scroll + visible_rows then
+							self.scroll = target_row - visible_rows + 1
+						end
+
+						self:repaint_states()
+					end
+				end
+			elseif self.drag_widget and not self.dragging then
+				-- Handle as normal click
+				if self.drag_widget.onleftclick then
+					self.drag_widget.onleftclick(ev)
+				end
+			end
+
+			-- Reset drag state
+			self.dragging = false
+			self.drag_widget = nil
+			self.drag_start_time = nil
+			self.drop_index = nil
 			self.mouse.leftClick = false
 		elseif ev.button == MouseButton.RIGHT then
 			self.mouse.rightClick = false
@@ -344,9 +431,45 @@ function Editor:onmousemove(ev)
 	local should_repaint = false
 	local hovering_widgets = {} --[[@type AnyWidget[] ]]
 
+	-- Always repaint if dragging to ensure smooth preview updates
+	if self.dragging then
+		should_repaint = true
+	end
+
 	for _, widget in ipairs(self.widgets) do
 		if widget.bounds:contains(mouse_position) then
 			table.insert(hovering_widgets, widget)
+		end
+	end
+
+	-- Handle dragging
+	if self.mouse.leftClick and self.drag_widget and not self.dragging then
+		-- Start drag after small delay/movement
+		if os.clock() - self.drag_start_time > 0.1 then
+			self.dragging = true
+			should_repaint = true
+		end
+	end
+
+	if self.dragging then
+		-- Find potential drop location
+		local closest_index = nil
+		local closest_dist = math.huge
+
+		-- Limit to valid positions (not beyond the last state + 1)
+		for i = 1, #self.dmi.states + 1 do
+			local bounds = self:box_bounds(i)
+			local center = Point(bounds.x + bounds.width/2, bounds.y + bounds.height/2)
+			local dist = math.abs(mouse_position.x - center.x) + math.abs(mouse_position.y - center.y)
+
+			if dist < closest_dist then
+				closest_dist = dist
+				closest_index = i
+			end
+		end
+
+		if self.drop_index ~= closest_index then
+			self.drop_index = closest_index
 		end
 	end
 

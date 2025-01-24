@@ -1,5 +1,5 @@
 > [!NOTE]
-> This project is no longer maintained by the original creator, and has been taken under stewardship of the SS13 org to provide small updates and allow for community support.
+> This project has been taken under stewardship of the SS13 org to provide updates and allow for community support, as the original creator is no longer maintaining it.
 
 # DMI Editor for Aseprite
 
