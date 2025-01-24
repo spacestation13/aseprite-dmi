@@ -9,11 +9,13 @@ This project is a DMI (BYOND's Dream Maker icon files) editor extension for Asep
 
 The latest version of this extension is available for download from the [Releases](https://github.com/spacestation13/aseprite-dmi/releases) page on the project's GitHub repository.
 
+The plguin will also prompt you to download an update when a new version is released.
+
 ## Usage
 
 Once the project has been downloaded or built, the extension can be added to Aseprite by dragging and dropping it into the application or by selecting the 'Add Extension' button in the 'Edit > Preferences > Extensions' menu.
 
-DMI files can now be opened in Aseprite in the same way as any other file format.
+DMI files can now be opened in Aseprite in the same way as any other file format. You will need to change the open file doalog filter to 'All Filters'.
 
 ### Creating New Files
 
@@ -33,7 +35,7 @@ In Aseprite's timeline, new frames can be added and delays between frames can be
 
 ### Expand, Resize, Crop
 
-The DMI file may be expanded, resized, or cropped via the `File > DMI Editor` menu. It should be noted that the active sprite must be a DMI state in order to utilise these commands.
+The DMI file may be expanded, resized, or cropped via the `File > DMI Editor` menu. It should be noted that the active sprite must be a DMI iconstate in order to utilise these commands.
 
 ### Plugin Preferences
 Under the `File > DMI Editor` menu, there is an `Preferences` menu which contains various options:
