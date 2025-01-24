@@ -303,12 +303,15 @@ function Editor:onmousedown(ev)
 		self.mouse.leftClick = true
 		self.focused_widget = nil
 
-		-- Start potential drag
-		for _, widget in ipairs(self.widgets) do
-			if widget.type == "IconWidget" and widget.bounds:contains(Point(ev.x, ev.y)) then
-				self.drag_widget = widget
-				self.drag_start_time = os.clock()
-				break
+		-- Only start drag if we're not clicking on a context menu
+		if not self.context_widget then
+			-- Start potential drag
+			for _, widget in ipairs(self.widgets) do
+				if widget.type == "IconWidget" and widget.bounds:contains(Point(ev.x, ev.y)) then
+					self.drag_widget = widget
+					self.drag_start_time = os.clock()
+					break
+				end
 			end
 		end
 	elseif ev.button == MouseButton.RIGHT then
@@ -358,7 +361,7 @@ function Editor:onmouseup(ev)
 					self.context_widget = ContextWidget.new(
 						Rectangle(ev.x, ev.y, 0, 0),
 						{
-							{ text = "Paste", onclick = function() self:paste_state() end },
+							{ text = "Paste", onclick = function() self:clipboard_paste_state() end },
 						}
 					)
 				end
