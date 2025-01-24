@@ -366,22 +366,27 @@ function Editor:onmouseup(ev)
 		end
 		if ev.button == MouseButton.LEFT then
 			if self.dragging and self.drag_widget and self.drop_index then
-				-- Find source state index
-				local source_index
-				for i, state in ipairs(self.dmi.states) do
-					if state.frame_key == self.drag_widget.icon.frame_key then
-						source_index = i
-						break
+				-- Find source state index by counting IconWidgets up to our dragged widget
+				local source_index = nil
+				local icon_count = 0
+				for i, widget in ipairs(self.widgets) do
+					if widget.type == "IconWidget" then
+						icon_count = icon_count + 1
+						if widget == self.drag_widget then
+							source_index = icon_count + self.max_in_a_row * self.scroll
+							break
+						end
 					end
 				end
 
-				if source_index then
+				if source_index and source_index <= #self.dmi.states then
 					-- Reorder states
-					local state = table.remove(self.dmi.states, source_index)
 					local target_index = self.drop_index
-					if source_index < self.drop_index then
+					if source_index < target_index then
 						target_index = target_index - 1
 					end
+
+					local state = table.remove(self.dmi.states, source_index)
 					table.insert(self.dmi.states, target_index, state)
 
 					-- Reset scroll to show the moved item
@@ -389,7 +394,7 @@ function Editor:onmouseup(ev)
 					self:repaint_states()
 				end
 			elseif self.drag_widget and not self.dragging then
-				-- Handle as normal click if we didn't drag
+				-- Handle as normal click
 				if self.drag_widget.onleftclick then
 					self.drag_widget.onleftclick(ev)
 				end
