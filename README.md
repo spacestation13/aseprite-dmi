@@ -9,7 +9,7 @@ This project is a DMI (BYOND's Dream Maker icon files) editor extension for Asep
 
 The latest version of this extension is available for download from the [Releases](https://github.com/spacestation13/aseprite-dmi/releases) page on the project's GitHub repository.
 
-The plguin will also prompt you to download an update when a new version is released.
+The plugin will also prompt you to download an update when a new version is released.
 
 ## Usage
 
