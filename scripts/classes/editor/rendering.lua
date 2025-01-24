@@ -358,7 +358,7 @@ function Editor:onmouseup(ev)
 					self.context_widget = ContextWidget.new(
 						Rectangle(ev.x, ev.y, 0, 0),
 						{
-							{ text = "Paste", onclick = function() self:paste_state() end },
+							{ text = "Paste", onclick = function() self:clipboard_paste_state() end },
 						}
 					)
 				end
