@@ -1,5 +1,5 @@
 > [!NOTE]
-> This project has been taken under stewardship of the SS13 org to provide updates and allow for community support, as the original creator is no longer maintaining it.
+> This project has been taken under stewardship of the SS13 org to provide updates and allow for community support, as the original creator [is no longer maintaining it](https://github.com/Seefaaa/aseprite-dmi).
 
 # DMI Editor for Aseprite
 
@@ -60,4 +60,4 @@ Push a tag like `v1.0.8` via `git`, after changing the Cargo.toml and package.js
 
 **GPLv3**, for more details see the [LICENSE](./LICENSE).
 
-Originally created by [Seefaaa](https://github.com/Seefaaa).
+Originally created by [Seefaaa](https://github.com/Seefaaa) at https://github.com/Seefaaa/aseprite-dmi.
