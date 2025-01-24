@@ -21,7 +21,7 @@ DMI files can now be opened in Aseprite in the same way as any other file format
 
 New files can be created via the following pathway: `File > DMI Editor > New DMI File`.
 
-### Changing State Properties
+### Changing Iconstate Properties
 
 The state properties, including the state name, can be modified by right clicking on the state or by clicking on the text below the state in the editor.
 
