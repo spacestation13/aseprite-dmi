@@ -19,6 +19,9 @@ open_editors = {}
 --- @type LibDmi
 libdmi = nil
 
+--- Tracks if we're doing a no-editor DMI open
+local opening_dmi_noeditor = false
+
 --- Initializes the plugin. Called when the plugin is loaded.
 --- @param plugin Plugin The plugin object.
 function init(plugin)
@@ -35,7 +38,8 @@ function init(plugin)
 
 	after_listener = app.events:on("aftercommand", function(ev)
 		if ev.name == "OpenFile" then
-			if app.sprite and app.sprite.filename:ends_with(".dmi") then
+			-- Skip DMI editor if coming from Raw Open command
+			if app.sprite and app.sprite.filename:ends_with(".dmi") and not opening_dmi_noeditor then
 				local filename = app.sprite.filename
 				app.command.CloseFile { ui = false }
 
@@ -43,6 +47,8 @@ function init(plugin)
 
 				Editor.new(DIALOG_NAME, filename)
 			end
+			-- Reset the flag after handling the OpenFile event
+			opening_dmi_noeditor = false
 		elseif ev.name == "Exit" then
 			exiting = true
 		end
@@ -90,6 +96,16 @@ function init(plugin)
 		group = "dmi_editor",
 		onclick = function()
 			Editor.new_file(plugin.path)
+		end,
+	}
+
+	plugin:newCommand {
+		id = "dmi_raw_open",
+		title = "Open DMI (No Editor - Will Delete DMI Metadata!!)",
+		group = "dmi_editor",
+		onclick = function()
+			opening_dmi_noeditor = true
+			app.command.OpenFile()
 		end,
 	}
 
