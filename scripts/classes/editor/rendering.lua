@@ -366,13 +366,15 @@ function Editor:onmouseup(ev)
 		end
 		if ev.button == MouseButton.LEFT then
 			if self.dragging and self.drag_widget and self.drop_index then
-				-- Find source state index using the visible widgets and scroll offset
+				-- Find source state index using widget index and scroll offset
 				local source_index = nil
+				local min_index = self.max_in_a_row * self.scroll
+
 				for i, widget in ipairs(self.widgets) do
 					if widget == self.drag_widget then
 						-- Calculate actual state index from widget position
 						local widget_pos = math.floor((i - 1) / 2) + 1  -- Account for text widgets
-						source_index = widget_pos + self.max_in_a_row * self.scroll
+						source_index = widget_pos + min_index
 						break
 					end
 				end
@@ -383,11 +385,19 @@ function Editor:onmouseup(ev)
 					-- Only move if target is different
 					if source_index ~= target_index then
 						local state = table.remove(self.dmi.states, source_index)
-
 						table.insert(self.dmi.states, target_index, state)
 
-						-- Reset scroll to show the moved item
-						self.scroll = math.floor((target_index - 1) / self.max_in_a_row)
+						-- Calculate new scroll position to keep the moved item visible
+						local target_row = math.floor((target_index - 1) / self.max_in_a_row)
+						local visible_rows = self.max_in_a_column
+
+						-- Adjust scroll to ensure target row is visible
+						if target_row < self.scroll then
+							self.scroll = target_row
+						elseif target_row >= self.scroll + visible_rows then
+							self.scroll = target_row - visible_rows + 1
+						end
+
 						self:repaint_states()
 					end
 				end
