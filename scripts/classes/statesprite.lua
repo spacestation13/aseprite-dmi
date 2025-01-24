@@ -102,30 +102,35 @@ function StateSprite:save()
 			table.insert(original_layers, layer)
 		end
 
-		-- Process each directional layer, rebuilding layer list after each merge
-		local i = 1
-		while i <= #self.sprite.layers do
-			local layer = self.sprite.layers[i]
-			if table.index_of(DIRECTION_NAMES, layer.name) > 0 then
-				-- Look for any non-directional layers above this one
-				local merged = false
-				for j = i + 1, #self.sprite.layers do
-					local above_layer = self.sprite.layers[j]
-					if table.index_of(DIRECTION_NAMES, above_layer.name) == 0 then
-						app.layer = above_layer
-						app.command.MergeDownLayer()
-						merged = true
-						break
+		app.transaction(
+			"Flatten Layers (DMI Editor)",
+			function()
+				-- Process each directional layer, rebuilding layer list after each merge
+				local i = 1
+				while i <= #self.sprite.layers do
+					local layer = self.sprite.layers[i]
+					if table.index_of(DIRECTION_NAMES, layer.name) > 0 then
+						-- Look for any non-directional layers above this one
+						local merged = false
+						for j = i + 1, #self.sprite.layers do
+							local above_layer = self.sprite.layers[j]
+							if table.index_of(DIRECTION_NAMES, above_layer.name) == 0 then
+								app.layer = above_layer
+								app.command.MergeDownLayer()
+								merged = true
+								break
+							end
+						end
+						-- Don't increment i if we merged, as we need to check the same position again
+						if not merged then
+							i = i + 1
+						end
+					else
+						i = i + 1
 					end
 				end
-				-- Don't increment i if we merged, as we need to check the same position again
-				if not merged then
-					i = i + 1
-				end
-			else
-				i = i + 1
 			end
-		end
+		)
 	end
 
 	self.state.frame_count = #self.sprite.frames
@@ -163,11 +168,9 @@ function StateSprite:save()
 	self.editor:repaint_states()
 	self.editor.modified = true
 
-	-- Restore original layers if we flattened by undoing all the merges
-	if original_layers then
-		while #original_layers > #self.sprite.layers do
-			app.command.Undo()
-		end
+	-- Restore original layers if we flattened by undoing the transaction from above
+	if Preferences.getAutoFlatten() then
+		app.command.Undo()
 	end
 
 	return true
