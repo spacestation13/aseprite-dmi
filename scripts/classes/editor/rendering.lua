@@ -440,7 +440,7 @@ function Editor:onmousemove(ev)
 		if widget.bounds:contains(mouse_position) then
 			table.insert(hovering_widgets, widget)
 		end
-	 end
+	end
 
 	-- Handle dragging
 	if self.mouse.leftClick and self.drag_widget and not self.dragging then
