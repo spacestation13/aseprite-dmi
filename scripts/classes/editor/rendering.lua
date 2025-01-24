@@ -379,10 +379,11 @@ function Editor:onmouseup(ev)
 					end
 				end
 
-				if source_index and source_index <= #self.dmi.states then
-					local target_index = self.drop_index
+				-- Ensure we don't drop past the last valid position
+				local target_index = math.min(self.drop_index or #self.dmi.states, #self.dmi.states)
 
-					-- Only move if target is different
+				if source_index and source_index <= #self.dmi.states then
+					-- Only move if target is different and valid
 					if source_index ~= target_index then
 						local state = table.remove(self.dmi.states, source_index)
 						table.insert(self.dmi.states, target_index, state)
@@ -455,6 +456,7 @@ function Editor:onmousemove(ev)
 		local closest_index = nil
 		local closest_dist = math.huge
 
+		-- Limit to valid positions (not beyond the last state + 1)
 		for i = 1, #self.dmi.states + 1 do
 			local bounds = self:box_bounds(i)
 			local center = Point(bounds.x + bounds.width/2, bounds.y + bounds.height/2)
