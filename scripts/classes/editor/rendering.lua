@@ -422,11 +422,16 @@ function Editor:onmousemove(ev)
 	local should_repaint = false
 	local hovering_widgets = {} --[[@type AnyWidget[] ]]
 
+	-- Always repaint if dragging to ensure smooth preview updates
+	if self.dragging then
+		should_repaint = true
+	end
+
 	for _, widget in ipairs(self.widgets) do
 		if widget.bounds:contains(mouse_position) then
 			table.insert(hovering_widgets, widget)
 		end
-	end
+	 end
 
 	-- Handle dragging
 	if self.mouse.leftClick and self.drag_widget and not self.dragging then
@@ -455,7 +460,6 @@ function Editor:onmousemove(ev)
 
 		if self.drop_index ~= closest_index then
 			self.drop_index = closest_index
-			should_repaint = true
 		end
 	end
 
