@@ -102,29 +102,31 @@ function Editor:onpaint(ctx)
 	-- Add dragging overlay
 	if self.dragging and self.drag_widget then
 		local widget = self.drag_widget --[[ @as IconWidget ]]
-		local drag_bounds = Rectangle(
-			self.mouse.position.x - widget.bounds.width/2,
-			self.mouse.position.y - widget.bounds.height/2,
-			widget.bounds.width,
-			widget.bounds.height
-		)
+		if widget and widget.icon then
+			local drag_bounds = Rectangle(
+				self.mouse.position.x - widget.bounds.width/2,
+				self.mouse.position.y - widget.bounds.height/2,
+				widget.bounds.width,
+				widget.bounds.height
+			)
 
-		ctx.opacity = 128
-		ctx:drawThemeRect(COMMON_STATE.hot.part, drag_bounds)
-		ctx:drawImage(
-			widget.icon,
-			widget.icon.bounds,
-			Rectangle(drag_bounds.x + (drag_bounds.width - self.dmi.width) / 2,
-				drag_bounds.y + (drag_bounds.height - self.dmi.height) / 2,
-				widget.icon.bounds.width,
-				widget.icon.bounds.height)
-		)
-		ctx.opacity = 255
+			ctx.opacity = 128
+			ctx:drawThemeRect(COMMON_STATE.hot.part, drag_bounds)
+			ctx:drawImage(
+				widget.icon,
+				widget.icon.bounds,
+				Rectangle(drag_bounds.x + (drag_bounds.width - self.dmi.width) / 2,
+					drag_bounds.y + (drag_bounds.height - self.dmi.height) / 2,
+					widget.icon.bounds.width,
+					widget.icon.bounds.height)
+			)
+			ctx.opacity = 255
 
-		-- Draw insert indicator
-		if self.drop_index then
-			local drop_bounds = self:box_bounds(self.drop_index)
-			ctx:drawThemeRect("selected", Rectangle(drop_bounds.x - 2, drop_bounds.y - 2, 4, drop_bounds.height + 4))
+			-- Draw insert indicator
+			if self.drop_index then
+				local drop_bounds = self:box_bounds(self.drop_index)
+				ctx:drawThemeRect("selected", Rectangle(drop_bounds.x - 2, drop_bounds.y - 2, 4, drop_bounds.height + 4))
+			end
 		end
 	end
 
