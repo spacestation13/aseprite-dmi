@@ -134,6 +134,7 @@ function Editor:state_context(state, ev)
 			{ text = "Open",       onclick = function() self:open_state(state) end },
 			{ text = "Copy",       onclick = function() self:copy_state(state) end },
 			{ text = "Remove",     onclick = function() self:remove_state(state) end },
+			{ text = "Split",      onclick = function() self:split_state(state) end },
 		}
 	)
 	self:repaint()

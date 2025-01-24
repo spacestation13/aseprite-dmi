@@ -153,6 +153,12 @@ fn expand(
     Ok(LuaValue::Nil)
 }
 
+// Direction names to append to the state name
+const DIRECTION_NAMES: [&str; 8] = [
+    "south", "north", "east", "west",
+    "southeast", "southwest", "northeast", "northwest"
+];
+
 fn overlay_color(
     _: &Lua,
     (r, g, b, width, height, bytes): (u8, u8, u8, u32, u32, LuaMultiValue),
