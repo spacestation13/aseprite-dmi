@@ -102,31 +102,29 @@ function Editor:onpaint(ctx)
 	-- Add dragging overlay
 	if self.dragging and self.drag_widget then
 		local widget = self.drag_widget --[[ @as IconWidget ]]
-		if widget and widget.icon then
-			local drag_bounds = Rectangle(
-				self.mouse.position.x - widget.bounds.width/2,
-				self.mouse.position.y - widget.bounds.height/2,
-				widget.bounds.width,
-				widget.bounds.height
-			)
+		local drag_bounds = Rectangle(
+			self.mouse.position.x - widget.bounds.width/2,
+			self.mouse.position.y - widget.bounds.height/2,
+			widget.bounds.width,
+			widget.bounds.height
+		)
 
-			ctx.opacity = 128
-			ctx:drawThemeRect(COMMON_STATE.hot.part, drag_bounds)
-			ctx:drawImage(
-				widget.icon,
-				widget.icon.bounds,
-				Rectangle(drag_bounds.x + (drag_bounds.width - self.dmi.width) / 2,
-					drag_bounds.y + (drag_bounds.height - self.dmi.height) / 2,
-					widget.icon.bounds.width,
-					widget.icon.bounds.height)
-			)
-			ctx.opacity = 255
+		ctx.opacity = 128
+		ctx:drawThemeRect(COMMON_STATE.hot.part, drag_bounds)
+		ctx:drawImage(
+			widget.icon,
+			widget.icon.bounds,
+			Rectangle(drag_bounds.x + (drag_bounds.width - self.dmi.width) / 2,
+				drag_bounds.y + (drag_bounds.height - self.dmi.height) / 2,
+				widget.icon.bounds.width,
+				widget.icon.bounds.height)
+		)
+		ctx.opacity = 255
 
-			-- Draw insert indicator
-			if self.drop_index then
-				local drop_bounds = self:box_bounds(self.drop_index)
-				ctx:drawThemeRect("selected", Rectangle(drop_bounds.x - 2, drop_bounds.y - 2, 4, drop_bounds.height + 4))
-			end
+		-- Draw insert indicator
+		if self.drop_index then
+			local drop_bounds = self:box_bounds(self.drop_index)
+			ctx:drawThemeRect("selected", Rectangle(drop_bounds.x - 2, drop_bounds.y - 2, 4, drop_bounds.height + 4))
 		end
 	end
 
@@ -305,12 +303,15 @@ function Editor:onmousedown(ev)
 		self.mouse.leftClick = true
 		self.focused_widget = nil
 
-		-- Start potential drag
-		for _, widget in ipairs(self.widgets) do
-			if widget.type == "IconWidget" and widget.bounds:contains(Point(ev.x, ev.y)) then
-				self.drag_widget = widget
-				self.drag_start_time = os.clock()
-				break
+		-- Only start drag if we're not clicking on a context menu
+		if not self.context_widget then
+			-- Start potential drag
+			for _, widget in ipairs(self.widgets) do
+				if widget.type == "IconWidget" and widget.bounds:contains(Point(ev.x, ev.y)) then
+					self.drag_widget = widget
+					self.drag_start_time = os.clock()
+					break
+				end
 			end
 		end
 	elseif ev.button == MouseButton.RIGHT then
