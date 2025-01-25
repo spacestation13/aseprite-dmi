@@ -16,6 +16,7 @@ jobs:
           image: registry.gitlab.steamos.cloud/steamrt/scout/sdk
           options: -v ${{ github.workspace }}:/work
           run: |
+            # start
             set -ex
             apt-get update
             apt-get install -y curl build-essential
