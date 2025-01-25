@@ -42,16 +42,22 @@ jobs:
 
             cd "lua-5.4.6"
             make clean
-            make MYCFLAGS="-fPIC" MYLDFLAGS="-shared" linux
+
+            # Build the object files with PIC
+            cd src
+            gcc -std=gnu99 -O2 -Wall -Wextra -DLUA_COMPAT_5_3 -DLUA_USE_LINUX -fPIC -c *.c
+
+            # Create shared library directly
+            gcc -shared -o liblua5.4.so *.o -lm -ldl
 
             # Verify build output
-            if [ ! -f src/liblua.so ]; then
+            if [ ! -f liblua5.4.so ]; then
               echo "Build failed - library not found"
               exit 1
             fi
 
             mkdir -p /work/artifacts
-            cp src/liblua.so /work/artifacts/liblua5.4.so
+            cp liblua5.4.so /work/artifacts/
 
             # Verify copy
             if [ ! -f /work/artifacts/liblua5.4.so ]; then
