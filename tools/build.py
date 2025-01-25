@@ -84,7 +84,7 @@ if win:
             os.remove(zip_path)
 elif CI and sys.platform.startswith('linux'):
     # For CI Linux builds, Lua library should already be in dist/unzipped
-    lua_library = "liblua.so"
+    lua_library = f"{library_prefix}lua5.4{library_extension}"
     if not os.path.exists(os.path.join("dist", "unzipped", lua_library)):
         print("Error: Steam Runtime Lua library not found")
         sys.exit(1)
