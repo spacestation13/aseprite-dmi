@@ -36,12 +36,12 @@ jobs:
 
             # Extract with verification
             tar xf lua.tar.gz
-            if [ ! -d "lua-5.4.6" ]; then
+            if [ ! -d "lua-5.4.7" ]; then
               echo "Extraction failed"
               exit 1
             fi
 
-            cd "lua-5.4.6"
+            cd "lua-5.4.7"
 
             # Create patches
             cat > lua-shared-lib.patch << 'EOF'
