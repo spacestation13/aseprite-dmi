@@ -1,0 +1,42 @@
+name: Build Rust Library
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build-rust.yml'
+      - 'lib/**'
+
+jobs:
+  build-rust:
+    name: Build Rust in Steam Runtime
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build in Steam Runtime container
+        uses: addnab/docker-run-action@v3
+        with:
+          image: registry.gitlab.steamos.cloud/steamrt/scout/sdk
+          options: -v ${{ github.workspace }}:/work
+          run: |
+            set -ex
+            apt-get update
+            apt-get install -y curl build-essential
+
+            # Install Rust
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            source "$HOME/.cargo/env"
+
+            cd /work/lib
+            cargo build --release
+
+            # Copy built library
+            mkdir -p /work/artifacts
+            cp target/release/libdmi.so /work/artifacts/
+
+      - name: Upload Rust library
+        uses: actions/upload-artifact@v4
+        with:
+          name: steamrt-rust
+          path: artifacts/libdmi.so
+          if-no-files-found: error

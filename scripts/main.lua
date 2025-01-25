@@ -225,43 +225,54 @@ end
 --- Loads the DMI library.
 --- @param plugin_path string Path where the extension is installed.
 function loadlib(plugin_path)
-    if not app.os.windows then
-        -- Update library path based on OS
-        if app.os.macos then
-            package.cpath = package.cpath .. ";?.dylib"
-            LUA_LIB = "liblua54.dylib"
-        else
-            package.cpath = package.cpath .. ";?.so"
-            LUA_LIB = "liblua5.4.so"
-        end
-    end
+	if not app.os.windows then
+		-- Update library path based on OS
+		if app.os.macos then
+			package.cpath = package.cpath .. ";?.dylib"
+			LUA_LIB = "liblua54.dylib"
+		else
+			package.cpath = package.cpath .. ";?.so"
+			LUA_LIB = "liblua5.4.so"
+		end
+	end
 
-    -- Load Lua library
-    if LUA_LIB then
-        local lua_path = app.fs.joinPath(plugin_path, LUA_LIB)
-        local success, err = package.loadlib(lua_path, "")
-        if not success then
-            app.alert {
-                title = "Lua Library Error",
-                text = "Failed to load Lua library: " .. (err or "unknown error"),
-            }
-            return
-        end
-    end
+	-- Load Lua library
+	if LUA_LIB then
+		local lua_path = app.fs.joinPath(plugin_path, LUA_LIB)
+		local success, err = package.loadlib(lua_path, "")
+		if not success then
+			-- Get detailed library info using ldd and nm
+			local log_file = app.fs.joinPath(plugin_path, "lua_library_error.log")
+			local ldd_cmd = string.format('ldd %q > %q', lua_path, log_file)
+			local nm_cmd = string.format('nm -D %q >> %q', lua_path, log_file)
 
-    -- Load DMI library
-    local dmi_path = app.fs.joinPath(plugin_path, DMI_LIB)
-    local success, lib = pcall(package.loadlib, dmi_path, "luaopen_dmi_module")
-    if not success then
-        app.alert {
-            title = "DMI Library Error",
-            text = "Failed to load DMI library: " .. (lib or "unknown error"),
-        }
-        return
-    end
+			os.execute(ldd_cmd)
+			os.execute('echo "\nExported symbols:" >> ' .. string.format('%q', log_file))
+			os.execute(nm_cmd)
+			os.execute('echo "\nError: " >> ' .. string.format('%q', log_file))
+			os.execute(string.format('echo %q >> %q', err or "unknown error", log_file))
 
-    libdmi = lib()
-    general_check()
+			app.alert {
+				title = "Lua Library Error",
+				text = "Failed to load Lua library. Check the log file at " .. log_file .. " for details",
+			}
+			return
+		end
+	end
+
+	-- Load DMI library
+	local dmi_path = app.fs.joinPath(plugin_path, DMI_LIB)
+	local success, lib = package.loadlib(dmi_path, "luaopen_dmi_module")()
+	if not success then
+		app.alert {
+			title = "DMI Library Error",
+			text = "Failed to load DMI library: " .. (lib or "unknown error"),
+		}
+		return
+	end
+
+	libdmi = lib()
+	general_check()
 end
 
 

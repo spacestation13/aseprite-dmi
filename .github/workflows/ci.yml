@@ -26,7 +26,7 @@ on:
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # we need to build this in the hellish registry.gitlab.steamos.cloud/steamrt/scout/sdk because of too new of glibc
     steps:
       - uses: actions/checkout@v4
 
@@ -82,16 +82,20 @@ jobs:
         with:
           workspaces: "./lib -> target"
 
-      - name: Download Steam Runtime Lua library
+      - name: Download Steam Runtime libraries
         if: matrix.os == 'ubuntu-latest'
         uses: dawidd6/action-download-artifact@v8
         with:
-          workflow: build-lua.yml
-          name: steamrt-lua
+          workflow: |
+            build-lua.yml
+            build-rust.yml
+          name: |
+            steamrt-lua
+            steamrt-rust
           path: to-copy
           search_artifacts: true
 
-      - name: Verify Lua library download
+      - name: Verify library downloads
         if: matrix.os == 'ubuntu-latest'
         run: |
           echo "Current directory contents:"
@@ -105,6 +109,7 @@ jobs:
           cargo test --target ${{ matrix.rust-target }} --locked --test dmi
 
       - name: Run cargo build
+        if: matrix.os != 'ubuntu-latest'
         working-directory: lib
         run: |
           cargo build --target ${{ matrix.rust-target }} --locked --release
