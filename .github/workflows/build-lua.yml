@@ -46,15 +46,20 @@ jobs:
 
             # Build the object files with PIC
             cd src
-            # Exclude lua.c and luac.c which contain main()
+            # First compile the library objects (exclude executables)
             for f in l*.c; do
               if [ "$f" != "lua.c" ] && [ "$f" != "luac.c" ]; then
-                gcc -std=gnu99 -O2 -Wall -Wextra -DLUA_COMPAT_5_3 -DLUA_USE_LINUX -fPIC -c "$f"
+                gcc -std=gnu99 -O2 -Wall -Wextra -DLUA_COMPAT_5_3 -DLUA_USE_LINUX -fPIC -DLUA_BUILD_AS_DLL -c "$f"
               fi
             done
 
-            # Create shared library directly (without lua.o and luac.o)
-            gcc -shared -o liblua5.4.so l*.o -lm -ldl
+            # Create shared library with proper version script
+            echo "{ global: lua*; luaL*; luaopen*; local: *; };" > version.script
+            gcc -shared -o liblua5.4.so l*.o -lm -ldl -Wl,--version-script=version.script -Wl,-soname,liblua5.4.so
+
+            # Test the library
+            nm -D liblua5.4.so | grep ' T ' || echo "No exported symbols found!"
+            ldd liblua5.4.so || echo "Library dependencies not found!"
 
             # Verify build output
             if [ ! -f liblua5.4.so ]; then
