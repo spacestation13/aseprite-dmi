@@ -88,25 +88,25 @@ if win:
 elif CI and sys.platform.startswith('linux'):
     # For CI Linux builds, Lua library should already be in dist/unzipped
     lua_library = f"{library_prefix}lua5.4{library_extension}"
-    debug_log(f"Working directory: {working_dir}")
-    debug_log(f"Looking for Lua library: {lua_library}")
+    print(f"Working directory: {working_dir}")
+    print(f"Looking for Lua library: {lua_library}")
 
     # List contents of working directory
-    debug_log("Contents of working directory:")
+    print("Contents of working directory:")
     for item in os.listdir(working_dir):
-        debug_log(f"  {item}")
+        print(f"  {item}")
 
     # Check to-copy directory
     to_copy_path = os.path.join(working_dir, "to-copy")
     lua_path = os.path.join(to_copy_path, lua_library)
-    debug_log(f"Checking for Lua at: {lua_path}")
+    print(f"Checking for Lua at: {lua_path}")
 
     if os.path.exists(to_copy_path):
-        debug_log("Contents of to-copy directory:")
+        print("Contents of to-copy directory:")
         for item in os.listdir(to_copy_path):
-            debug_log(f"  {item}")
+            print(f"  {item}")
     else:
-        debug_log("to-copy directory does not exist!")
+        print("to-copy directory does not exist!")
 
     if not os.path.exists(lua_path):
         print("Error: Steam Runtime Lua library not found")
