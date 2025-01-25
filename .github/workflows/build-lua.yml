@@ -18,15 +18,48 @@ jobs:
           image: registry.gitlab.steamos.cloud/steamrt/scout/sdk
           options: -v ${{ github.workspace }}:/work
           run: |
+            set -ex
             apt-get update
             apt-get install -y curl build-essential
-            cd /tmp
-            curl -L "https://www.lua.org/ftp/lua-${LUA_VERSION}.tar.gz" -o lua.tar.gz
-            tar xzf lua.tar.gz
+
+            WORKDIR="/tmp/lua-build"
+            mkdir -p "$WORKDIR"
+            cd "$WORKDIR"
+
+            # Download with proper error checking
+            curl -fsSL "https://www.lua.org/ftp/lua-${LUA_VERSION}.tar.gz" --output lua.tar.gz
+
+            # Verify download
+            if [ ! -s lua.tar.gz ]; then
+              echo "Download failed or file is empty"
+              exit 1
+            fi
+
+            # Extract with verification
+            tar xf lua.tar.gz
+            if [ ! -d "lua-${LUA_VERSION}" ]; then
+              echo "Extraction failed"
+              exit 1
+            fi
+
             cd "lua-${LUA_VERSION}"
-            make MYCFLAGS=-fPIC MYLDFLAGS=-shared linux
+            make clean
+            make MYCFLAGS="-fPIC" MYLDFLAGS="-shared" linux
+
+            # Verify build output
+            if [ ! -f src/liblua.so ]; then
+              echo "Build failed - library not found"
+              exit 1
+            fi
+
             mkdir -p /work/artifacts
             cp src/liblua.so /work/artifacts/liblua5.4.so
+
+            # Verify copy
+            if [ ! -f /work/artifacts/liblua5.4.so ]; then
+              echo "Failed to copy library"
+              exit 1
+            fi
 
       - name: Upload Lua library
         uses: actions/upload-artifact@v4
