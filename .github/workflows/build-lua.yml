@@ -1,0 +1,40 @@
+name: Build Lua
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build-lua.yml'
+
+jobs:
+  build-lua:
+    name: Build Lua in Steam Runtime
+    runs-on: ubuntu-latest
+    container:
+      image: registry.gitlab.steamos.cloud/steamrt/scout/sdk
+      options: --user root
+    env:
+      LUA_VERSION: 5.4.6
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y curl build-essential
+
+      - name: Download and extract Lua
+        run: |
+          cd /tmp
+          curl -L "https://www.lua.org/ftp/lua-${LUA_VERSION}.tar.gz" -o lua.tar.gz
+          tar xzf lua.tar.gz
+          cd "lua-${LUA_VERSION}"
+
+      - name: Build Lua
+        run: |
+          cd "/tmp/lua-${LUA_VERSION}"
+          make MYCFLAGS=-fPIC MYLDFLAGS=-shared linux
+
+      - name: Upload Lua library
+        uses: actions/upload-artifact@v4
+        with:
+          name: steamrt-lua
+          path: /tmp/lua-${{ env.LUA_VERSION }}/src/liblua.so
+          if-no-files-found: error

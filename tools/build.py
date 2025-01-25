@@ -82,6 +82,16 @@ if win:
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 zip_ref.extract(lua_library, working_dir)
             os.remove(zip_path)
+elif CI and sys.platform.startswith('linux'):
+    # For CI Linux builds, Lua library should already be in dist/unzipped
+    lua_library = "liblua.so"
+    if not os.path.exists(os.path.join("dist", "unzipped", lua_library)):
+        print("Error: Steam Runtime Lua library not found")
+        sys.exit(1)
+elif not CI and sys.platform.startswith('linux'):
+    print("Warning: On Linux, the Lua library must be built in Steam Runtime.")
+    print("Please run the build-lua workflow in GitHub Actions to get the correct library.")
+    sys.exit(1)
 
 dist_dir = os.path.join(working_dir, "dist")
 unzipped_dir = os.path.join(dist_dir, "unzipped")
@@ -97,8 +107,11 @@ shutil.copy("LICENSE", unzipped_dir)
 shutil.copy("README.md", unzipped_dir)
 shutil.copy(library_source, unzipped_dir)
 
-if win:
-    shutil.copy(lua_library, unzipped_dir)
+if win or (CI and sys.platform.startswith('linux')):
+    # On Windows, copy from working dir
+    # On Linux CI, it's already in the right place
+    if win:
+        shutil.copy(lua_library, unzipped_dir)
 
 shutil.copytree(os.path.join("scripts"), os.path.join(unzipped_dir, "scripts"))
 

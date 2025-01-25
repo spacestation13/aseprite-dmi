@@ -82,6 +82,15 @@ jobs:
         with:
           workspaces: "./lib -> target"
 
+      - name: Download Steam Runtime Lua library
+        if: matrix.os == 'ubuntu-latest'
+        uses: dawidd6/action-download-artifact@v8
+        with:
+          workflow: build-lua.yml
+          name: steamrt-lua
+          path: dist/unzipped
+          search_artifacts: true
+
       - name: Run cargo tests
         working-directory: lib
         run: |

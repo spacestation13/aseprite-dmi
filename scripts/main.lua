@@ -226,22 +226,13 @@ end
 --- @param plugin_path string Path where the extension is installed.
 function loadlib(plugin_path)
     if not app.os.windows then
-        local success, err = compile_lua(plugin_path)
-        if not success then
-            app.alert {
-                title = "Lua Compilation Error",
-                text = err or "Unknown error during Lua compilation",
-            }
-            return
-        end
-
         -- Update library path based on OS
         if app.os.macos then
             package.cpath = package.cpath .. ";?.dylib"
-            LUA_LIB = "liblua.dylib"
+            LUA_LIB = "liblua54.dylib"
         else
             package.cpath = package.cpath .. ";?.so"
-            LUA_LIB = "liblua.so"
+            LUA_LIB = "liblua5.4.so"
         end
     end
 
