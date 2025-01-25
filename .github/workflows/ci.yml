@@ -88,8 +88,16 @@ jobs:
         with:
           workflow: build-lua.yml
           name: steamrt-lua
-          path: aseprite-dmi/to-copy
+          path: to-copy
           search_artifacts: true
+
+      - name: Verify Lua library download
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          echo "Current directory contents:"
+          ls -la
+          echo "to-copy directory contents:"
+          ls -la to-copy || echo "to-copy directory not found!"
 
       - name: Run cargo tests
         working-directory: lib
