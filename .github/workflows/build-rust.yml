@@ -28,11 +28,16 @@ jobs:
             strings /lib/x86_64-linux-gnu/libc.so.6 | grep GLIBC_ | sort -V
 
             apt-get update
-            apt-get install -y curl build-essential gcc-9 g++-9
+            apt-get install -y curl build-essential gcc-9 g++-9 wget
 
-            # Install specific older Rust version compatible with glibc 2.15
-            curl --proto '=https' -sSf https://sh.rustup.rs | sh -s -- --default-toolchain 1.54.0 -y
-            . "$HOME/.cargo/env"
+            # Download old rustup-init binary directly
+            mkdir -p ~/.cargo
+            wget -O rustup-init "https://static.rust-lang.org/rustup/archive/1.21.1/x86_64-unknown-linux-gnu/rustup-init"
+            chmod +x rustup-init
+
+            # Install Rust 1.63 (known to support old glibc)
+            RUSTUP_HOME=~/.rustup CARGO_HOME=~/.cargo ./rustup-init -y --no-modify-path --default-toolchain 1.63.0
+            export PATH="$HOME/.cargo/bin:$PATH"
 
             # Verify Rust version and target
             rustc --version
