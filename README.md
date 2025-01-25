@@ -11,6 +11,30 @@ The latest version of this extension is available for download from the [Release
 
 The plugin will also prompt you to download an update when a new version is released.
 
+### Additional Instructions for Linux and macOS
+
+To use this project, you need to have Lua 5.4 installed on your system.
+
+#### Linux
+
+For Debian-based distributions, you can install Lua 5.4 using the following command:
+
+```sh
+apt install lua5.4
+```
+
+Otherwise, follow the relevant instructions for your distribution to install Lua 5.4.
+
+#### macOS
+
+For macOS, you can install Lua 5.4 using Homebrew. First, ensure you have Homebrew installed, then run:
+
+```sh
+brew install lua
+```
+
+Make sure Lua 5.4 is correctly installed by running `lua -v` in your terminal, which should display the version information.
+
 ## Usage
 
 Once the project has been downloaded or built, the extension can be added to Aseprite by dragging and dropping it into the application or by selecting the 'Add Extension' button in the 'Edit > Preferences > Extensions' menu.

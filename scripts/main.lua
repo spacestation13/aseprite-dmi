@@ -42,7 +42,10 @@ function init(plugin)
 			if app.sprite and app.sprite.filename:ends_with(".dmi") and not opening_dmi_noeditor then
 				local filename = app.sprite.filename
 				app.command.CloseFile { ui = false }
-
+				app.alert {
+					title = "Lua Library",
+					text = "opening",
+				}
 				loadlib(plugin.path)
 
 				Editor.new(DIALOG_NAME, filename)
@@ -226,12 +229,29 @@ end
 --- Loads the DMI library.
 --- @param plugin_path string Path where the extension is installed.
 function loadlib(plugin_path)
+	app.alert {
+		title = "Lua Library",
+		text = "brr",
+	}
 	if not libdmi then
-		if app.fs.pathSeparator ~= "/" then
-			package.loadlib(app.fs.joinPath(plugin_path, LUA_LIB --[[@as string]]), "")
+		-- Here, we handle loading a full version of Lua instead of the locked-down version that Aseprite uses
+		if not app.os.windows then
+			-- Lua already looks for .so, but for macOS we need to manually add .dylib since Lua is a 'good language'
+			if app.os.macos then
+				package.cpath = package.cpath .. ";?.dylib"
+			end
 		else
-			package.cpath = package.cpath .. ";?.dylib"
+			-- Load Lua library if needed (Windows only)
+			if LUA_LIB then
+				local x = package.loadlib(app.fs.joinPath(plugin_path, LUA_LIB), "")
+				app.alert {
+					title = "Lua Library",
+					text = x and "Lua library loaded successfully." or "Lua library failed to load.",
+				}
+			end
 		end
+
+		-- Load DMI library
 		libdmi = package.loadlib(app.fs.joinPath(plugin_path, DMI_LIB), "luaopen_dmi_module")()
 		general_check()
 	end

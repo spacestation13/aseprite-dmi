@@ -15,6 +15,9 @@ app = {}
 --- @diagnostic disable-next-line: missing-fields
 json = {}
 
+---@type unknown
+local undefined
+
 ------------------- CONSTRUCTORS -------------------
 
 --- @class Point.Params
@@ -274,6 +277,7 @@ WebSocketMessageType = {
 --- @field events app.events
 --- @field theme app.theme
 --- @field fs app.fs
+--- @field os app.os
 
 --- @class app.pixelColor
 --- @field rgba fun(r: number, g: number, b: number, a: number): number
@@ -306,6 +310,17 @@ WebSocketMessageType = {
 --- @field makeDirectory fun(path: string): boolean
 --- @field makeAllDirectories fun(path: string): boolean
 --- @field removeDirectory fun(path: string): boolean
+
+--- @class app.os
+--- @field name string Returns the platform name. It can be `Windows`, `macOS`, or `Linux`.
+-- --- @field version Version Returns a `Version` with the Windows or macOS version. It's just `0.0.0` on Linux.
+--- @field fullName string Returns the full platform name with its version. On Linux returns the distribution name with its specific version. Some examples: `Windows NT 10.0.22631`, `macOS 14.4.1`, `Pop!_OS 22.04 LTS`, etc.
+--- @field windows boolean Returns `true` if we are running in the windows platform.
+--- @field macos boolean Returns `true` if we are running in the macos platform.
+--- @field linux boolean Returns `true` if we are running in the linux platform.
+--- @field x64 boolean Returns `true` if we are running in the x64 platform.
+--- @field x86 boolean Returns `true` if we are running in the x86 platform.
+--- @field arm64 boolean Returns `true` if we are running in the arm64 platform.
 
 --- @class app.alert.Params
 --- @field title? string
