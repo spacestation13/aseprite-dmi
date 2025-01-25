@@ -9,8 +9,6 @@ jobs:
   build-lua:
     name: Build Lua in Steam Runtime
     runs-on: ubuntu-latest
-    env:
-      LUA_VERSION: 5.4.6
     steps:
       - name: Build in Steam Runtime container
         uses: addnab/docker-run-action@v3
@@ -27,7 +25,7 @@ jobs:
             cd "$WORKDIR"
 
             # Download with proper error checking
-            curl -fsSL "https://www.lua.org/ftp/lua-${LUA_VERSION}.tar.gz" --output lua.tar.gz
+            curl -fsSL "https://www.lua.org/ftp/lua-5.4.6.tar.gz" --output lua.tar.gz
 
             # Verify download
             if [ ! -s lua.tar.gz ]; then
@@ -37,12 +35,12 @@ jobs:
 
             # Extract with verification
             tar xf lua.tar.gz
-            if [ ! -d "lua-${LUA_VERSION}" ]; then
+            if [ ! -d "lua-5.4.6" ]; then
               echo "Extraction failed"
               exit 1
             fi
 
-            cd "lua-${LUA_VERSION}"
+            cd "lua-5.4.6"
             make clean
             make MYCFLAGS="-fPIC" MYLDFLAGS="-shared" linux
 
