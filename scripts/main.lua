@@ -42,10 +42,6 @@ function init(plugin)
 			if app.sprite and app.sprite.filename:ends_with(".dmi") and not opening_dmi_noeditor then
 				local filename = app.sprite.filename
 				app.command.CloseFile { ui = false }
-				app.alert {
-					title = "Lua Library",
-					text = "opening",
-				}
 				loadlib(plugin.path)
 
 				Editor.new(DIALOG_NAME, filename)
@@ -229,33 +225,54 @@ end
 --- Loads the DMI library.
 --- @param plugin_path string Path where the extension is installed.
 function loadlib(plugin_path)
-	app.alert {
-		title = "Lua Library",
-		text = "brr",
-	}
-	if not libdmi then
-		-- Here, we handle loading a full version of Lua instead of the locked-down version that Aseprite uses
-		if not app.os.windows then
-			-- Lua already looks for .so, but for macOS we need to manually add .dylib since Lua is a 'good language'
-			if app.os.macos then
-				package.cpath = package.cpath .. ";?.dylib"
-			end
-		else
-			-- Load Lua library if needed (Windows only)
-			if LUA_LIB then
-				local x = package.loadlib(app.fs.joinPath(plugin_path, LUA_LIB), "")
-				app.alert {
-					title = "Lua Library",
-					text = x and "Lua library loaded successfully." or "Lua library failed to load.",
-				}
-			end
-		end
+    if not app.os.windows then
+        local success, err = compile_lua(plugin_path)
+        if not success then
+            app.alert {
+                title = "Lua Compilation Error",
+                text = err or "Unknown error during Lua compilation",
+            }
+            return
+        end
 
-		-- Load DMI library
-		libdmi = package.loadlib(app.fs.joinPath(plugin_path, DMI_LIB), "luaopen_dmi_module")()
-		general_check()
-	end
+        -- Update library path based on OS
+        if app.os.macos then
+            package.cpath = package.cpath .. ";?.dylib"
+            LUA_LIB = "liblua.dylib"
+        else
+            package.cpath = package.cpath .. ";?.so"
+            LUA_LIB = "liblua.so"
+        end
+    end
+
+    -- Load Lua library
+    if LUA_LIB then
+        local lua_path = app.fs.joinPath(plugin_path, LUA_LIB)
+        local success, err = package.loadlib(lua_path, "")
+        if not success then
+            app.alert {
+                title = "Lua Library Error",
+                text = "Failed to load Lua library: " .. (err or "unknown error"),
+            }
+            return
+        end
+    end
+
+    -- Load DMI library
+    local dmi_path = app.fs.joinPath(plugin_path, DMI_LIB)
+    local success, lib = pcall(package.loadlib, dmi_path, "luaopen_dmi_module")
+    if not success then
+        app.alert {
+            title = "DMI Library Error",
+            text = "Failed to load DMI library: " .. (lib or "unknown error"),
+        }
+        return
+    end
+
+    libdmi = lib()
+    general_check()
 end
+
 
 --- General checks.
 function general_check()

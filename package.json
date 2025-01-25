@@ -25,6 +25,7 @@
 			{ "path": "./scripts/classes/editor/state.lua" },
 			{ "path": "./scripts/classes/statesprite.lua" },
 			{ "path": "./scripts/classes/widget.lua" },
+			{ "path": "./scripts/functions/inception.lua" },
 			{ "path": "./scripts/functions/other.lua" },
 			{ "path": "./scripts/functions/string.lua" },
 			{ "path": "./scripts/functions/table.lua" },
