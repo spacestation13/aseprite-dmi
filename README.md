@@ -17,6 +17,12 @@ To use this project, you need to have Lua 5.4 installed on your system.
 
 #### Linux
 
+
+rust 1.63 required due to scout being ancient
+
+`rustup install 1.63.0`
+`rustup override set 1.63.0`
+
 For Debian-based distributions, you can install Lua 5.4 using the following command:
 
 ```sh

@@ -1,16 +1,17 @@
 use mlua::prelude::*;
 use std::cmp::Ordering;
-use std::ffi::OsStr;
 use std::fs::{self, read_dir, remove_dir_all};
 use std::path::Path;
+
+use sysinfo::SystemExt;
 
 use crate::dmi::*;
 use crate::errors::ExternalError;
 use crate::macros::safe;
 use crate::utils::check_latest_version;
 
-#[mlua::lua_module(name = "dmi_module")]
-fn module(lua: &Lua) -> LuaResult<LuaTable> {
+#[mlua::lua_module]
+fn dmi_module(lua: &Lua) -> LuaResult<LuaTable> {
     let exports = lua.create_table()?;
 
     exports.set("new_file", lua.create_function(safe!(new_file))?)?;
@@ -45,7 +46,7 @@ fn new_file(
 
 fn open_file(lua: &Lua, (filename, temp): (String, String)) -> LuaResult<LuaTable> {
     if !Path::new(&filename).is_file() {
-        Err("File does not exist".to_string()).into_lua_err()?
+        Err("File does not exist".to_string()).to_lua_err()?
     }
 
     let dmi = Dmi::open(filename)?.to_serialized(temp, false)?;
@@ -54,7 +55,7 @@ fn open_file(lua: &Lua, (filename, temp): (String, String)) -> LuaResult<LuaTabl
     Ok(table)
 }
 
-fn save_file(_: &Lua, (dmi, filename): (LuaTable, String)) -> LuaResult<LuaValue> {
+fn save_file<'lua>(_: &'lua Lua, (dmi, filename): (LuaTable, String)) -> LuaResult<LuaValue<'lua>> {
     let dmi = SerializedDmi::from_lua_table(dmi)?;
     let dmi = Dmi::from_serialized(dmi)?;
     dmi.save(filename)?;
@@ -64,7 +65,7 @@ fn save_file(_: &Lua, (dmi, filename): (LuaTable, String)) -> LuaResult<LuaValue
 
 fn new_state(lua: &Lua, (width, height, temp): (u32, u32, String)) -> LuaResult<LuaTable> {
     if !Path::new(&temp).exists() {
-        Err("Temp directory does not exist".to_string()).into_lua_err()?
+        Err("Temp directory does not exist".to_string()).to_lua_err()?
     }
 
     let state = State::new_blank(String::new(), width, height).to_serialized(temp)?;
@@ -73,9 +74,9 @@ fn new_state(lua: &Lua, (width, height, temp): (u32, u32, String)) -> LuaResult<
     Ok(table)
 }
 
-fn copy_state(_: &Lua, (state, temp): (LuaTable, String)) -> LuaResult<LuaValue> {
+fn copy_state<'lua>(_: &'lua Lua, (state, temp): (LuaTable, String)) -> LuaResult<LuaValue<'lua>> {
     if !Path::new(&temp).exists() {
-        Err("Temp directory does not exist".to_string()).into_lua_err()?
+        Err("Temp directory does not exist".to_string()).to_lua_err()?
     }
 
     let state = SerializedState::from_lua_table(state)?;
@@ -90,7 +91,7 @@ fn copy_state(_: &Lua, (state, temp): (LuaTable, String)) -> LuaResult<LuaValue>
 
 fn paste_state(lua: &Lua, (width, height, temp): (u32, u32, String)) -> LuaResult<LuaTable> {
     if !Path::new(&temp).exists() {
-        Err("Temp directory does not exist".to_string()).into_lua_err()?
+        Err("Temp directory does not exist".to_string()).to_lua_err()?
     }
 
     let mut clipboard = arboard::Clipboard::new().map_err(ExternalError::Arboard)?;
@@ -102,10 +103,10 @@ fn paste_state(lua: &Lua, (width, height, temp): (u32, u32, String)) -> LuaResul
     Ok(table)
 }
 
-fn resize(
+fn resize<'lua>(
     _: &Lua,
     (dmi, width, height, method): (LuaTable, u32, u32, String),
-) -> LuaResult<LuaValue> {
+) -> LuaResult<LuaValue<'lua>> {
     let dmi = SerializedDmi::from_lua_table(dmi)?;
 
     let temp = dmi.temp.clone();
@@ -125,10 +126,10 @@ fn resize(
     Ok(LuaValue::Nil)
 }
 
-fn crop(
+fn crop<'lua>(
     _: &Lua,
     (dmi, x, y, width, height): (LuaTable, u32, u32, u32, u32),
-) -> LuaResult<LuaValue> {
+) -> LuaResult<LuaValue<'lua>> {
     let dmi = SerializedDmi::from_lua_table(dmi)?;
     let temp = dmi.temp.clone();
 
@@ -139,10 +140,10 @@ fn crop(
     Ok(LuaValue::Nil)
 }
 
-fn expand(
+fn expand<'lua>(
     _: &Lua,
     (dmi, x, y, width, height): (LuaTable, u32, u32, u32, u32),
-) -> LuaResult<LuaValue> {
+) -> LuaResult<LuaValue<'lua>> {
     let dmi = SerializedDmi::from_lua_table(dmi)?;
     let temp = dmi.temp.clone();
 
@@ -153,10 +154,10 @@ fn expand(
     Ok(LuaValue::Nil)
 }
 
-fn overlay_color(
+fn overlay_color<'lua>(
     _: &Lua,
     (r, g, b, width, height, bytes): (u8, u8, u8, u32, u32, LuaMultiValue),
-) -> LuaResult<LuaMultiValue> {
+) -> LuaResult<LuaMultiValue<'lua>> {
     use image::{imageops, EncodableLayout, ImageBuffer, Rgba};
 
     let mut buf = Vec::new();
@@ -224,10 +225,10 @@ fn save_dialog(
 fn instances(_: &Lua, _: ()) -> LuaResult<usize> {
     let mut system = sysinfo::System::new();
     let refresh_kind =
-        sysinfo::ProcessRefreshKind::nothing().with_exe(sysinfo::UpdateKind::OnlyIfNotSet);
-    system.refresh_processes_specifics(sysinfo::ProcessesToUpdate::All, true, refresh_kind);
+        sysinfo::ProcessRefreshKind::everything();
+    system.refresh_processes_specifics(refresh_kind);
 
-    Ok(system.processes_by_name(OsStr::new("aseprite")).count())
+    Ok(system.processes_by_name("aseprite").count())
 }
 
 fn check_update(_: &Lua, (): ()) -> LuaResult<bool> {
@@ -248,7 +249,7 @@ fn open_repo(_: &Lua, path: Option<String>) -> LuaResult<LuaValue> {
     };
 
     if webbrowser::open(&url).is_err() {
-        return Err("Failed to open browser".to_string()).into_lua_err();
+        return Err("Failed to open browser".to_string()).to_lua_err();
     }
 
     Ok(LuaValue::Nil)
@@ -304,15 +305,15 @@ impl IntoLuaTable for SerializedDmi {
 impl FromLuaTable for SerializedState {
     type Result = SerializedState;
     fn from_lua_table(table: LuaTable) -> LuaResult<Self::Result> {
-        let name = table.get::<String>("name")?;
-        let dirs = table.get::<u32>("dirs")?;
-        let frame_key = table.get::<String>("frame_key")?;
-        let frame_count = table.get::<u32>("frame_count")?;
-        let delays = table.get::<Vec<f32>>("delays")?;
-        let loop_ = table.get::<u32>("loop")?;
-        let rewind = table.get::<bool>("rewind")?;
-        let movement = table.get::<bool>("movement")?;
-        let hotspots = table.get::<Vec<String>>("hotspots")?;
+        let name = table.get::<&str, String>("name")?;
+        let dirs = table.get::<&str, u32>("dirs")?;
+        let frame_key = table.get::<&str, String>("frame_key")?;
+        let frame_count = table.get::<&str, u32>("frame_count")?;
+        let delays = table.get::<&str, Vec<f32>>("delays")?;
+        let loop_ = table.get::<&str, u32>("loop")?;
+        let rewind = table.get::<&str, bool>("rewind")?;
+        let movement = table.get::<&str, bool>("movement")?;
+        let hotspots = table.get::<&str, Vec<String>>("hotspots")?;
 
         Ok(SerializedState {
             name,
@@ -331,11 +332,11 @@ impl FromLuaTable for SerializedState {
 impl FromLuaTable for SerializedDmi {
     type Result = SerializedDmi;
     fn from_lua_table(table: LuaTable) -> LuaResult<Self::Result> {
-        let name = table.get::<String>("name")?;
-        let width = table.get::<u32>("width")?;
-        let height = table.get::<u32>("height")?;
-        let states_table = table.get::<Vec<LuaTable>>("states")?;
-        let temp = table.get::<String>("temp")?;
+        let name = table.get::<&str, String>("name")?;
+        let width = table.get::<&str, u32>("width")?;
+        let height = table.get::<&str, u32>("height")?;
+        let states_table = table.get::<&str, Vec<LuaTable>>("states")?;
+        let temp = table.get::<&str, String>("temp")?;
 
         let mut states = Vec::new();
 
