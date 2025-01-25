@@ -25,19 +25,22 @@ jobs:
             echo "System information:"
             uname -a
             ldd --version
-            ls -l /lib/x86_64-linux-gnu/libc.so.6
-            readelf -V /lib/x86_64-linux-gnu/libc.so.6
             strings /lib/x86_64-linux-gnu/libc.so.6 | grep GLIBC_ | sort -V
-
-            echo "GCC version:"
-            gcc --version
 
             apt-get update
             apt-get install -y curl build-essential gcc-9 g++-9
 
-            # Install Rust
-            curl --proto '=https' -sSf https://sh.rustup.rs | sh -s -- -y
+            # Install specific older Rust version compatible with glibc 2.15
+            curl --proto '=https' -sSf https://sh.rustup.rs | sh -s -- --default-toolchain 1.54.0 -y
             . "$HOME/.cargo/env"
+
+            # Verify Rust version and target
+            rustc --version
+            rustc -vV
+
+            # Use gcc-9 for linking
+            export CC=gcc-9
+            export CXX=g++-9
 
             cd /work/lib
             cargo build --release
