@@ -16,68 +16,21 @@ jobs:
       - name: Build in Steam Runtime container
         uses: addnab/docker-run-action@v3
         with:
-          image: registry.gitlab.steamos.cloud/steamrt/scout/sdk
+          image: registry.gitlab.steamos.cloud/steamrt/sniper/sdk
           options: -v ${{ github.workspace }}:/work
           run: |
             set -ex
-
-            # Debug system info
-            echo "System information:"
-            uname -a
-            ldd --version
-            cat /etc/issue || true
-
-            # Check available GCC versions
-            ls -la /usr/bin/gcc*
-            gcc-9 --version
-
             apt-get update
-            apt-get install -y curl build-essential gcc-9 g++-9 wget
+            apt-get install -y curl build-essential
 
-            # Download and install an older rustup version
-            mkdir -p ~/.cargo
-            RUSTUP_VERSION="1.21.1"  # An older version that might work with older glibc
-            wget -O rustup-init "https://raw.githubusercontent.com/rust-lang/rustup/${RUSTUP_VERSION}/rustup-init.sh"
-            chmod +x rustup-init
-
-            # Install Rust with explicit toolchain version
-            RUSTUP_TOOLCHAIN="1.67.0"  # Known to work with older glibc
-            ./rustup-init -y --no-modify-path --default-toolchain $RUSTUP_TOOLCHAIN
-            export PATH="$HOME/.cargo/bin:$PATH"
-
-            # Debug Rust installation
-            echo "Rust version:"
-            rustc --version
-            cargo --version
-
-            # Create linker script inside container
-            cat > /tmp/linker.sh << 'EOL'
-            #!/bin/bash
-            echo "Linker args: $@" >&2
-            for arg do
-              shift
-              case $arg in
-                (-lgcc_s) : ;;
-                   (*) set -- "$@" "$arg" ;;
-              esac
-            done
-            echo "Modified linker args: $@" >&2
-            exec "$CC" "$@" -lgcc
-            EOL
-            chmod +x /tmp/linker.sh
-
-            # Setup modern GCC with debug output
-            export CC=gcc-9
-            export CXX=g++-9
-            echo "CC version: $($CC --version)"
-
-            # Configure Rust to use our linker script with verbose output
-            export RUSTFLAGS="-C linker=/tmp/linker.sh -C link-arg=-v"
+            # Install Rust
+            curl --proto '=https' -sSf https://sh.rustup.rs | sh -s -- -y
+            . "$HOME/.cargo/env"
 
             cd /work/lib
-            # Build with more verbose output
-            RUST_BACKTRACE=1 cargo build -vv --release
+            cargo build --release
 
+            # Copy built library
             mkdir -p /work/artifacts
             cp target/release/libdmi.so /work/artifacts/
 
