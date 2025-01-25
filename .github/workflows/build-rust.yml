@@ -16,17 +16,16 @@ jobs:
       - name: Build in Steam Runtime container
         uses: addnab/docker-run-action@v3
         with:
-          image: registry.gitlab.steamos.cloud/steamrt/scout/sdk
+          image: registry.gitlab.steamos.cloud/steamrt/sniper/sdk
           options: -v ${{ github.workspace }}:/work
           run: |
             set -ex
             apt-get update
             apt-get install -y curl build-essential
 
-            # Install Rust using older curl syntax and . instead of source
-            curl https://sh.rustup.rs -sSf > rustup.sh
-            sh rustup.sh -y
-            . "$HOME/.cargo/env"
+            # Install Rust
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            source "$HOME/.cargo/env"
 
             cd /work/lib
             cargo build --release
