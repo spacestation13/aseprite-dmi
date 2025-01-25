@@ -21,21 +21,38 @@ jobs:
           run: |
             set -ex
             apt-get update
-            apt-get install -y curl build-essential
+            apt-get install -y curl build-essential gcc-9 g++-9
 
-            # Install Rust with simpler curl command
+            # Create linker script inside container
+            cat > /tmp/linker.sh << 'EOL'
+            #!/bin/bash
+            for arg do
+              shift
+              case $arg in
+                (-lgcc_s) : ;;
+                   (*) set -- "$@" "$arg" ;;
+              esac
+            done
+            exec "$CC" "$@" -lgcc
+            EOL
+            chmod +x /tmp/linker.sh
+
+            # Setup modern GCC
+            export CC=gcc-9
+            export CXX=g++-9
+
+            # Install Rust
             curl -sSf https://sh.rustup.rs > rustup.sh
-            chmod +x rustup.sh
-            ./rustup.sh -y --default-toolchain stable --profile minimal
+            export CARGO_HOME=/cargo
+            sh rustup.sh --profile minimal -y
+            export PATH="/cargo/bin:${PATH}"
 
-            # Export cargo env manually since . might not work
-            export PATH="$HOME/.cargo/bin:$PATH"
-            export CARGO_HOME="$HOME/.cargo"
+            # Configure Rust to use our linker script
+            export RUSTFLAGS="-C linker=/tmp/linker.sh"
 
             cd /work/lib
             cargo build --release
 
-            # Copy built library
             mkdir -p /work/artifacts
             cp target/release/libdmi.so /work/artifacts/
 
