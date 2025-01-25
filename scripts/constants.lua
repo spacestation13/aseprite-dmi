@@ -11,7 +11,7 @@ local function get_lib_info()
 	elseif app.os.macos then
 		return "lua54", "libdmi.dylib"
 	else -- Linux
-		return "lua5.4", "libdmi.so"
+		return "lua54", "libdmi.so"
 	end
 end
 

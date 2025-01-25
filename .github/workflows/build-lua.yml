@@ -7,68 +7,39 @@ on:
 
 jobs:
   build-lua:
-    name: Build Lua in Steam Runtime
+    name: Get Steam Runtime Compatible Lua
     runs-on: ubuntu-latest
     steps:
-      - name: Build in Steam Runtime container
+      - name: Download in Steam Runtime container
         uses: addnab/docker-run-action@v3
         with:
           image: registry.gitlab.steamos.cloud/steamrt/scout/sdk
           options: -v ${{ github.workspace }}:/work
           run: |
-            # start
             set -ex
             apt-get update
-            apt-get install -y curl build-essential
+            apt-get install -y curl
 
             WORKDIR="/tmp/lua-build"
             mkdir -p "$WORKDIR"
             cd "$WORKDIR"
 
-            # Download with proper error checking
-            curl -fsSL "https://www.lua.org/ftp/lua-5.4.7.tar.gz" --output lua.tar.gz
+            # Download pre-built library
+            curl -L "https://master.dl.sourceforge.net/project/luabinaries/5.4.2/Linux%20Libraries/lua-5.4.2_Linux313_64_lib.tar.gz?viasf=1" -o lua.tar.gz
 
-            # Verify download
-            if [ ! -s lua.tar.gz ]; then
-              echo "Download failed or file is empty"
-              exit 1
-            fi
-
-            # Extract with verification
+            # Extract
             tar xf lua.tar.gz
-            if [ ! -d "lua-5.4.7" ]; then
-              echo "Extraction failed"
-              exit 1
-            fi
 
-            cd "lua-5.4.7"
-
-            # Download and apply patch
-            curl -fsSL "https://gist.githubusercontent.com/ZeWaka/5d8a24ded388763bfd2e5213093eac95/raw/63d7664347bbdd59389a8af6eeeb5531335af35c/liblua.so.patch" -o lua-shared-lib.patch
-            patch -p1 < lua-shared-lib.patch
-
-            # Build with patched Makefile and PIC
-            make linux MYCFLAGS="-fPIC"
-
-            cd src
+            # Copy library
+            mkdir -p /work/artifacts
+            cp liblua54.so /work/artifacts/
 
             # Test the library
-            nm -D liblua.so | grep ' T ' || echo "No exported symbols found!"
-            ldd liblua.so || echo "Library dependencies not found!"
-
-            # Copy and rename
-            mkdir -p /work/artifacts
-            cp liblua.so /work/artifacts/liblua5.4.so
-
-            # Verify copy
-            if [ ! -f /work/artifacts/liblua5.4.so ]; then
-              echo "Failed to copy library"
-              exit 1
-            fi
+            ldd /work/artifacts/liblua54.so || echo "Library dependencies not found!"
 
       - name: Upload Lua library
         uses: actions/upload-artifact@v4
         with:
           name: steamrt-lua
-          path: artifacts/liblua5.4.so
+          path: artifacts/liblua54.so
           if-no-files-found: error

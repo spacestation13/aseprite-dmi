@@ -87,7 +87,7 @@ if win:
             os.remove(zip_path)
 elif CI and sys.platform.startswith('linux'):
     # For CI Linux builds, Lua library should already be in dist/unzipped
-    lua_library = f"{library_prefix}lua5.4{library_extension}"
+    lua_library = f"{library_prefix}lua54{library_extension}"
 
     # Check to-copy directory
     to_copy_path = os.path.join(working_dir, "to-copy")

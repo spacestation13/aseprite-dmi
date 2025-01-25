@@ -232,7 +232,7 @@ function loadlib(plugin_path)
 			LUA_LIB = "liblua54.dylib"
 		else
 			package.cpath = package.cpath .. ";?.so"
-			LUA_LIB = "liblua5.4.so"
+			LUA_LIB = "liblua54.so"
 		end
 	end
 
