@@ -88,7 +88,7 @@ jobs:
         with:
           workflow: build-lua.yml
           name: steamrt-lua
-          path: aseprite-dmi/dist/unzipped
+          path: aseprite-dmi/to-copy
           search_artifacts: true
 
       - name: Run cargo tests
