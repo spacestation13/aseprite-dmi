@@ -23,9 +23,14 @@ jobs:
             apt-get update
             apt-get install -y curl build-essential
 
-            # Install Rust
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-            . "$HOME/.cargo/env"
+            # Install Rust with simpler curl command
+            curl -sSf https://sh.rustup.rs > rustup.sh
+            chmod +x rustup.sh
+            ./rustup.sh -y --default-toolchain stable --profile minimal
+
+            # Export cargo env manually since . might not work
+            export PATH="$HOME/.cargo/bin:$PATH"
+            export CARGO_HOME="$HOME/.cargo"
 
             cd /work/lib
             cargo build --release
