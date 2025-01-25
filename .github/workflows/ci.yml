@@ -91,14 +91,6 @@ jobs:
           path: aseprite-dmi/dist/unzipped
           search_artifacts: true
 
-      - name: List files in dist directory
-        run: |
-          ls -la aseprite-dmi/dist/unzipped
-
-      - name: List files in dist directory
-        run: |
-          ls -la dist/unzipped
-
       - name: Run cargo tests
         working-directory: lib
         run: |
