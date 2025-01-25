@@ -20,12 +20,36 @@ jobs:
           options: -v ${{ github.workspace }}:/work
           run: |
             set -ex
+
+            # Debug system info
+            echo "System information:"
+            uname -a
+            ldd --version
+            cat /etc/issue || true
+
+            # Check available GCC versions
+            ls -la /usr/bin/gcc*
+            gcc-9 --version
+
             apt-get update
-            apt-get install -y curl build-essential gcc-9 g++-9
+            apt-get install -y curl build-essential gcc-9 g++-9 wget
+
+            # Try to install Rust using the official package instead of rustup
+            echo "Attempting to install Rust from packaged version..."
+            wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
+            echo "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main" > /etc/apt/sources.list.d/llvm.list
+            apt-get update
+            apt-get install -y rustc cargo
+
+            # Debug Rust installation
+            echo "Rust version:"
+            rustc --version
+            cargo --version
 
             # Create linker script inside container
             cat > /tmp/linker.sh << 'EOL'
             #!/bin/bash
+            echo "Linker args: $@" >&2
             for arg do
               shift
               case $arg in
@@ -33,25 +57,22 @@ jobs:
                    (*) set -- "$@" "$arg" ;;
               esac
             done
+            echo "Modified linker args: $@" >&2
             exec "$CC" "$@" -lgcc
             EOL
             chmod +x /tmp/linker.sh
 
-            # Setup modern GCC
+            # Setup modern GCC with debug output
             export CC=gcc-9
             export CXX=g++-9
+            echo "CC version: $($CC --version)"
 
-            # Install Rust
-            curl -sSf https://sh.rustup.rs > rustup.sh
-            export CARGO_HOME=/cargo
-            sh rustup.sh --profile minimal -y
-            export PATH="/cargo/bin:${PATH}"
-
-            # Configure Rust to use our linker script
-            export RUSTFLAGS="-C linker=/tmp/linker.sh"
+            # Configure Rust to use our linker script with verbose output
+            export RUSTFLAGS="-C linker=/tmp/linker.sh -C link-arg=-v"
 
             cd /work/lib
-            cargo build --release
+            # Build with more verbose output
+            RUST_BACKTRACE=1 cargo build -vv --release
 
             mkdir -p /work/artifacts
             cp target/release/libdmi.so /work/artifacts/
