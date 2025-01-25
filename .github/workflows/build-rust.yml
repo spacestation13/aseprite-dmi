@@ -16,12 +16,24 @@ jobs:
       - name: Build in Steam Runtime container
         uses: addnab/docker-run-action@v3
         with:
-          image: registry.gitlab.steamos.cloud/steamrt/sniper/sdk
+          image: registry.gitlab.steamos.cloud/steamrt/scout/sdk
           options: -v ${{ github.workspace }}:/work
           run: |
             set -ex
+
+            # Debug system info with focus on glibc
+            echo "System information:"
+            uname -a
+            ldd --version
+            ls -l /lib/x86_64-linux-gnu/libc.so.6
+            readelf -V /lib/x86_64-linux-gnu/libc.so.6
+            strings /lib/x86_64-linux-gnu/libc.so.6 | grep GLIBC_ | sort -V
+
+            echo "GCC version:"
+            gcc --version
+
             apt-get update
-            apt-get install -y curl build-essential
+            apt-get install -y curl build-essential gcc-9 g++-9
 
             # Install Rust
             curl --proto '=https' -sSf https://sh.rustup.rs | sh -s -- -y
