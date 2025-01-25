@@ -26,7 +26,7 @@ jobs:
             cd "$WORKDIR"
 
             # Download with proper error checking
-            curl -fsSL "https://www.lua.org/ftp/lua-5.4.6.tar.gz" --output lua.tar.gz
+            curl -fsSL "https://www.lua.org/ftp/lua-5.4.7.tar.gz" --output lua.tar.gz
 
             # Verify download
             if [ ! -s lua.tar.gz ]; then
@@ -43,36 +43,62 @@ jobs:
 
             cd "lua-5.4.6"
 
-            # Create custom config
-            cat > src/luaconf.h.new << 'EOF'
-            #include "luaconf.h"
-            #undef LUAI_FUNC
-            #undef LUAI_DDEC
-            #undef LUAI_DDEF
-            #define LUAI_FUNC extern
-            #define LUAI_DDEC(def) def
-            #define LUAI_DDEF(def) def
+            # Create patches
+            cat > lua-shared-lib.patch << 'EOF'
+            --- a/src/Makefile
+            +++ b/src/Makefile
+            @@ -31,7 +31,7 @@
+             PLATS= aix bsd c89 freebsd generic linux macosx mingw posix solaris
+
+             # What to install.
+            -TO_BIN= lua luac
+            +TO_BIN= lua luac liblua.so
+
+             # Lua version and release.
+             V= 5.4
+            @@ -51,7 +51,7 @@
+             # -DLUA_COMPAT_5_2 controls other macros for compatibility with Lua 5.2.
+             MYCFLAGS=
+             MYLDFLAGS=
+            -MYLIBS= -lm
+            +MYLIBS= -lm -ldl
+
+             # == END OF USER SETTINGS. NO NEED TO CHANGE ANYTHING BELOW THIS LINE =========
+
+            @@ -64,7 +64,7 @@
+             # Targets start here.
+             all:    $(PLAT)
+
+            -$(PLATS) clean:
+            +$(PLATS) clean: liblua.so
+
+             $(PLATS):
+                $(MAKE) -C src $@
+
+            @@ -78,6 +78,9 @@
+                $(MAKE) -C src $@
+
+             linux:
+            +   $(CC) -shared -o liblua.so $(MYCFLAGS) $(MYLDFLAGS) $(LUA_A) $(MYLIBS)
+            +   cp liblua.so ../
+            +
+                $(MAKE) $(ALL) SYSCFLAGS="-DLUA_USE_LINUX" SYSLIBS="-Wl,-E -ldl"
+
+             macosx:
             EOF
 
-            # Backup original and replace with our version
-            mv src/luaconf.h src/luaconf.h.orig
-            mv src/luaconf.h.new src/luaconf.h
+            patch -p1 < lua-shared-lib.patch
 
-            # Modify Makefile for shared library
-            sed -i 's/MYCFLAGS=/MYCFLAGS=-fPIC /' src/Makefile
-            sed -i 's/MYLDFLAGS=/MYLDFLAGS=-shared /' src/Makefile
-            sed -i 's/ALL_T=/ALL_T= $(LUA_SO)/' src/Makefile
-            sed -i 's/TO_BIN= lua luac/TO_BIN= liblua5.4.so/' src/Makefile
-
-            # Build
-            make linux
-
-            # Verify and copy
             cd src
-            if [ ! -f liblua5.4.so ]; then
-              echo "Build failed - library not found"
-              exit 1
-            fi
+
+            # Clean build first
+            make clean
+
+            # Build all object files
+            gcc -std=gnu99 -O2 -Wall -Wextra -DLUA_COMPAT_5_3 -DLUA_USE_LINUX $(SYSCFLAGS) $(MYCFLAGS) -fPIC -c *.c
+
+            # Build shared library directly
+            gcc -shared -o liblua5.4.so *.o -lm -ldl -o liblua5.4.so
 
             # Test the library
             nm -D liblua5.4.so | grep ' T ' || echo "No exported symbols found!"
