@@ -47,8 +47,8 @@ jobs:
             curl -fsSL "https://gist.githubusercontent.com/ZeWaka/5d8a24ded388763bfd2e5213093eac95/raw/63d7664347bbdd59389a8af6eeeb5531335af35c/liblua.so.patch" -o lua-shared-lib.patch
             patch -p1 < lua-shared-lib.patch
 
-            # Build with patched Makefile
-            make linux
+            # Build with patched Makefile and PIC
+            make linux MYCFLAGS="-fPIC"
 
             cd src
 
