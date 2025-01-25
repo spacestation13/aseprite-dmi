@@ -1,0 +1,62 @@
+name: Build Rust Library
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build-rust.yml'
+      - 'lib/**'
+
+jobs:
+  build-rust:
+    name: Build Rust in Steam Runtime
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build in Steam Runtime container
+        uses: addnab/docker-run-action@v3
+        with:
+          image: registry.gitlab.steamos.cloud/steamrt/scout/sdk
+          options: -v ${{ github.workspace }}:/work
+          run: |
+            set -ex
+
+            # Debug system info with focus on glibc
+            echo "System information:"
+            uname -a
+            ldd --version
+            strings /lib/x86_64-linux-gnu/libc.so.6 | grep GLIBC_ | sort -V
+
+            apt-get update
+            apt-get install -y curl build-essential gcc-9 g++-9 wget
+
+            # Download old rustup-init binary directly
+            mkdir -p ~/.cargo
+            wget -O rustup-init "https://static.rust-lang.org/rustup/archive/1.21.1/x86_64-unknown-linux-gnu/rustup-init"
+            chmod +x rustup-init
+
+            # Install Rust 1.63 (known to support old glibc)
+            RUSTUP_HOME=~/.rustup CARGO_HOME=~/.cargo ./rustup-init -y --no-modify-path --default-toolchain 1.63.0
+            export PATH="$HOME/.cargo/bin:$PATH"
+
+            # Verify Rust version and target
+            rustc --version
+            rustc -vV
+
+            # Use gcc-9 for linking
+            export CC=gcc-9
+            export CXX=g++-9
+
+            cd /work/lib
+            cargo build --release
+
+            # Copy built library
+            mkdir -p /work/artifacts
+            cp target/release/libdmi.so /work/artifacts/
+
+      - name: Upload Rust library
+        uses: actions/upload-artifact@v4
+        with:
+          name: steamrt-rust
+          path: artifacts/libdmi.so
+          if-no-files-found: error

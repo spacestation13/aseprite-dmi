@@ -1,10 +1,10 @@
 use base64::{engine::general_purpose, Engine as _};
+use image::io::Reader;
 use image::{imageops, ImageBuffer, Rgba};
-use image::{DynamicImage, ImageReader};
+use image::DynamicImage;
 use png::{Compression, Decoder, Encoder};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
-use std::ffi::OsStr;
 use std::fs::{create_dir_all, remove_dir_all, File};
 use std::io::{BufWriter, Cursor, Read as _, Write as _};
 use std::path::Path;
@@ -169,7 +169,7 @@ impl Dmi {
 
         dmi.set_metadata(metadata)?;
 
-        let mut reader = ImageReader::open(&path)?;
+        let mut reader = Reader::open(&path)?;
         reader.set_format(image::ImageFormat::Png);
 
         let mut image = reader.decode()?;
@@ -367,7 +367,7 @@ impl State {
     }
     pub fn to_serialized<P>(&self, path: P) -> DmiResult<SerializedState>
     where
-        P: AsRef<OsStr>,
+        P: AsRef<std::ffi::OsStr>,
     {
         let path = Path::new(&path);
 
@@ -415,7 +415,7 @@ impl State {
     }
     pub fn from_serialized<P>(serialized: SerializedState, path: P) -> DmiResult<Self>
     where
-        P: AsRef<OsStr>,
+        P: AsRef<std::ffi::OsStr>,
     {
         let mut frames = Vec::new();
 
@@ -464,7 +464,7 @@ impl State {
                 .nth(1)
                 .ok_or_else(|| DmiError::MissingData)?;
             let image_data = general_purpose::STANDARD.decode(base64)?;
-            let reader = ImageReader::with_format(Cursor::new(image_data), image::ImageFormat::Png);
+            let reader = Reader::with_format(Cursor::new(image_data), image::ImageFormat::Png);
             let mut image = reader.decode()?;
 
             if image.width() != width || image.height() != height {

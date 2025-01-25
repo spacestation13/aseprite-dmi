@@ -1,0 +1,45 @@
+name: Build Lua
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build-lua.yml'
+
+jobs:
+  build-lua:
+    name: Get Steam Runtime Compatible Lua
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download in Steam Runtime container
+        uses: addnab/docker-run-action@v3
+        with:
+          image: registry.gitlab.steamos.cloud/steamrt/scout/sdk
+          options: -v ${{ github.workspace }}:/work
+          run: |
+            set -ex
+            apt-get update
+            apt-get install -y curl
+
+            WORKDIR="/tmp/lua-build"
+            mkdir -p "$WORKDIR"
+            cd "$WORKDIR"
+
+            # Download pre-built library
+            curl -L "https://master.dl.sourceforge.net/project/luabinaries/5.4.2/Linux%20Libraries/lua-5.4.2_Linux313_64_lib.tar.gz?viasf=1" -o lua.tar.gz
+
+            # Extract
+            tar xf lua.tar.gz
+
+            # Copy library
+            mkdir -p /work/artifacts
+            cp liblua54.so /work/artifacts/
+
+            # Test the library
+            ldd /work/artifacts/liblua54.so || echo "Library dependencies not found!"
+
+      - name: Upload Lua library
+        uses: actions/upload-artifact@v4
+        with:
+          name: steamrt-lua
+          path: artifacts/liblua54.so
+          if-no-files-found: error
