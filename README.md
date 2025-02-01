@@ -11,6 +11,13 @@ The latest version of this extension is available for download from the [Release
 
 The plugin will also prompt you to download an update when a new version is released.
 
+### Linux
+
+Unfortunately, due to dynamic library linking issues, __Aseprite running on Linux via Steam is not supported.__
+
+Support for running natively compiled Aseprite may or may not work.
+If you really want to spend time looking into this, check out [this branch.](https://github.com/spacestation13/aseprite-dmi/tree/zewaka/fix-dylib-issues)
+
 ## Usage
 
 Once the project has been downloaded or built, the extension can be added to Aseprite by dragging and dropping it into the application or by selecting the 'Add Extension' button in the 'Edit > Preferences > Extensions' menu.
