@@ -15,8 +15,7 @@ The plugin will also prompt you to download an update when a new version is rele
 
 Unfortunately, due to dynamic library linking issues, __Aseprite running on Linux via Steam is not supported.__
 
-Support for running natively compiled Aseprite may or may not work.
-If you really want to spend time looking into this, check out [this branch.](https://github.com/spacestation13/aseprite-dmi/tree/zewaka/fix-dylib-issues)
+Running a Windows build via Wine works just fine, and is what we recommend.
 
 ## Usage
 
