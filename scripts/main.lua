@@ -101,7 +101,7 @@ function init(plugin)
 
 	plugin:newCommand {
 		id = "dmi_raw_open",
-		title = "Open DMI (No Editor - Will Delete DMI Metadata!!)",
+		title = "ADVANCED: Open DMI as Spritesheet (Won't save DMI metadata!)",
 		group = "dmi_editor",
 		onclick = function()
 			opening_dmi_noeditor = true
