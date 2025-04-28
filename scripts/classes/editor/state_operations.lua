@@ -1,6 +1,3 @@
--- This file defines split_state and combine_selected_states for the Editor.
--- Assumes global Editor is already defined.
-
 --- Splits a multi-directional state into individual states, one for each direction.
 --- @param state State The state to be split.
 function Editor:split_state(state)
@@ -117,7 +114,7 @@ function Editor:combine_selected_states()
 	dialog:show()
 end
 
--- Add a new function to compute the default combined name
+--- Gets the default name for the combined state based on the selected states.
 function Editor:getCombinedDefaultName()
 	local function normalize(s) -- Remove _ and - and numbers
 		return s:gsub("[-_%d]", "")
@@ -135,14 +132,15 @@ function Editor:getCombinedDefaultName()
 		commonBase = commonPrefix(commonBase, normalize(self.selected_widgets[i].state.name))
 		if commonBase == "" then break end
 	end
-	if commonBase and #commonBase > 2 then -- <3 char names are not useful
+	if commonBase and #commonBase > 2 then -- < 3 char names are not useful
 		return commonBase
 	else
 		return "Combined"
 	end
 end
 
--- Modified performCombineStates function to use combine1direction
+--- Combines the selected states into one state, based off of the selected combination type.
+--- @param combinedName string The name for the combined state.
 function Editor:performCombineStates(combinedName, combineType)
 	local combined_state, error = libdmi.new_state(self.dmi.width, self.dmi.height, self.dmi.temp)
 	if error or not combined_state then
