@@ -168,17 +168,6 @@ function Editor:performCombineStates(combinedName, combineType)
 		end
 	else
 		-- Future expansion placeholder for other combine types.
-		combined_state.frame_count = #sortedStates
-		combined_state.delays = {}
-		for i, state in ipairs(sortedStates) do
-			local preview = self.image_cache:get(state.frame_key)
-			if not preview then
-				app.alert { title = "Error", text = "Preview image missing for state: " .. (state.name or "unknown") }
-				return
-			end
-			save_image_bytes(preview, app.fs.joinPath(self.dmi.temp, combined_state.frame_key .. "." .. (i - 1) .. ".bytes"))
-			combined_state.delays[i] = 100  -- set default delay
-		end
 	end
 	table.insert(self.dmi.states, combined_state)
 	self.image_cache:load_state(self.dmi, combined_state)
