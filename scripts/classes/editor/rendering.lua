@@ -304,20 +304,20 @@ end
 --- Handles the mouse down event in the editor and triggers a repaint.
 --- @param ev MouseEvent The mouse event object.
 function Editor:onmousedown(ev)
-	-- Add Control-click selection
-	if ev.ctrlKey then
-		for _, widget in ipairs(self.widgets) do
-			if widget.type == "IconWidget" and widget.bounds:contains(Point(ev.x, ev.y)) then
-				self:toggle_state_selection(widget)
-				self:repaint()
-				return
-			end
-		end
-	end
-
 	if ev.button == MouseButton.LEFT then
 		self.mouse.leftClick = true
 		self.focused_widget = nil
+
+		-- Selection mode
+		if ev.ctrlKey then
+			for _, widget in ipairs(self.widgets) do
+				if widget.type == "IconWidget" and widget.bounds:contains(Point(ev.x, ev.y)) then
+					self:toggle_state_selection(widget)
+					self:repaint()
+					return
+				end
+			end
+		end
 
 		-- Only start drag if we're not clicking on a context menu
 		if not self.context_widget then
