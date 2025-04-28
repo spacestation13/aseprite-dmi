@@ -321,13 +321,18 @@ function Editor:onmousedown(ev)
 
 		-- Only start drag if we're not clicking on a context menu
 		if not self.context_widget then
-			-- Start potential drag
+			local clickedState = false
 			for _, widget in ipairs(self.widgets) do
 				if widget.type == "IconWidget" and widget.bounds:contains(Point(ev.x, ev.y)) then
 					self.drag_widget = widget
 					self.drag_start_time = os.clock()
+					clickedState = true
 					break
 				end
+			end
+			-- If click did not hit any state widget, clear selected states.
+			if not clickedState then
+				self.selected_states = {}
 			end
 		end
 	elseif ev.button == MouseButton.RIGHT then
