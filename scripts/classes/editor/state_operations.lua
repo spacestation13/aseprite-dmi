@@ -82,7 +82,7 @@ end
 
 --- Combines multiple selected states into one state.
 function Editor:combine_selected_states()
-	if not self.dmi or not self.selected_states or #self.selected_states < 2 then
+	if not self.dmi or not self.selected_widgets or #self.selected_widgets < 2 then
 		app.alert { title = self.title, text = "Select at least two states to combine." }
 		return
 	end
@@ -129,9 +129,10 @@ function Editor:getCombinedDefaultName()
 		end
 		return a:sub(1, i - 1)
 	end
-	local commonBase = normalize(self.selected_states[1].name)
-	for i = 2, #self.selected_states do
-		commonBase = commonPrefix(commonBase, normalize(self.selected_states[i].name))
+
+	local commonBase = normalize(self.selected_widgets[1].state.name)
+	for i = 2, #self.selected_widgets do
+		commonBase = commonPrefix(commonBase, normalize(self.selected_widgets[i].state.name))
 		if commonBase == "" then break end
 	end
 	if commonBase and #commonBase > 2 then -- <3 char names are not useful
@@ -152,8 +153,8 @@ function Editor:performCombineStates(combinedName, combineType)
 	-- Reorder selected states based on DMI order
 	local sortedStates = {}
 	for _, state in ipairs(self.dmi.states) do
-		for _, sel in ipairs(self.selected_states) do
-			if state == sel then
+		for _, selWidget in ipairs(self.selected_widgets) do
+			if state == selWidget.state then
 				table.insert(sortedStates, state)
 				break
 			end
@@ -182,9 +183,8 @@ function Editor:performCombineStates(combinedName, combineType)
 	table.insert(self.dmi.states, combined_state)
 	self.image_cache:load_state(self.dmi, combined_state)
 	self.modified = true
+	self.selected_widgets = {}
 	self:repaint_states()
-	self.selected_states = {}
-	app.alert { title = self.title, text = "States have been combined." }
 end
 
 function Editor:combine1direction(combined_state, sortedStates)
@@ -199,3 +199,10 @@ function Editor:combine1direction(combined_state, sortedStates)
 	end
 	return true
 end
+
+function printtable(table, indent)
+	print(tostring(table) .. '\n')
+	for index, value in pairs(table) do
+	  print('    ' .. tostring(index) .. ' : ' .. tostring(value) .. '\n')
+	end
+  end

@@ -57,8 +57,7 @@ function Editor:onpaint(ctx)
 				stateStyle = COMMON_STATE.selected or stateStyle
 			end
 		end
-		-- Override style if widget's state is selected by Control-click
-		if widget.type == "IconWidget" and widget.state and self.selected_states and table.index_of(self.selected_states, widget.state) > 0 then
+		if widget.type == "IconWidget"and self.selected_widgets and table.index_of(self.selected_widgets, widget) > 0 then
 			stateStyle = COMMON_STATE.selected or stateStyle
 		end
 
@@ -308,31 +307,47 @@ function Editor:onmousedown(ev)
 		self.mouse.leftClick = true
 		self.focused_widget = nil
 
-		-- Selection mode
-		if ev.ctrlKey then
-			for _, widget in ipairs(self.widgets) do
-				if widget.type == "IconWidget" and widget.bounds:contains(Point(ev.x, ev.y)) then
-					self:toggle_state_selection(widget)
-					self:repaint()
-					return
-				end
-			end
-		end
-
-		-- Only start drag if we're not clicking on a context menu
+		-- Don't do anything fancy if we're clicking on a context menu
 		if not self.context_widget then
-			local clickedState = false
+
+			local clickedWidget = nil
 			for _, widget in ipairs(self.widgets) do
 				if widget.type == "IconWidget" and widget.bounds:contains(Point(ev.x, ev.y)) then
-					self.drag_widget = widget
-					self.drag_start_time = os.clock()
-					clickedState = true
+					clickedWidget = widget
 					break
 				end
 			end
-			-- If click did not hit any state widget, clear selected states.
-			if not clickedState then
-				self.selected_states = {}
+			if clickedWidget then
+				-- Handle range selection with Shift + Ctrl
+				if ev.shiftKey and ev.ctrlKey then
+					local iconWidgets = {}
+					for _, widget in ipairs(self.widgets) do
+						if widget.type == "IconWidget" then
+							table.insert(iconWidgets, widget)
+						end
+					end
+					local clickedWidgetIdx = table.index_of(iconWidgets, clickedWidget)
+					local closestSelWidgetIdx = self:find_closest_selected_widget_index(clickedWidgetIdx)
+					if not closestSelWidgetIdx then return end
+					local low = math.min(clickedWidgetIdx, closestSelWidgetIdx)
+					local high = math.max(clickedWidgetIdx, closestSelWidgetIdx)
+					self:select_iconwidgets_range(low, high)
+					self:repaint()
+					return
+				end
+
+				-- Selection mode with just Ctrl
+				if ev.ctrlKey then
+					self:toggle_state_selection(clickedWidget)
+					self:repaint()
+					return
+				end
+
+				-- Setup Dragging
+				self.drag_widget = clickedWidget
+				self.drag_start_time = os.clock()
+			else -- No clicked widget, handle deselection
+				self.selected_widgets = {}
 			end
 		end
 	elseif ev.button == MouseButton.RIGHT then
@@ -383,7 +398,7 @@ function Editor:onmouseup(ev)
 					local buttonsToAdd = {
 						{ text = "Paste", onclick = function() self:clipboard_paste_state() end },
 					}
-					if self.selected_states and #self.selected_states > 1 then
+					if self.selected_widgets and #self.selected_widgets > 1 then
 						table.insert(buttonsToAdd, { text = "Combine", onclick = function() self:combine_selected_states() end })
 					end
 					self.context_widget = ContextWidget.new(
@@ -589,14 +604,80 @@ function Editor.fit_text(text, ctx, maxWidth)
 	return text
 end
 
--- Helper method to toggle state selection
+--- Helper method to toggle state selection
+--- @param widget IconWidget The widget to toggle selection for.
 function Editor:toggle_state_selection(widget)
-	self.selected_states = self.selected_states or {}
-	local state = widget.state
-	local idx = table.index_of(self.selected_states, state)
+	self.selected_widgets = self.selected_widgets or {}
+	local idx = table.index_of(self.selected_widgets, widget)
 	if idx and idx > 0 then
-		table.remove(self.selected_states, idx)
+		table.remove(self.selected_widgets, idx)
 	else
-		table.insert(self.selected_states, state)
+		table.insert(self.selected_widgets, widget)
 	end
+end
+
+--- Helper method to select a range of widgets
+--- @param lowIndex number The lower index of the range.
+--- @param highIndex number The higher index of the range.
+function Editor:select_iconwidgets_range(lowIndex, highIndex)
+	local iconWidgets = {}
+	for _, widget in ipairs(self.widgets) do
+		if widget.type == "IconWidget" then
+			table.insert(iconWidgets, widget)
+		end
+	end
+
+	-- Determine if all widgets in the range are already selected.
+	local allSelected = true
+	for i = lowIndex, highIndex do
+		local widget = iconWidgets[i]
+		if table.index_of(self.selected_widgets, widget) == 0 then
+			allSelected = false
+			break
+		end
+	end
+
+	-- (De)select each widget in the range.
+	for i = lowIndex, highIndex do
+		local widget = iconWidgets[i]
+		if allSelected then
+			-- Could be better but I'm not sure what the logic would be for
+			-- determining which neighboring states to deselect.
+			local idx = table.index_of(self.selected_widgets, widget)
+			if idx and idx > 0 then
+				table.remove(self.selected_widgets, idx)
+			end
+		else
+			if table.index_of(self.selected_widgets, widget) == 0 then
+				table.insert(self.selected_widgets, widget)
+			end
+		end
+	end
+end
+
+--- Finds the closest selected widget index to the clicked widget index.
+--- @param clickedWidgetIndex number The index of the clicked widget.
+--- @return number|nil closestIndex The index of the closest selected widget.
+function Editor:find_closest_selected_widget_index(clickedWidgetIndex)
+	local closestIndex = nil
+	local closestDistance = math.huge
+
+	local iconWidgets = {}
+	for _, widget in ipairs(self.widgets) do
+		if widget.type == "IconWidget" then
+			table.insert(iconWidgets, widget)
+		end
+	end
+
+	for i, widget in ipairs(iconWidgets) do
+		if widget.type == "IconWidget" and table.index_of(self.selected_widgets, widget) > 0 then
+			local distance = math.abs(i - clickedWidgetIndex)
+			if distance < closestDistance then
+				closestDistance = distance
+				closestIndex = i
+			end
+		end
+	end
+
+	return closestIndex or nil
 end
