@@ -94,9 +94,9 @@ function StateSprite:save()
 		return false
 	end
 
-	-- Store original layers if we need to auto-flatten
+	-- Store original layers if we need to auto-flatten (only if multiple layers exist)
 	local original_layers = nil
-	if Preferences.getAutoFlatten() then
+	if Preferences.getAutoFlatten() and #self.sprite.layers > 1 then
 		original_layers = {}
 		for _, layer in ipairs(self.sprite.layers) do
 			table.insert(original_layers, layer)
@@ -169,7 +169,7 @@ function StateSprite:save()
 	self.editor.modified = true
 
 	-- Restore original layers if we flattened by undoing the transaction from above
-	if Preferences.getAutoFlatten() then
+	if original_layers then
 		app.command.Undo()
 	end
 
