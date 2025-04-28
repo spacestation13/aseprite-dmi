@@ -86,43 +86,70 @@ function Editor:combine_selected_states()
 		app.alert { title = self.title, text = "Select at least two states to combine." }
 		return
 	end
-	local combined_state, error = libdmi.new_state(self.dmi.width, self.dmi.height, self.dmi.temp)
-	if error or (not combined_state) then
-		app.alert { title = "Error", text = { "Failed to create combined state", error } }
-		return
-	end
+	local dialog = Dialog { title = "Combine States" }
+	dialog:entry {
+		id = "combined_name",
+		label = "Combined Name:",
+		text = self.getCombinedDefaultName(self),
+	}
+	dialog:combobox {
+		id = "combine_type",
+		label = "Combine Method:",
+		option = COMBINE_TYPES.onedir,
+		options = { COMBINE_TYPES.onedir },
+	}
+	dialog:button {
+		text = "&OK",
+		focus = true,
+		onclick = function()
+			local combinedName = dialog.data.combined_name or "Combined"
+			local combineType = dialog.data.combine_type or COMBINE_TYPES.onedir
+			dialog:close()
+			self:performCombineStates(combinedName, combineType)
+		end
+	}
+	dialog:button {
+		text = "&Cancel",
+		onclick = function()
+			dialog:close()
+		end
+	}
+	dialog:show()
+end
 
-	-- Normalize a string by removing dashes, underscores, and numbers.
-	local function normalize(s)
+-- Add a new function to compute the default combined name
+function Editor:getCombinedDefaultName()
+	local function normalize(s) -- Remove _ and - and numbers
 		return s:gsub("[-_%d]", "")
 	end
-
-	-- Compute longest common prefix between two strings.
 	local function commonPrefix(a, b)
-		local len = math.min(#a, #b)
-		local prefix = ""
-		for i = 1, len do
-			if a:sub(i, i) == b:sub(i, i) then
-				prefix = prefix .. a:sub(i, i)
-			else
-				break
-			end
+		local i = 1
+		while i <= #a and i <= #b and a:sub(i, i) == b:sub(i, i) do
+			i = i + 1
 		end
-		return prefix
+		return a:sub(1, i - 1)
 	end
-
 	local commonBase = normalize(self.selected_states[1].name)
 	for i = 2, #self.selected_states do
 		commonBase = commonPrefix(commonBase, normalize(self.selected_states[i].name))
 		if commonBase == "" then break end
 	end
-	if commonBase and #commonBase > 0 then
-		combined_state.name = commonBase
+	if commonBase and #commonBase > 2 then -- <3 char names are not useful
+		return commonBase
 	else
-		combined_state.name = "Combined"
+		return "Combined"
+	end
+end
+
+-- Modified performCombineStates function to use combine1direction
+function Editor:performCombineStates(combinedName, combineType)
+	local combined_state, error = libdmi.new_state(self.dmi.width, self.dmi.height, self.dmi.temp)
+	if error or not combined_state then
+		app.alert { title = "Error", text = { "Failed to create combined state", error } }
+		return
 	end
 
-	-- Reorder selected states in the order they appear in the dmi.
+	-- Reorder selected states based on DMI order
 	local sortedStates = {}
 	for _, state in ipairs(self.dmi.states) do
 		for _, sel in ipairs(self.selected_states) do
@@ -133,23 +160,42 @@ function Editor:combine_selected_states()
 		end
 	end
 
-	combined_state.frame_count = #sortedStates
-	combined_state.delays = {}
-	-- For each state in sorted order, copy its preview image as a new frame.
-	for i, state in ipairs(sortedStates) do
-		local preview = self.image_cache:get(state.frame_key)
-		if not preview then
-			app.alert { title = "Error", text = "Preview image missing for state: " .. (state.name or "unknown") }
+	combined_state.name = combinedName
+	if combineType == COMBINE_TYPES.onedir then
+		if not self:combine1direction(combined_state, sortedStates) then
 			return
 		end
-		save_image_bytes(preview, app.fs.joinPath(self.dmi.temp, combined_state.frame_key .. "." .. (i - 1) .. ".bytes"))
-		combined_state.delays[i] = 100  -- set default delay
+	else
+		-- Future expansion placeholder for other combine types.
+		combined_state.frame_count = #sortedStates
+		combined_state.delays = {}
+		for i, state in ipairs(sortedStates) do
+			local preview = self.image_cache:get(state.frame_key)
+			if not preview then
+				app.alert { title = "Error", text = "Preview image missing for state: " .. (state.name or "unknown") }
+				return
+			end
+			save_image_bytes(preview, app.fs.joinPath(self.dmi.temp, combined_state.frame_key .. "." .. (i - 1) .. ".bytes"))
+			combined_state.delays[i] = 100  -- set default delay
+		end
 	end
 	table.insert(self.dmi.states, combined_state)
 	self.image_cache:load_state(self.dmi, combined_state)
 	self.modified = true
 	self:repaint_states()
-	-- Clear selection after combining.
 	self.selected_states = {}
 	app.alert { title = self.title, text = "States have been combined." }
+end
+
+function Editor:combine1direction(combined_state, sortedStates)
+	combined_state.frame_count = #sortedStates
+	for i, state in ipairs(sortedStates) do
+		local preview = self.image_cache:get(state.frame_key)
+		if not preview then
+			app.alert { title = "Error", text = "Preview image missing for state: " .. (state.name or "unknown") }
+			return false
+		end
+		save_image_bytes(preview, app.fs.joinPath(self.dmi.temp, combined_state.frame_key .. "." .. (i - 1) .. ".bytes"))
+	end
+	return true
 end
