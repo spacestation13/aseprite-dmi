@@ -44,31 +44,32 @@ function Editor:onpaint(ctx)
 
 	local hovers = {} --[[ @as (string)[] ]]
 	for _, widget in ipairs(self.widgets) do
-		local state = COMMON_STATE.normal
 
+		-- Styling
+		local stateStyle = COMMON_STATE.normal
 		if widget == self.focused_widget then
-			state = COMMON_STATE.focused or state
+			stateStyle = COMMON_STATE.focused or stateStyle
 		end
-
 		local is_mouse_over = not self.context_widget and widget.bounds:contains(self.mouse.position)
-
 		if is_mouse_over then
-			state = COMMON_STATE.hot or state
-
+			stateStyle = COMMON_STATE.hot or stateStyle
 			if self.mouse.leftClick then
-				state = COMMON_STATE.selected or state
+				stateStyle = COMMON_STATE.selected or stateStyle
 			end
+		end
+		-- Override style if widget's state is selected by Control-click
+		if widget.type == "IconWidget" and widget.state and self.selected_states and table.index_of(self.selected_states, widget.state) > 0 then
+			stateStyle = COMMON_STATE.selected or stateStyle
 		end
 
 		if widget.type == "IconWidget" then
-			local widget = widget --[[ @as IconWidget ]]
-
-			ctx:drawThemeRect(state.part, widget.bounds)
+			ctx:drawThemeRect(stateStyle.part, widget.bounds)
 			ctx:drawImage(
 				widget.icon,
 				widget.icon.bounds,
 				Rectangle(widget.bounds.x + (widget.bounds.width - self.dmi.width) / 2,
-					widget.bounds.y + (widget.bounds.height - self.dmi.height) / 2, widget.icon.bounds.width,
+					widget.bounds.y + (widget.bounds.height - self.dmi.height) / 2,
+					widget.icon.bounds.width,
 					widget.icon.bounds.height)
 			)
 		elseif widget.type == "TextWidget" then
@@ -77,7 +78,8 @@ function Editor:onpaint(ctx)
 			local text = self.fit_text(widget.text, ctx, widget.bounds.width)
 			local size = ctx:measureText(text)
 
-			ctx.color = widget.text_color or app.theme.color[state.color]
+			-- Fix: Use fallback text color instead of undefined 'state'
+			ctx.color = widget.text_color or app.theme.color.text
 			ctx:fillText(
 				text,
 				widget.bounds.x + (widget.bounds.width - size.width) / 2,
@@ -90,7 +92,7 @@ function Editor:onpaint(ctx)
 		elseif widget.type == "ThemeWidget" then
 			local widget = widget --[[ @as ThemeWidget ]]
 
-			ctx:drawThemeRect(state.part, widget.bounds)
+			ctx:drawThemeRect(stateStyle.part, widget.bounds)
 
 			if widget.partId then
 				ctx:drawThemeImage(widget.partId,
@@ -233,13 +235,16 @@ function Editor:repaint_states()
 			local icon = Image(icon.width, icon.height)
 			icon.bytes = bytes
 
-			table.insert(self.widgets, IconWidget.new(
+			-- Create IconWidget and store its state for selection logic
+			local iconWidget = IconWidget.new(
 				self,
 				bounds,
 				icon,
 				function() self:open_state(state) end,
 				function(ev) self:state_context(state, ev) end
-			))
+			)
+			iconWidget.state = state
+			table.insert(self.widgets, iconWidget)
 
 			table.insert(self.widgets, TextWidget.new(
 				self,
@@ -249,9 +254,9 @@ function Editor:repaint_states()
 					bounds.width,
 					TEXT_HEIGHT
 				),
-				name,
+				#state.name > 0 and state.name or "no name",
 				text_color,
-				name,
+				state.name,
 				function() self:state_properties(state) end,
 				function(ev) self:state_context(state, ev) end
 			))
@@ -299,6 +304,17 @@ end
 --- Handles the mouse down event in the editor and triggers a repaint.
 --- @param ev MouseEvent The mouse event object.
 function Editor:onmousedown(ev)
+	-- Add Control-click selection
+	if ev.ctrlKey then
+		for _, widget in ipairs(self.widgets) do
+			if widget.type == "IconWidget" and widget.bounds:contains(Point(ev.x, ev.y)) then
+				self:toggle_state_selection(widget)
+				self:repaint()
+				return
+			end
+		end
+	end
+
 	if ev.button == MouseButton.LEFT then
 		self.mouse.leftClick = true
 		self.focused_widget = nil
@@ -358,15 +374,26 @@ function Editor:onmouseup(ev)
 			end
 			if not triggered then
 				if ev.button == MouseButton.RIGHT then
-					self.context_widget = ContextWidget.new(
-						Rectangle(ev.x, ev.y, 0, 0),
-						{
-							{ text = "Paste", onclick = function() self:clipboard_paste_state() end },
-						}
-					)
+					-- If multiple states are selected, show combine option.
+					if self.selected_states and #self.selected_states > 1 then
+						self.context_widget = ContextWidget.new(
+							Rectangle(ev.x, ev.y, 0, 0),
+							{
+								{ text = "Combine", onclick = function() self:combine_selected_states() end }
+							}
+						)
+					else
+						self.context_widget = ContextWidget.new(
+							Rectangle(ev.x, ev.y, 0, 0),
+							{
+								{ text = "Paste", onclick = function() self:clipboard_paste_state() end },
+							}
+						)
+					end
 				end
 			end
 		end
+		-- Add logic to finalize drag-and-drop or click actions
 		if ev.button == MouseButton.LEFT then
 			if self.dragging and self.drag_widget and self.drop_index then
 				-- Find source state index using widget index and scroll offset
@@ -560,4 +587,16 @@ function Editor.fit_text(text, ctx, maxWidth)
 		width = ctx:measureText(text).width
 	end
 	return text
+end
+
+-- Helper method to toggle state selection
+function Editor:toggle_state_selection(widget)
+	self.selected_states = self.selected_states or {}
+	local state = widget.state
+	local idx = table.index_of(self.selected_states, state)
+	if idx and idx > 0 then
+		table.remove(self.selected_states, idx)
+	else
+		table.insert(self.selected_states, state)
+	end
 end
