@@ -199,10 +199,3 @@ function Editor:combine1direction(combined_state, sortedStates)
 	end
 	return true
 end
-
-function printtable(table, indent)
-	print(tostring(table) .. '\n')
-	for index, value in pairs(table) do
-	  print('    ' .. tostring(index) .. ' : ' .. tostring(value) .. '\n')
-	end
-  end
