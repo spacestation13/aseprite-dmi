@@ -375,21 +375,16 @@ function Editor:onmouseup(ev)
 			if not triggered then
 				if ev.button == MouseButton.RIGHT then
 					-- If multiple states are selected, show combine option.
+					local buttonsToAdd = {
+						{ text = "Paste", onclick = function() self:clipboard_paste_state() end },
+					}
 					if self.selected_states and #self.selected_states > 1 then
-						self.context_widget = ContextWidget.new(
-							Rectangle(ev.x, ev.y, 0, 0),
-							{
-								{ text = "Combine", onclick = function() self:combine_selected_states() end }
-							}
-						)
-					else
-						self.context_widget = ContextWidget.new(
-							Rectangle(ev.x, ev.y, 0, 0),
-							{
-								{ text = "Paste", onclick = function() self:clipboard_paste_state() end },
-							}
-						)
+						table.insert(buttonsToAdd, { text = "Combine", onclick = function() self:combine_selected_states() end })
 					end
+					self.context_widget = ContextWidget.new(
+						Rectangle(ev.x, ev.y, 0, 0),
+						buttonsToAdd
+					)
 				end
 			end
 		end
