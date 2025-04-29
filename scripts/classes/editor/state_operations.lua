@@ -79,7 +79,7 @@ end
 
 --- Combines multiple selected states into one state.
 function Editor:combine_selected_states()
-	if not self.dmi or not self.selected_widgets or #self.selected_widgets < 2 then
+	if not self.dmi or #self.selected_widgets < 2 then
 		app.alert { title = self.title, text = "Select at least two states to combine." }
 		return
 	end

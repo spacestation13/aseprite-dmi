@@ -134,7 +134,7 @@ function Editor:state_context(state, ev)
 		{ text = "Remove",     onclick = function() self:remove_state(state) end },
 		{ text = "Split",      onclick = function() self:split_state(state) end },
 	}
-	if self.selected_widgets and #self.selected_widgets > 1 then
+	if #self.selected_widgets > 1 then
 		table.insert(buttons, { text = "Combine", onclick = function() self:combine_selected_states() end })
 	end
 	self.context_widget = ContextWidget.new(

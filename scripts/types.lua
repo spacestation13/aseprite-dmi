@@ -198,6 +198,7 @@ end
 
 ------------------- ENUMS -------------------
 
+--- @enum ColorMode
 ColorMode = {
 	RGB = 1,
 	GRAY = 2,
@@ -205,7 +206,9 @@ ColorMode = {
 	TILEMAP = 4,
 }
 
+--- @enum MouseButton
 MouseButton = {
+	NONE = 0,
 	LEFT = 1,
 	MIDDLE = 2,
 	RIGHT = 3,
@@ -213,6 +216,7 @@ MouseButton = {
 	X2 = 5,
 }
 
+--- @enum BlendMode
 BlendMode = {
 	NORMAL = 0,
 	SRC = 1,
@@ -236,6 +240,7 @@ BlendMode = {
 	DIVIDE = 19,
 }
 
+--- @enum WebSocketMessageType
 WebSocketMessageType = {
 	TEXT = "TEXT",
 	BINARY = "BINARY",
@@ -746,55 +751,11 @@ WebSocketMessageType = {
 
 --- @alias PixelColor number
 
---- @class MouseButton
---- @field LEFT number
---- @field MIDDLE number
---- @field RIGHT number
---- @field X1 number
---- @field X2 number
-
---- @alias ColorMode
----| 0
----| 1
----| 2
----| 3
-
---- @alias BlendMode
----| 0
----| 1
----| 2
----| 3
----| 4
----| 5
----| 6
----| 7
----| 8
----| 9
----| 10
----| 11
----| 12
----| 13
----| 14
----| 15
----| 16
----| 17
----| 18
----| 19
-
 --- @alias AniDir
 ---| 0
 ---| 1
 ---| 2
 ---| 3
-
---- @alias WebSocketMessageType
----| 'TEXT'
----| 'BINARY'
----| 'OPEN'
----| 'CLOSE'
----| 'PING'
----| 'PONG'
----| 'FRAGMENT'
 
 --- @class LibDmi: table
 --- @field new_file fun(name: string, width: number, height: number, temp: string): Dmi?, string? Creates a new DMI file. If fails, returns nil and an error message.

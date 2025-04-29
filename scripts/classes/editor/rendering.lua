@@ -53,9 +53,6 @@ function Editor:onpaint(ctx)
 		local is_mouse_over = not self.context_widget and widget.bounds:contains(self.mouse.position)
 		if is_mouse_over then
 			stateStyle = COMMON_STATE.hot or stateStyle
-			if self.mouse.leftClick then
-				stateStyle = COMMON_STATE.selected or stateStyle
-			end
 		end
 		if widget.type == "IconWidget"and self.selected_widgets and table.index_of(self.selected_widgets, widget) > 0 then
 			stateStyle = COMMON_STATE.selected or stateStyle
@@ -77,7 +74,7 @@ function Editor:onpaint(ctx)
 			local text = self.fit_text(widget.text, ctx, widget.bounds.width)
 			local size = ctx:measureText(text)
 
-			-- Fix: Use fallback text color instead of undefined 'state'
+			-- fallback text color
 			ctx.color = widget.text_color or app.theme.color.text
 			ctx:fillText(
 				text,
@@ -206,6 +203,10 @@ function Editor:repaint_states()
 	local min_index = (self.max_in_a_row * self.scroll)
 	local max_index = min_index + self.max_in_a_row * (self.max_in_a_column + 1)
 	for index, state in ipairs(self.dmi.states) do
+-- TODO: fix bug here and in box_bounds below where you can have
+-- index = 7, min_index = 9, max_index = 10, max_in_a_row = 9
+-- and we don't render anything despite there being no more
+-- states past 7, need to render at least max_in_a_row
 		if index > min_index and index <= max_index then
 			local bounds = self:box_bounds(index)
 			local text_color = nil
@@ -224,8 +225,6 @@ function Editor:repaint_states()
 					end
 				end
 			end
-
-			local name = #state.name > 0 and state.name or "no name"
 
 			local icon = self.image_cache:get(state.frame_key)
 			local bytes = string.char(libdmi.overlay_color(app.theme.color.face.red, app.theme.color.face.green,
@@ -290,11 +289,10 @@ end
 
 function Editor:box_bounds(index)
 	local row_index = index - self.max_in_a_row * self.scroll
-
 	return Rectangle(
 		(self.dmi.width + BOX_PADDING) * ((row_index - 1) % self.max_in_a_row),
-		(self.dmi.height + BOX_BORDER + BOX_PADDING * 2 + TEXT_HEIGHT) * math.floor((row_index - 1) / self.max_in_a_row) +
-		BOX_PADDING,
+		(self.dmi.height + BOX_BORDER + BOX_PADDING * 2 + TEXT_HEIGHT) *
+			math.floor((row_index - 1) / self.max_in_a_row) + BOX_PADDING,
 		self.dmi.width + BOX_BORDER,
 		self.dmi.height + BOX_BORDER
 	)
@@ -304,7 +302,7 @@ end
 --- @param ev MouseEvent The mouse event object.
 function Editor:onmousedown(ev)
 	if ev.button == MouseButton.LEFT then
-		self.mouse.leftClick = true
+		-- Don't set this until after selection behaivor is handled
 		self.focused_widget = nil
 
 		-- Don't do anything fancy if we're clicking on a context menu
@@ -351,7 +349,6 @@ function Editor:onmousedown(ev)
 			end
 		end
 	elseif ev.button == MouseButton.RIGHT then
-		self.mouse.rightClick = true
 		self.focused_widget = nil
 		self.context_widget = nil
 	end
@@ -444,6 +441,8 @@ function Editor:onmouseup(ev)
 							self.scroll = target_row - visible_rows + 1
 						end
 
+						-- Reset selected widgets since we've moved around states (and thus idx)
+						self.selected_widgets = {}
 						self:repaint_states()
 					end
 				end
@@ -459,9 +458,6 @@ function Editor:onmouseup(ev)
 			self.drag_widget = nil
 			self.drag_start_time = nil
 			self.drop_index = nil
-			self.mouse.leftClick = false
-		elseif ev.button == MouseButton.RIGHT then
-			self.mouse.rightClick = false
 		end
 	end
 	if repaint then
@@ -470,7 +466,7 @@ function Editor:onmouseup(ev)
 end
 
 --- Updates the mouse position and triggers a repaint.
---- @param ev table The mouse event containing the x and y coordinates.
+--- @param ev MouseEvent The mouse event containing the x and y coordinates.
 function Editor:onmousemove(ev)
 	local mouse_position = Point(ev.x, ev.y)
 	local should_repaint = false
@@ -488,7 +484,7 @@ function Editor:onmousemove(ev)
 	end
 
 	-- Handle dragging
-	if self.mouse.leftClick and self.drag_widget and not self.dragging then
+	if (ev.button == MouseButton.LEFT) and self.drag_widget and not self.dragging then
 		-- Start drag after small delay/movement
 		if os.clock() - self.drag_start_time > 0.1 then
 			self.dragging = true
