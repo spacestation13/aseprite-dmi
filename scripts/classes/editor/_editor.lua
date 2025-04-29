@@ -13,6 +13,7 @@
 --- @field dmi Dmi The currently opened DMI file.
 --- @field open_sprites (StateSprite)[] A table containing all open sprites.
 --- @field widgets (AnyWidget)[] A table containing all state widgets.
+--- @field selected_widgets (IconWidget)[] Selected icon widgets to possibly combine.
 --- @field context_widget ContextWidget|nil The state that is currently being right clicked
 --- @field beforecommand number The event object for the "beforecommand" event.
 --- @field aftercommand number The event object for the "aftercommand" event.

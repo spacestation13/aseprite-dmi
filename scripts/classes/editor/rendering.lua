@@ -239,9 +239,9 @@ function Editor:repaint_states()
 				bounds,
 				icon,
 				function() self:open_state(state) end,
-				function(ev) self:state_context(state, ev) end
+				function(ev) self:state_context(state, ev) end,
+				state
 			)
-			iconWidget.state = state
 			table.insert(self.widgets, iconWidget)
 
 			table.insert(self.widgets, TextWidget.new(

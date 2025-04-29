@@ -127,9 +127,9 @@ function Editor:getCombinedDefaultName()
 		return a:sub(1, i - 1)
 	end
 
-	local commonBase = normalize(self.selected_widgets[1].state.name)
+	local commonBase = normalize(self.selected_widgets[1].iconstate.name)
 	for i = 2, #self.selected_widgets do
-		commonBase = commonPrefix(commonBase, normalize(self.selected_widgets[i].state.name))
+		commonBase = commonPrefix(commonBase, normalize(self.selected_widgets[i].iconstate.name))
 		if commonBase == "" then break end
 	end
 	if commonBase and #commonBase > 2 then -- < 3 char names are not useful
@@ -142,17 +142,17 @@ end
 --- Combines the selected states into one state, based off of the selected combination type.
 --- @param combinedName string The name for the combined state.
 function Editor:performCombineStates(combinedName, combineType)
-	local combined_state, error = libdmi.new_state(self.dmi.width, self.dmi.height, self.dmi.temp)
+	local combined_state, error = libdmi.new_state(self.dmi.width, self.dmi.height, self.dmi.temp, combinedName)
 	if error or not combined_state then
 		app.alert { title = "Error", text = { "Failed to create combined state", error } }
 		return
 	end
 
-	-- Reorder selected states based on DMI order
+	-- Selected iconstates based on DMI order
 	local sortedStates = {}
 	for _, state in ipairs(self.dmi.states) do
 		for _, selWidget in ipairs(self.selected_widgets) do
-			if state == selWidget.state then
+			if state == selWidget.iconstate then
 				table.insert(sortedStates, state)
 				break
 			end
@@ -174,15 +174,18 @@ function Editor:performCombineStates(combinedName, combineType)
 	self:repaint_states()
 end
 
+--- Combines the selected states into one new 1-dir iconstate, so each frame is a different state.
+--- @param combined_state State The combined state inject all the parts into.
+--- @param sortedStates State[] The iconstates to combine.
 function Editor:combine1direction(combined_state, sortedStates)
 	combined_state.frame_count = #sortedStates
 	for i, state in ipairs(sortedStates) do
-		local preview = self.image_cache:get(state.frame_key)
-		if not preview then
-			app.alert { title = "Error", text = "Preview image missing for state: " .. (state.name or "unknown") }
+		local img = self.image_cache:get(state.frame_key)
+		if not img then
+			app.alert { title = "Error", text = "Image data missing for state: " .. (state.name or "unknown") }
 			return false
 		end
-		save_image_bytes(preview, app.fs.joinPath(self.dmi.temp, combined_state.frame_key .. "." .. (i - 1) .. ".bytes"))
+		save_image_bytes(img, app.fs.joinPath(self.dmi.temp, combined_state.frame_key .. "." .. (i - 1) .. ".bytes"))
 	end
 	return true
 end
