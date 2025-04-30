@@ -133,6 +133,15 @@ function Editor:state_context(state, ev)
 		{ text = "Copy",       onclick = function() self:clipboard_copy_state(state) end },
 		{ text = "Remove",     onclick = function() self:remove_state(state) end },
 		{ text = "Split",      onclick = function() self:split_state(state) end },
+		{ text = "Select",
+			onclick = function()
+				local i = table.index_of(self.selected_states, state)
+				if i == 0 then
+					table.insert(self.selected_states, state)
+				end
+				self:repaint()
+			end
+		},
 	}
 	if #self.selected_states > 1 then
 		table.insert(buttons, { text = "Combine", onclick = function() self:combine_selected_states() end })
