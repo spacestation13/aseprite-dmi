@@ -53,18 +53,7 @@ function Editor:split_state(state)
 			local src_path = app.fs.joinPath(self.dmi.temp, state.frame_key .. "." .. tostring(start_frame + frame - 1) .. ".bytes")
 			local dst_path = app.fs.joinPath(self.dmi.temp, new_state.frame_key .. "." .. tostring(frame - 1) .. ".bytes")
 
-			-- Copy the image file
-			local src_file = io.open(src_path, "rb")
-			if src_file then
-				local content = src_file:read("*all")
-				src_file:close()
-
-				local dst_file = io.open(dst_path, "wb")
-				if dst_file then
-					dst_file:write(content)
-					dst_file:close()
-				end
-			end
+			self:copyImageBytes(src_path, dst_path)
 		end
 
 		table.insert(self.dmi.states, new_state)
@@ -91,9 +80,9 @@ function Editor:combine_selected_states()
 	}
 	dialog:combobox {
 		id = "combine_type",
-		label = "Combine Method:",
-		option = COMBINE_TYPES.onedir,
-		options = { COMBINE_TYPES.onedir, COMBINE_TYPES.alldirs },
+		label = "Used Directions:",
+		option = COMBINE_TYPES.alldirs,
+		options = { COMBINE_TYPES.alldirs, COMBINE_TYPES.onedir },
 	}
 	dialog:combobox {
 		id = "frame_sel_type",
@@ -106,8 +95,8 @@ function Editor:combine_selected_states()
 		focus = true,
 		onclick = function()
 			local combinedName = dialog.data.combined_name or "Combined"
-			local combineType = dialog.data.combine_type or COMBINE_TYPES.onedir
-			local frameSelType = dialog.data.frame_sel_type or FRAME_SEL_TYPES.all_seq
+			local combineType = dialog.data.combine_type or COMBINE_TYPES.onedir --[[@as CombineType]]
+			local frameSelType = dialog.data.frame_sel_type or FRAME_SEL_TYPES.all_seq --[[@as FrameSelType]]
 			dialog:close()
 			self:performCombineStates(combinedName, combineType, frameSelType)
 		end
@@ -148,6 +137,8 @@ end
 
 --- Combines the selected states into one state, based off of the selected combination type.
 --- @param combinedName string The name for the combined state.
+--- @param combineType CombineType The type of combination to perform.
+--- @param frameSelType FrameSelType The frame selection type.
 function Editor:performCombineStates(combinedName, combineType, frameSelType)
 	local combined_state, error = libdmi.new_state(self.dmi.width, self.dmi.height, self.dmi.temp, combinedName)
 	if error or not combined_state then
@@ -188,40 +179,27 @@ end
 --- @param sortedStates State[] The iconstates to combine.
 function Editor:combine1direction(combined_state, sortedStates, frameSelType)
 	combined_state.dirs = 1
-	local total_frames = 0
-	if frameSelType == FRAME_SEL_TYPES.first_only then
-		total_frames = #sortedStates
-	else
-		for _, st in ipairs(sortedStates) do
-			total_frames = total_frames + st.frame_count
-		end
-	end
+	local framesToUseList, total_frames = self:getFrameUsage(sortedStates, frameSelType)
 	combined_state.frame_count = total_frames
 
 	local frameIndex = 0
-	for _, st in ipairs(sortedStates) do
-		local framesToUse = (frameSelType == FRAME_SEL_TYPES.first_only) and 1 or st.frame_count
+	for idx, st in ipairs(sortedStates) do
+		local framesToUse = framesToUseList[idx]
 		for i = 0, framesToUse - 1 do
 			local srcPath = app.fs.joinPath(self.dmi.temp, st.frame_key .. "." .. i .. ".bytes")
 			local dstPath = app.fs.joinPath(self.dmi.temp, combined_state.frame_key .. "." .. frameIndex .. ".bytes")
-			-- Copy the bytes from srcPath to dstPath
-			local src_file = io.open(srcPath, "rb")
-			if src_file then
-				local content = src_file:read("*all")
-				src_file:close()
-
-				local dst_file = io.open(dstPath, "wb")
-				if dst_file then
-					dst_file:write(content)
-					dst_file:close()
-				end
-			end
+			self:copyImageBytes(srcPath, dstPath)
 			frameIndex = frameIndex + 1
 		end
 	end
 	return true
 end
 
+--- Combines the selected states into one new multi-dir iconstate, so each frame is a different state.
+--- For example, if 2 selected states are 4-dir with 2 frames, the combined state will be 4 dir with 4 frames.
+--- @param combined_state State The combined state inject all the parts into.
+--- @param sortedStates State[] The iconstates to combine.
+--- @param frameSelType FrameSelType The frame selection type.
 function Editor:combineAllDirections(combined_state, sortedStates, frameSelType)
 	local dirs = sortedStates[1].dirs
 	for _, st in ipairs(sortedStates) do
@@ -232,40 +210,52 @@ function Editor:combineAllDirections(combined_state, sortedStates, frameSelType)
 	end
 	combined_state.dirs = dirs
 
-	local totalFrames = 0
-	if frameSelType == FRAME_SEL_TYPES.first_only then
-		totalFrames = #sortedStates
-	else
-		for _, st in ipairs(sortedStates) do
-			totalFrames = totalFrames + st.frame_count
-		end
-	end
+	local framesToUseList, totalFrames = self:getFrameUsage(sortedStates, frameSelType)
 	combined_state.frame_count = totalFrames
 
 	local frameOffset = 0
-	for _, st in ipairs(sortedStates) do
-		local framesToUse = (frameSelType == FRAME_SEL_TYPES.first_only) and 1 or st.frame_count
+	for idx, st in ipairs(sortedStates) do
+		local framesToUse = framesToUseList[idx]
 		for frame = 0, framesToUse - 1 do
 			for d = 0, dirs - 1 do
 				local srcIndex = (frame * dirs) + d
 				local dstIndex = ((frameOffset + frame) * dirs) + d
 				local srcPath = app.fs.joinPath(self.dmi.temp, st.frame_key .. "." .. srcIndex .. ".bytes")
 				local dstPath = app.fs.joinPath(self.dmi.temp, combined_state.frame_key .. "." .. dstIndex .. ".bytes")
-				-- Copy the bytes from srcPath to dstPath
-				local src_file = io.open(srcPath, "rb")
-				if src_file then
-					local content = src_file:read("*all")
-					src_file:close()
-
-					local dst_file = io.open(dstPath, "wb")
-					if dst_file then
-						dst_file:write(content)
-						dst_file:close()
-					end
-				end
+				self:copyImageBytes(srcPath, dstPath)
 			end
 		end
 		frameOffset = frameOffset + framesToUse
 	end
 	return true
+end
+
+--- Gets the number of frames to use for each state based on the selected frame selection type.
+--- @param sortedStates State[] The states to use.
+--- @param frameSelType FrameSelType The frame selection type.
+function Editor:getFrameUsage(sortedStates, frameSelType)
+	local framesToUseList = {}
+	local totalFrames = 0
+	for _, st in ipairs(sortedStates) do
+		local useCount = ((frameSelType == FRAME_SEL_TYPES.first_only) and 1) or st.frame_count
+		table.insert(framesToUseList, useCount)
+		totalFrames = totalFrames + useCount
+	end
+	return framesToUseList, totalFrames
+end
+
+--- Copies the image bytes from the source path to the destination path.
+--- @param srcPath string The source path
+--- @param dstPath string The destination path
+function Editor:copyImageBytes(srcPath, dstPath)
+	local src_file = io.open(srcPath, "rb")
+	if src_file then
+		local content = src_file:read("*all")
+		src_file:close()
+		local dst_file = io.open(dstPath, "wb")
+		if dst_file then
+			dst_file:write(content)
+			dst_file:close()
+		end
+	end
 end
