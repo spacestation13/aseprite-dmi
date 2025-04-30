@@ -101,9 +101,6 @@ function Editor:combine_selected_states()
 		option = FRAME_SEL_TYPES.all_seq,
 		options = { FRAME_SEL_TYPES.all_seq, FRAME_SEL_TYPES.first_only,  },
 	}
-	dialog:label {
-		text = "Note: This does not work for combining animated states currently.",
-	}
 	dialog:button {
 		text = "&OK",
 		focus = true,
@@ -185,15 +182,38 @@ end
 --- Combines the selected states into one new 1-dir iconstate, so each frame is a different state.
 --- @param combined_state State The combined state inject all the parts into.
 --- @param sortedStates State[] The iconstates to combine.
-function Editor:combine1direction(combined_state, sortedStates)
-	combined_state.frame_count = #sortedStates
-	for i, state in ipairs(sortedStates) do
-		local img = self.image_cache:get(state.frame_key)
-		if not img then
-			app.alert { title = "Error", text = "Image data missing for state: " .. (state.name or "unknown") }
-			return false
+function Editor:combine1direction(combined_state, sortedStates, frameSelType)
+	combined_state.dirs = 1
+	local total_frames = 0
+	if frameSelType == FRAME_SEL_TYPES.first_only then
+		total_frames = #sortedStates
+	else
+		for _, st in ipairs(sortedStates) do
+			total_frames = total_frames + st.frame_count
 		end
-		save_image_bytes(img, app.fs.joinPath(self.dmi.temp, combined_state.frame_key .. "." .. (i - 1) .. ".bytes"))
+	end
+	combined_state.frame_count = total_frames
+
+	local frameIndex = 0
+	for _, st in ipairs(sortedStates) do
+		local framesToUse = (frameSelType == FRAME_SEL_TYPES.first_only) and 1 or st.frame_count
+		for i = 0, framesToUse - 1 do
+			local srcPath = app.fs.joinPath(self.dmi.temp, st.frame_key .. "." .. i .. ".bytes")
+			local dstPath = app.fs.joinPath(self.dmi.temp, combined_state.frame_key .. "." .. frameIndex .. ".bytes")
+			-- Copy the bytes from srcPath to dstPath
+			local src_file = io.open(srcPath, "rb")
+			if src_file then
+				local content = src_file:read("*all")
+				src_file:close()
+
+				local dst_file = io.open(dstPath, "wb")
+				if dst_file then
+					dst_file:write(content)
+					dst_file:close()
+				end
+			end
+			frameIndex = frameIndex + 1
+		end
 	end
 	return true
 end
