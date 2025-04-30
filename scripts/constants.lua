@@ -17,3 +17,8 @@ COMMON_STATE = {
 COMBINE_TYPES = {
 	onedir = "1 direction",
 }
+
+FRAME_SEL_TYPES = {
+	first_only = "First frame only",
+	all_seq = "All frames",
+}

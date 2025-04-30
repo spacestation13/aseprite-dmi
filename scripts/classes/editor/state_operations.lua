@@ -95,6 +95,12 @@ function Editor:combine_selected_states()
 		option = COMBINE_TYPES.onedir,
 		options = { COMBINE_TYPES.onedir },
 	}
+	dialog:combobox {
+		id = "frame_sel_type",
+		label = "Frame Selection:",
+		option = FRAME_SEL_TYPES.all_seq,
+		options = { FRAME_SEL_TYPES.all_seq, FRAME_SEL_TYPES.first_only,  },
+	}
 	dialog:label {
 		text = "Note: This does not work for combining animated states currently.",
 	}
@@ -104,8 +110,9 @@ function Editor:combine_selected_states()
 		onclick = function()
 			local combinedName = dialog.data.combined_name or "Combined"
 			local combineType = dialog.data.combine_type or COMBINE_TYPES.onedir
+			local frameSelType = dialog.data.frame_sel_type or FRAME_SEL_TYPES.all_seq
 			dialog:close()
-			self:performCombineStates(combinedName, combineType)
+			self:performCombineStates(combinedName, combineType, frameSelType)
 		end
 	}
 	dialog:button {
@@ -144,7 +151,7 @@ end
 
 --- Combines the selected states into one state, based off of the selected combination type.
 --- @param combinedName string The name for the combined state.
-function Editor:performCombineStates(combinedName, combineType)
+function Editor:performCombineStates(combinedName, combineType, frameSelType)
 	local combined_state, error = libdmi.new_state(self.dmi.width, self.dmi.height, self.dmi.temp, combinedName)
 	if error or not combined_state then
 		app.alert { title = "Error", text = { "Failed to create combined state", error } }
@@ -164,11 +171,9 @@ function Editor:performCombineStates(combinedName, combineType)
 
 	combined_state.name = combinedName
 	if combineType == COMBINE_TYPES.onedir then
-		if not self:combine1direction(combined_state, sortedStates) then
+		if not self:combine1direction(combined_state, sortedStates, frameSelType) then
 			return
 		end
-	else
-		-- Future expansion placeholder for other combine types.
 	end
 	table.insert(self.dmi.states, combined_state)
 	self.image_cache:load_state(self.dmi, combined_state)
