@@ -79,7 +79,7 @@ end
 
 --- Combines multiple selected states into one state.
 function Editor:combine_selected_states()
-	if not self.dmi or #self.selected_widgets < 2 then
+	if not self.dmi or #self.selected_states < 2 then
 		app.alert { title = self.title, text = "Select at least two states to combine." }
 		return
 	end
@@ -94,6 +94,9 @@ function Editor:combine_selected_states()
 		label = "Combine Method:",
 		option = COMBINE_TYPES.onedir,
 		options = { COMBINE_TYPES.onedir },
+	}
+	dialog:label {
+		text = "Note: This does not work for combining animated states currently.",
 	}
 	dialog:button {
 		text = "&OK",
@@ -127,9 +130,9 @@ function Editor:getCombinedDefaultName()
 		return a:sub(1, i - 1)
 	end
 
-	local commonBase = normalize(self.selected_widgets[1].iconstate.name)
-	for i = 2, #self.selected_widgets do
-		commonBase = commonPrefix(commonBase, normalize(self.selected_widgets[i].iconstate.name))
+	local commonBase = normalize(self.selected_states[1].name)
+	for i = 2, #self.selected_states do
+		commonBase = commonPrefix(commonBase, normalize(self.selected_states[i].name))
 		if commonBase == "" then break end
 	end
 	if commonBase and #commonBase > 2 then -- < 3 char names are not useful
@@ -151,8 +154,8 @@ function Editor:performCombineStates(combinedName, combineType)
 	-- Selected iconstates based on DMI order
 	local sortedStates = {}
 	for _, state in ipairs(self.dmi.states) do
-		for _, selWidget in ipairs(self.selected_widgets) do
-			if state == selWidget.iconstate then
+		for _, selState in ipairs(self.selected_states) do
+			if state == selState then
 				table.insert(sortedStates, state)
 				break
 			end
@@ -170,7 +173,7 @@ function Editor:performCombineStates(combinedName, combineType)
 	table.insert(self.dmi.states, combined_state)
 	self.image_cache:load_state(self.dmi, combined_state)
 	self.modified = true
-	self.selected_widgets = {}
+	self.selected_states = {}
 	self:repaint_states()
 end
 

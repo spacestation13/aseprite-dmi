@@ -13,7 +13,7 @@
 --- @field dmi Dmi The currently opened DMI file.
 --- @field open_sprites (StateSprite)[] A table containing all open sprites.
 --- @field widgets (AnyWidget)[] A table containing all state widgets.
---- @field selected_widgets (IconWidget)[] Selected icon widgets to possibly combine.
+--- @field selected_states State[] Selected icon widgets to possibly combine.
 --- @field context_widget ContextWidget|nil The state that is currently being right clicked
 --- @field beforecommand number The event object for the "beforecommand" event.
 --- @field aftercommand number The event object for the "aftercommand" event.
@@ -47,7 +47,7 @@ function Editor.new(title, dmi)
 	self.dmi              = nil
 	self.open_sprites     = {}
 	self.widgets          = {}
-	self.selected_widgets = {}
+	self.selected_states = {}
 	self.context_widget   = nil
 	self.save_path        = nil
 	self.open_path        = is_filename and dmi --[[@as string]] or nil
@@ -246,7 +246,7 @@ function Editor:open_file(dmi)
 	self.scroll = 0
 	self.dmi = nil
 	self.widgets = {}
-	self.selected_widgets = {}
+	self.selected_states = {}
 	self.open_sprites = {}
 	self.save_path = nil
 
