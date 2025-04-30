@@ -136,6 +136,7 @@ function Editor:state_context(state, ev)
 	}
 	if #self.selected_states > 1 then
 		table.insert(buttons, { text = "Combine", onclick = function() self:combine_selected_states() end })
+		table.insert(buttons, { text = "Deselect", onclick = function() self.selected_states = {}; self:repaint() end })
 	end
 	self.context_widget = ContextWidget.new(
 		Rectangle(ev.x, ev.y, 0, 0),
