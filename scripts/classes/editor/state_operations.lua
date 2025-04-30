@@ -93,7 +93,7 @@ function Editor:combine_selected_states()
 		id = "combine_type",
 		label = "Combine Method:",
 		option = COMBINE_TYPES.onedir,
-		options = { COMBINE_TYPES.onedir },
+		options = { COMBINE_TYPES.onedir, COMBINE_TYPES.alldirs },
 	}
 	dialog:combobox {
 		id = "frame_sel_type",
@@ -171,6 +171,10 @@ function Editor:performCombineStates(combinedName, combineType, frameSelType)
 		if not self:combine1direction(combined_state, sortedStates, frameSelType) then
 			return
 		end
+	elseif combineType == COMBINE_TYPES.alldirs then
+		if not self:combineAllDirections(combined_state, sortedStates, frameSelType) then
+			return
+		end
 	end
 	table.insert(self.dmi.states, combined_state)
 	self.image_cache:load_state(self.dmi, combined_state)
@@ -214,6 +218,54 @@ function Editor:combine1direction(combined_state, sortedStates, frameSelType)
 			end
 			frameIndex = frameIndex + 1
 		end
+	end
+	return true
+end
+
+function Editor:combineAllDirections(combined_state, sortedStates, frameSelType)
+	local dirs = sortedStates[1].dirs
+	for _, st in ipairs(sortedStates) do
+		if st.dirs ~= dirs then
+			app.alert { title = "Error", text = "All selected states must have the same number of directions." }
+			return false
+		end
+	end
+	combined_state.dirs = dirs
+
+	local totalFrames = 0
+	if frameSelType == FRAME_SEL_TYPES.first_only then
+		totalFrames = #sortedStates
+	else
+		for _, st in ipairs(sortedStates) do
+			totalFrames = totalFrames + st.frame_count
+		end
+	end
+	combined_state.frame_count = totalFrames
+
+	local frameOffset = 0
+	for _, st in ipairs(sortedStates) do
+		local framesToUse = (frameSelType == FRAME_SEL_TYPES.first_only) and 1 or st.frame_count
+		for frame = 0, framesToUse - 1 do
+			for d = 0, dirs - 1 do
+				local srcIndex = (frame * dirs) + d
+				local dstIndex = ((frameOffset + frame) * dirs) + d
+				local srcPath = app.fs.joinPath(self.dmi.temp, st.frame_key .. "." .. srcIndex .. ".bytes")
+				local dstPath = app.fs.joinPath(self.dmi.temp, combined_state.frame_key .. "." .. dstIndex .. ".bytes")
+				-- Copy the bytes from srcPath to dstPath
+				local src_file = io.open(srcPath, "rb")
+				if src_file then
+					local content = src_file:read("*all")
+					src_file:close()
+
+					local dst_file = io.open(dstPath, "wb")
+					if dst_file then
+						dst_file:write(content)
+						dst_file:close()
+					end
+				end
+			end
+		end
+		frameOffset = frameOffset + framesToUse
 	end
 	return true
 end

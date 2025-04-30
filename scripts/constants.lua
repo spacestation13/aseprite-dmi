@@ -16,6 +16,7 @@ COMMON_STATE = {
 
 COMBINE_TYPES = {
 	onedir = "1 direction",
+	alldirs = "All directions",
 }
 
 FRAME_SEL_TYPES = {
