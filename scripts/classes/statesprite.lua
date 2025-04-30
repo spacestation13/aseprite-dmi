@@ -95,8 +95,16 @@ function StateSprite:save()
 	end
 
 	-- Store original layers if we need to auto-flatten
+	-- And only if there's layers that aren't the magic directional names
 	local original_layers = nil
-	if Preferences.getAutoFlatten() then
+	local hasNonDirectional = false
+	for _, layer in ipairs(self.sprite.layers) do
+		if table.index_of(DIRECTION_NAMES, layer.name) == 0 then
+			hasNonDirectional = true
+			break
+		end
+	end
+	if Preferences.getAutoFlatten() and hasNonDirectional then
 		original_layers = {}
 		for _, layer in ipairs(self.sprite.layers) do
 			table.insert(original_layers, layer)
@@ -169,7 +177,7 @@ function StateSprite:save()
 	self.editor.modified = true
 
 	-- Restore original layers if we flattened by undoing the transaction from above
-	if Preferences.getAutoFlatten() then
+	if original_layers then
 		app.command.Undo()
 	end
 

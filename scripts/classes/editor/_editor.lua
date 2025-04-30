@@ -13,6 +13,7 @@
 --- @field dmi Dmi The currently opened DMI file.
 --- @field open_sprites (StateSprite)[] A table containing all open sprites.
 --- @field widgets (AnyWidget)[] A table containing all state widgets.
+--- @field selected_states State[] Selected icon widgets to possibly combine.
 --- @field context_widget ContextWidget|nil The state that is currently being right clicked
 --- @field beforecommand number The event object for the "beforecommand" event.
 --- @field aftercommand number The event object for the "aftercommand" event.
@@ -28,8 +29,6 @@ Editor.__index = Editor
 
 --- @class Editor.Mouse
 --- @field position Point The current mouse position.
---- @field leftClick boolean Whether the left mouse button is pressed.
---- @field rightClick boolean Whether the right mouse button is pressed.
 
 --- Creates a new instance of the Editor class.
 --- @param title string The title of the editor.
@@ -44,13 +43,18 @@ function Editor.new(title, dmi)
 	self.focused_widget   = nil
 	self.hovering_widgets = {}
 	self.scroll           = 0
-	self.mouse            = { position = Point(0, 0), leftClick = false, rightClick = false }
+	self.mouse            = { position = Point(0, 0) }
 	self.dmi              = nil
 	self.open_sprites     = {}
 	self.widgets          = {}
+	self.selected_states = {}
 	self.context_widget   = nil
 	self.save_path        = nil
 	self.open_path        = is_filename and dmi --[[@as string]] or nil
+
+	self.dragging         = false
+	self.drag_start_time  = math.huge
+	self.drop_index       = nil
 
 	self.canvas_width     = 185
 	self.canvas_height    = 215
@@ -220,7 +224,10 @@ end
 
 --- Shows the editor dialog.
 function Editor:show()
-	self.dialog:show { wait = false }
+	self.dialog:show {
+		wait = false,
+		autoscrollbars=true,
+	}
 end
 
 --- Opens a DMI file and displays it in the editor.
@@ -239,6 +246,7 @@ function Editor:open_file(dmi)
 	self.scroll = 0
 	self.dmi = nil
 	self.widgets = {}
+	self.selected_states = {}
 	self.open_sprites = {}
 	self.save_path = nil
 

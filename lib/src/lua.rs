@@ -62,12 +62,16 @@ fn save_file(_: &Lua, (dmi, filename): (LuaTable, String)) -> LuaResult<LuaValue
     Ok(LuaValue::Nil)
 }
 
-fn new_state(lua: &Lua, (width, height, temp): (u32, u32, String)) -> LuaResult<LuaTable> {
+fn new_state(
+    lua: &Lua,
+    (width, height, temp, name): (u32, u32, String, Option<String>),
+) -> LuaResult<LuaTable> {
     if !Path::new(&temp).exists() {
         Err("Temp directory does not exist".to_string()).into_lua_err()?
     }
 
-    let state = State::new_blank(String::new(), width, height).to_serialized(temp)?;
+    let state_name = name.unwrap_or(String::new());
+    let state = State::new_blank(state_name, width, height).to_serialized(temp)?;
     let table = state.into_lua_table(lua)?;
 
     Ok(table)

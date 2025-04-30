@@ -19,6 +19,7 @@
 --- @field icon Image The icon of the widget.
 --- @field onleftclick MouseFunction|nil The onleftclick function of the widget.
 --- @field onrightclick MouseFunction|nil The onrightclick function of the widget.
+--- @field iconstate State|nil The iconstate of the widget (optional).
 IconWidget = { type = "IconWidget" }
 IconWidget.__index = IconWidget
 
@@ -28,8 +29,9 @@ IconWidget.__index = IconWidget
 --- @param icon Image The icon of the widget.
 --- @param onleftclick MouseFunction|nil The function to be called when the widget is clicked (optional).
 --- @param onrightclick MouseFunction|nil The function to be called when the widget is right clicked (optional).
+--- @param iconstate State an associated iconstate (optional)
 --- @return IconWidget widget The newly created widget.
-function IconWidget.new(editor, bounds, icon, onleftclick, onrightclick)
+function IconWidget.new(editor, bounds, icon, onleftclick, onrightclick, iconstate)
 	local self = setmetatable({}, IconWidget)
 
 	self.editor = editor
@@ -37,6 +39,7 @@ function IconWidget.new(editor, bounds, icon, onleftclick, onrightclick)
 	self.icon = icon
 	self.onleftclick = onleftclick or nil
 	self.onrightclick = onrightclick or nil
+	self.iconstate = iconstate or nil
 
 	return self
 end

@@ -44,31 +44,28 @@ function Editor:onpaint(ctx)
 
 	local hovers = {} --[[ @as (string)[] ]]
 	for _, widget in ipairs(self.widgets) do
-		local state = COMMON_STATE.normal
 
+		-- Styling
+		local stateStyle = COMMON_STATE.normal
 		if widget == self.focused_widget then
-			state = COMMON_STATE.focused or state
+			stateStyle = COMMON_STATE.focused or stateStyle
 		end
-
 		local is_mouse_over = not self.context_widget and widget.bounds:contains(self.mouse.position)
-
 		if is_mouse_over then
-			state = COMMON_STATE.hot or state
-
-			if self.mouse.leftClick then
-				state = COMMON_STATE.selected or state
-			end
+			stateStyle = COMMON_STATE.hot or stateStyle
+		end
+		if widget.type == "IconWidget" and table.index_of(self.selected_states, widget.iconstate) > 0 then
+			stateStyle = COMMON_STATE.selected or stateStyle
 		end
 
 		if widget.type == "IconWidget" then
-			local widget = widget --[[ @as IconWidget ]]
-
-			ctx:drawThemeRect(state.part, widget.bounds)
+			ctx:drawThemeRect(stateStyle.part, widget.bounds)
 			ctx:drawImage(
 				widget.icon,
 				widget.icon.bounds,
 				Rectangle(widget.bounds.x + (widget.bounds.width - self.dmi.width) / 2,
-					widget.bounds.y + (widget.bounds.height - self.dmi.height) / 2, widget.icon.bounds.width,
+					widget.bounds.y + (widget.bounds.height - self.dmi.height) / 2,
+					widget.icon.bounds.width,
 					widget.icon.bounds.height)
 			)
 		elseif widget.type == "TextWidget" then
@@ -77,7 +74,8 @@ function Editor:onpaint(ctx)
 			local text = self.fit_text(widget.text, ctx, widget.bounds.width)
 			local size = ctx:measureText(text)
 
-			ctx.color = widget.text_color or app.theme.color[state.color]
+			-- fallback text color
+			ctx.color = widget.text_color or app.theme.color.text
 			ctx:fillText(
 				text,
 				widget.bounds.x + (widget.bounds.width - size.width) / 2,
@@ -90,7 +88,7 @@ function Editor:onpaint(ctx)
 		elseif widget.type == "ThemeWidget" then
 			local widget = widget --[[ @as ThemeWidget ]]
 
-			ctx:drawThemeRect(state.part, widget.bounds)
+			ctx:drawThemeRect(stateStyle.part, widget.bounds)
 
 			if widget.partId then
 				ctx:drawThemeImage(widget.partId,
@@ -205,6 +203,10 @@ function Editor:repaint_states()
 	local min_index = (self.max_in_a_row * self.scroll)
 	local max_index = min_index + self.max_in_a_row * (self.max_in_a_column + 1)
 	for index, state in ipairs(self.dmi.states) do
+-- TODO: fix bug here and in box_bounds below where you can have
+-- index = 7, min_index = 9, max_index = 10, max_in_a_row = 9
+-- and we don't render anything despite there being no more
+-- states past 7, need to render at least max_in_a_row
 		if index > min_index and index <= max_index then
 			local bounds = self:box_bounds(index)
 			local text_color = nil
@@ -224,8 +226,6 @@ function Editor:repaint_states()
 				end
 			end
 
-			local name = #state.name > 0 and state.name or "no name"
-
 			local icon = self.image_cache:get(state.frame_key)
 			local bytes = string.char(libdmi.overlay_color(app.theme.color.face.red, app.theme.color.face.green,
 				app.theme.color.face.blue, icon.width, icon.height, string.byte(icon.bytes, 1, #icon.bytes)) --[[@as number]])
@@ -233,13 +233,16 @@ function Editor:repaint_states()
 			local icon = Image(icon.width, icon.height)
 			icon.bytes = bytes
 
-			table.insert(self.widgets, IconWidget.new(
+			-- Create IconWidget and store its state for selection logic
+			local iconWidget = IconWidget.new(
 				self,
 				bounds,
 				icon,
 				function() self:open_state(state) end,
-				function(ev) self:state_context(state, ev) end
-			))
+				function(ev) self:state_context(state, ev) end,
+				state
+			)
+			table.insert(self.widgets, iconWidget)
 
 			table.insert(self.widgets, TextWidget.new(
 				self,
@@ -249,9 +252,9 @@ function Editor:repaint_states()
 					bounds.width,
 					TEXT_HEIGHT
 				),
-				name,
+				#state.name > 0 and state.name or "no name",
 				text_color,
-				name,
+				state.name,
 				function() self:state_properties(state) end,
 				function(ev) self:state_context(state, ev) end
 			))
@@ -286,11 +289,10 @@ end
 
 function Editor:box_bounds(index)
 	local row_index = index - self.max_in_a_row * self.scroll
-
 	return Rectangle(
 		(self.dmi.width + BOX_PADDING) * ((row_index - 1) % self.max_in_a_row),
-		(self.dmi.height + BOX_BORDER + BOX_PADDING * 2 + TEXT_HEIGHT) * math.floor((row_index - 1) / self.max_in_a_row) +
-		BOX_PADDING,
+		(self.dmi.height + BOX_BORDER + BOX_PADDING * 2 + TEXT_HEIGHT) *
+			math.floor((row_index - 1) / self.max_in_a_row) + BOX_PADDING,
 		self.dmi.width + BOX_BORDER,
 		self.dmi.height + BOX_BORDER
 	)
@@ -300,22 +302,53 @@ end
 --- @param ev MouseEvent The mouse event object.
 function Editor:onmousedown(ev)
 	if ev.button == MouseButton.LEFT then
-		self.mouse.leftClick = true
+		-- Don't set this until after selection behaivor is handled
 		self.focused_widget = nil
 
-		-- Only start drag if we're not clicking on a context menu
+		-- Don't do anything fancy if we're clicking on a context menu
 		if not self.context_widget then
-			-- Start potential drag
+
+			local clickedWidget = nil --[[ @type AnyWidget ]]
 			for _, widget in ipairs(self.widgets) do
 				if widget.type == "IconWidget" and widget.bounds:contains(Point(ev.x, ev.y)) then
-					self.drag_widget = widget
-					self.drag_start_time = os.clock()
+					clickedWidget = widget
 					break
 				end
 			end
+			if clickedWidget then
+				-- Handle range selection with Shift + Ctrl
+				if ev.shiftKey and ev.ctrlKey then
+					local iconWidgets = {}
+					for _, widget in ipairs(self.widgets) do
+						if widget.type == "IconWidget" then
+							table.insert(iconWidgets, widget)
+						end
+					end
+					local clickedWidgetIdx = table.index_of(iconWidgets, clickedWidget)
+					local closestSelWidgetIdx = self:find_closest_selected_state_index(clickedWidgetIdx)
+					if not closestSelWidgetIdx then return end
+					local low = math.min(clickedWidgetIdx, closestSelWidgetIdx)
+					local high = math.max(clickedWidgetIdx, closestSelWidgetIdx)
+					self:select_states_range(low, high)
+					self:repaint()
+					return
+				end
+
+				-- Selection mode with just Ctrl
+				if ev.ctrlKey then
+					self:toggle_state_selection(clickedWidget.iconstate)
+					self:repaint()
+					return
+				end
+
+				-- Setup Dragging
+				self.drag_widget = clickedWidget
+				self.drag_start_time = os.clock()
+			else -- No clicked widget, handle deselection
+				self.selected_states = {}
+			end
 		end
 	elseif ev.button == MouseButton.RIGHT then
-		self.mouse.rightClick = true
 		self.focused_widget = nil
 		self.context_widget = nil
 	end
@@ -358,15 +391,22 @@ function Editor:onmouseup(ev)
 			end
 			if not triggered then
 				if ev.button == MouseButton.RIGHT then
+					-- If multiple states are selected, show combine option.
+					local buttonsToAdd = {
+						{ text = "Paste", onclick = function() self:clipboard_paste_state() end },
+					}
+					if #self.selected_states > 1 then
+						table.insert(buttonsToAdd, { text = "Combine", onclick = function() self:combine_selected_states() end })
+						table.insert(buttonsToAdd, { text = "Deselect", onclick = function() self.selected_states = {}; self:repaint() end })
+					end
 					self.context_widget = ContextWidget.new(
 						Rectangle(ev.x, ev.y, 0, 0),
-						{
-							{ text = "Paste", onclick = function() self:clipboard_paste_state() end },
-						}
+						buttonsToAdd
 					)
 				end
 			end
 		end
+		-- Add logic to finalize drag-and-drop or click actions
 		if ev.button == MouseButton.LEFT then
 			if self.dragging and self.drag_widget and self.drop_index then
 				-- Find source state index using widget index and scroll offset
@@ -402,6 +442,8 @@ function Editor:onmouseup(ev)
 							self.scroll = target_row - visible_rows + 1
 						end
 
+						-- Reset selected states since we've moved around states (and thus idx)
+						self.selected_states = {}
 						self:repaint_states()
 					end
 				end
@@ -417,9 +459,6 @@ function Editor:onmouseup(ev)
 			self.drag_widget = nil
 			self.drag_start_time = nil
 			self.drop_index = nil
-			self.mouse.leftClick = false
-		elseif ev.button == MouseButton.RIGHT then
-			self.mouse.rightClick = false
 		end
 	end
 	if repaint then
@@ -428,7 +467,7 @@ function Editor:onmouseup(ev)
 end
 
 --- Updates the mouse position and triggers a repaint.
---- @param ev table The mouse event containing the x and y coordinates.
+--- @param ev MouseEvent The mouse event containing the x and y coordinates.
 function Editor:onmousemove(ev)
 	local mouse_position = Point(ev.x, ev.y)
 	local should_repaint = false
@@ -446,7 +485,7 @@ function Editor:onmousemove(ev)
 	end
 
 	-- Handle dragging
-	if self.mouse.leftClick and self.drag_widget and not self.dragging then
+	if (ev.button == MouseButton.LEFT) and self.drag_widget and not self.dragging then
 		-- Start drag after small delay/movement
 		if os.clock() - self.drag_start_time > 0.1 then
 			self.dragging = true
@@ -560,4 +599,81 @@ function Editor.fit_text(text, ctx, maxWidth)
 		width = ctx:measureText(text).width
 	end
 	return text
+end
+
+--- Helper method to toggle state selection
+--- @param state State The state to toggle selection for.
+function Editor:toggle_state_selection(state)
+	local idx = table.index_of(self.selected_states, state)
+	if idx ~= 0 then
+		table.remove(self.selected_states, idx)
+	else
+		table.insert(self.selected_states, state)
+	end
+end
+
+--- Helper method to select a range of states
+--- @param lowIndex number The lower index of the range.
+--- @param highIndex number The higher index of the range.
+function Editor:select_states_range(lowIndex, highIndex)
+	local iconWidgets = {}
+	for _, widget in ipairs(self.widgets) do
+		if widget.type == "IconWidget" then
+			table.insert(iconWidgets, widget)
+		end
+	end
+
+	-- Determine if all states in the range are already selected.
+	local allSelected = true
+	for i = lowIndex, highIndex do
+		local widget = iconWidgets[i]
+		if table.index_of(self.selected_states, widget.iconstate) == 0 then
+			allSelected = false
+			break
+		end
+	end
+
+	-- (De)select each state in the range.
+	for i = lowIndex, highIndex do
+		local widget = iconWidgets[i]
+		local idx = table.index_of(self.selected_states, widget.iconstate)
+		if allSelected then
+			-- Could be better but I'm not sure what the logic would be for
+			-- determining which neighboring states to deselect.
+			if idx and idx > 0 then
+				table.remove(self.selected_states, idx)
+			end
+		else
+			if idx == 0 then
+				table.insert(self.selected_states, widget.iconstate)
+			end
+		end
+	end
+end
+
+--- Finds the closest selected state index to the clicked widget index.
+--- @param clickedWidgetIndex number The index of the clicked widget.
+--- @return number|nil closestIndex The index of the closest selected state.
+function Editor:find_closest_selected_state_index(clickedWidgetIndex)
+	local closestIndex = nil
+	local closestDistance = math.huge
+
+	local iconWidgets = {} --[[ @type IconWidget[] ]]
+	for _, widget in ipairs(self.widgets) do
+		if widget.type == "IconWidget" then
+			table.insert(iconWidgets, widget)
+		end
+	end
+
+	for i, widget in ipairs(iconWidgets) do
+		if widget.type == "IconWidget" and table.index_of(self.selected_states, widget.iconstate) > 0 then
+			local distance = math.abs(i - clickedWidgetIndex)
+			if distance < closestDistance then
+				closestDistance = distance
+				closestIndex = i
+			end
+		end
+	end
+
+	return closestIndex or nil
 end

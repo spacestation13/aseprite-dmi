@@ -127,15 +127,38 @@ end
 --- @param state State The state to be opened.
 --- @param ev MouseEvent The mouse event object.
 function Editor:state_context(state, ev)
+	local buttons = {
+		{ text = "Properties", onclick = function() self:state_properties(state) end },
+		{ text = "Open",       onclick = function() self:open_state(state) end },
+		{ text = "Copy",       onclick = function() self:clipboard_copy_state(state) end },
+		{ text = "Remove",     onclick = function() self:remove_state(state) end },
+		{ text = "Split",      onclick = function() self:split_state(state) end },
+		{ text = "Select",
+			onclick = function()
+				local i = table.index_of(self.selected_states, state)
+				if i == 0 then
+					table.insert(self.selected_states, state)
+				end
+				self:repaint()
+			end
+		},
+	}
+	if #self.selected_states > 1 then
+		table.insert(buttons, { text = "Combine", onclick = function() self:combine_selected_states() end })
+		table.insert(buttons, {
+			text = "Deselect",
+			onclick = function()
+				local i = table.index_of(self.selected_states, state)
+				if i ~= 0 then
+					table.remove(self.selected_states, i)
+				end
+				self:repaint()
+			end
+		})
+	end
 	self.context_widget = ContextWidget.new(
 		Rectangle(ev.x, ev.y, 0, 0),
-		{
-			{ text = "Properties", onclick = function() self:state_properties(state) end },
-			{ text = "Open",       onclick = function() self:open_state(state) end },
-			{ text = "Copy",       onclick = function() self:clipboard_copy_state(state) end },
-			{ text = "Remove",     onclick = function() self:remove_state(state) end },
-			{ text = "Split",      onclick = function() self:split_state(state) end },
-		}
+		buttons
 	)
 	self:repaint()
 end
@@ -1018,83 +1041,4 @@ function Editor:reload_open_states()
 	for _, state in ipairs(open_states) do
 		self:open_state(state)
 	end
-end
-
---- Splits a multi-directional state into individual states, one for each direction.
---- @param state State The state to be split.
-function Editor:split_state(state)
-	if not self.dmi then return end
-	if state.dirs == 1 then
-		app.alert { title = "Warning", text = "Cannot split a state with only one direction" }
-		return
-	end
-
-	-- Check if state is open and modified
-	for _, state_sprite in ipairs(self.open_sprites) do
-		if state_sprite.state == state then
-			if state_sprite.sprite.isModified then
-				app.alert { title = self.title, text = "Save the open sprite first" }
-				return
-			end
-			break
-		end
-	end
-
-	local original_name = state.name
-	local direction_names = {
-		[4] = { "S", "N", "E", "W" },
-		[8] = { "S", "N", "E", "W", "SE", "SW", "NE", "NW" }
-	}
-
-	-- Create a new state for each direction
-	for i = 1, state.dirs do
-		local new_state, error = libdmi.new_state(self.dmi.width, self.dmi.height, self.dmi.temp)
-		if error then
-			app.alert { title = "Error", text = { "Failed to create new state", error } }
-			return
-		end
-
-		if not new_state then
-			app.alert { title = "Error", text = "Failed to create new state" }
-			return
-		end
-
-		-- Set the new state properties
-		new_state.name = original_name .. " - " .. direction_names[state.dirs][i]
-		new_state.dirs = 1
-		new_state.loop = state.loop
-		new_state.rewind = state.rewind
-		new_state.movement = state.movement
-		new_state.delays = table.clone(state.delays)
-
-		-- Copy the image data for this direction
-		local frames_per_dir = state.frame_count
-		local start_frame = (i - 1) * frames_per_dir
-
-		for frame = 1, frames_per_dir do
-			local src_path = app.fs.joinPath(self.dmi.temp, state.frame_key .. "." .. tostring(start_frame + frame - 1) .. ".bytes")
-			local dst_path = app.fs.joinPath(self.dmi.temp, new_state.frame_key .. "." .. tostring(frame - 1) .. ".bytes")
-
-			-- Copy the image file
-			local src_file = io.open(src_path, "rb")
-			if src_file then
-				local content = src_file:read("*all")
-				src_file:close()
-
-				local dst_file = io.open(dst_path, "wb")
-				if dst_file then
-					dst_file:write(content)
-					dst_file:close()
-				end
-			end
-		end
-
-		table.insert(self.dmi.states, new_state)
-		self.image_cache:load_state(self.dmi, new_state)
-	end
-
-	-- Mark as modified and remove the original state
-	self.modified = true
-	self:remove_state(state)
-	self:repaint_states()
 end
