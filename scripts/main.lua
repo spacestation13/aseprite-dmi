@@ -273,7 +273,7 @@ function update_popup()
 		focus = true,
 		text = "&OK",
 		onclick = function()
-			libdmi.open_repo("issues")
+			libdmi.open_repo("releases")
 			dialog:close()
 		end,
 	}
