@@ -279,6 +279,7 @@ WebSocketMessageType = {
 --- @field events app.events
 --- @field theme app.theme
 --- @field fs app.fs
+--- @field open fun(filename: string): Sprite|nil Opens a new sprite loading it from the given filename.
 
 --- @class app.pixelColor
 --- @field rgba fun(r: number, g: number, b: number, a: number): number
@@ -761,6 +762,7 @@ WebSocketMessageType = {
 --- @field new_file fun(name: string, width: number, height: number, temp: string): Dmi?, string? Creates a new DMI file. If fails, returns nil and an error message.
 --- @field open_file fun(path: string, temp: string): Dmi?, string? Opens a DMI file. If fails, returns nil and an error message.
 --- @field save_file fun(dmi: Dmi, filename: string): nil, string? Saves the DMI file. If fails, returns an error message.
+--- @field import_png fun(dmi: Dmi, filename: string): Dmi?, string? Imports a PNG file into the DMI editor. If fails, returns nil and an error message.
 --- @field new_state fun(width: number, height: number, temp: string, name?: string): State?, string? Creates a new state. If fails, returns nil and an error message.
 --- @field copy_state fun(state: State, temp: string): nil, string? Copies the state to the clipboard. If fails, returns an error message.
 --- @field paste_state fun(width: number, height: number, temp: string): State?, string? Pastes the state from the clipboard. If fails, returns nil and an error message.

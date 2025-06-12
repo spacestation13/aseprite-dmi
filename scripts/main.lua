@@ -264,7 +264,7 @@ function update_popup()
 	dialog:newrow()
 
 	dialog:label {
-		text = "Pressing \"OK\" will open the releases page in your browser.",
+		text = "Pressing \"OK\" will open the latest release page in your browser.",
 	}
 
 	dialog:canvas { height = 1 }
@@ -273,7 +273,7 @@ function update_popup()
 		focus = true,
 		text = "&OK",
 		onclick = function()
-			libdmi.open_repo("releases")
+			libdmi.open_repo("releases/latest")
 			dialog:close()
 		end,
 	}

@@ -29,6 +29,7 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
     exports.set("open_repo", lua.create_function(safe!(open_repo))?)?;
     exports.set("instances", lua.create_function(instances)?)?;
     exports.set("save_dialog", lua.create_function(safe!(save_dialog))?)?;
+    exports.set("import_png", lua.create_function(safe!(import_png))?)?;
 
     Ok(exports)
 }
@@ -256,6 +257,58 @@ fn open_repo(_: &Lua, path: Option<String>) -> LuaResult<LuaValue> {
     }
 
     Ok(LuaValue::Nil)
+}
+
+fn import_png(lua: &Lua, (dmi_table, filepath): (LuaTable, String)) -> LuaResult<LuaTable> {
+    use crate::dmi::{Dmi, SerializedDmi, State};
+    use image::ImageReader;
+
+    // Get temp dir before moving dmi_table
+    let temp = dmi_table
+        .get::<String>("temp")
+        .map_err(|_| mlua::Error::external("DMI temp directory missing"))?;
+    // Deserialize the DMI from Lua
+    let mut dmi = Dmi::from_serialized(SerializedDmi::from_lua_table(dmi_table)?)?;
+    let dmi_width = dmi.width;
+    let dmi_height = dmi.height;
+
+    // Open the PNG
+    let img = ImageReader::open(&filepath)
+        .map_err(mlua::Error::external)?
+        .decode()
+        .map_err(mlua::Error::external)?;
+    let png_width = img.width();
+    let png_height = img.height();
+    let tiles_x = png_width.div_ceil(dmi_width);
+    let tiles_y = png_height.div_ceil(dmi_height);
+
+    let mut new_states = Vec::new();
+    for y in (0..tiles_y).rev() {
+        // bottom to top
+        for x in 0..tiles_x {
+            let name = format!("{}_{}", x, y);
+            let mut state = State::new_blank(name, dmi_width, dmi_height);
+            // Crop region (may be partial)
+            let left = x * dmi_width;
+            let top = y * dmi_height;
+            let crop_w = dmi_width.min(png_width.saturating_sub(left));
+            let crop_h = dmi_height.min(png_height.saturating_sub(top));
+            let mut tile = img.crop_imm(left, top, crop_w, crop_h);
+            // If tile is smaller than dmi size, paste onto transparent
+            if tile.width() != dmi_width || tile.height() != dmi_height {
+                let mut full = image::DynamicImage::new_rgba8(dmi_width, dmi_height);
+                image::imageops::replace(&mut full, &tile, 0, 0);
+                tile = full;
+            }
+            state.frames[0] = tile;
+            new_states.push(state);
+        }
+    }
+    // Add new states to DMI
+    dmi.states.extend(new_states);
+    // Serialize and return as LuaTable
+    let serialized = dmi.to_serialized(temp, true)?;
+    serialized.into_lua_table(lua)
 }
 
 trait IntoLuaTable {

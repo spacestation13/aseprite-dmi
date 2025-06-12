@@ -15,22 +15,53 @@
 	],
 	"publisher": "Space Station 13 Community",
 	"license": "GPL-3.0",
-	"categories": [ "Scripts" ],
+	"categories": [
+		"Scripts"
+	],
 	"contributes": {
 		"scripts": [
-			{ "path": "./scripts/classes/cache.lua" },
-			{ "path": "./scripts/classes/preferences.lua" },
-			{ "path": "./scripts/classes/editor/_editor.lua" },
-			{ "path": "./scripts/classes/editor/rendering.lua" },
-			{ "path": "./scripts/classes/editor/state_operations.lua" },
-			{ "path": "./scripts/classes/editor/state.lua" },
-			{ "path": "./scripts/classes/statesprite.lua" },
-			{ "path": "./scripts/classes/widget.lua" },
-			{ "path": "./scripts/functions/other.lua" },
-			{ "path": "./scripts/functions/string.lua" },
-			{ "path": "./scripts/functions/table.lua" },
-			{ "path": "./scripts/constants.lua" },
-			{ "path": "./scripts/main.lua" }
+			{
+				"path": "./scripts/classes/cache.lua"
+			},
+			{
+				"path": "./scripts/classes/preferences.lua"
+			},
+			{
+				"path": "./scripts/classes/editor/_editor.lua"
+			},
+			{
+				"path": "./scripts/classes/editor/rendering.lua"
+			},
+			{
+				"path": "./scripts/classes/editor/state_operations.lua"
+			},
+			{
+				"path": "./scripts/classes/editor/state.lua"
+			},
+			{
+				"path": "./scripts/classes/editor/import.lua"
+			},
+			{
+				"path": "./scripts/classes/statesprite.lua"
+			},
+			{
+				"path": "./scripts/classes/widget.lua"
+			},
+			{
+				"path": "./scripts/functions/other.lua"
+			},
+			{
+				"path": "./scripts/functions/string.lua"
+			},
+			{
+				"path": "./scripts/functions/table.lua"
+			},
+			{
+				"path": "./scripts/constants.lua"
+			},
+			{
+				"path": "./scripts/main.lua"
+			}
 		]
 	}
 }
