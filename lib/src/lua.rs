@@ -288,7 +288,9 @@ fn import_png(lua: &Lua, (dmi_table, filepath): (LuaTable, String)) -> LuaResult
     for y in (0..tiles_y).rev() {
         // bottom to top
         for x in 0..tiles_x {
-            let name = format!("{}_{}", x, y);
+            // Name format is x,y, where 0,0 is the bottom-left corner
+            // So we need to invert the y coordinate for naming
+            let name = format!("{},{}", x, tiles_y - y - 1);
             let mut state = State::new_blank(name, dmi_width, dmi_height);
             // Crop region (may be partial)
             let left = x * dmi_width;
