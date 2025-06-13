@@ -254,7 +254,7 @@ fn open_repo(_: &Lua, path: Option<String>) -> LuaResult<LuaValue> {
         env!("CARGO_PKG_REPOSITORY").to_string()
     };
 
-    if webbrowser::open(&url).is_err() {
+    if open::that(&url).is_err() {
         return Err("Failed to open browser".to_string()).into_lua_err();
     }
 
