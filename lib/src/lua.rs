@@ -1,4 +1,5 @@
 use mlua::prelude::*;
+use native_dialog::DialogBuilder;
 use std::cmp::Ordering;
 use std::ffi::OsStr;
 use std::fs::{self, read_dir, remove_dir_all};
@@ -211,13 +212,14 @@ fn save_dialog(
     _: &Lua,
     (title, filename, location): (String, String, String),
 ) -> LuaResult<String> {
-    let dialog = native_dialog::FileDialog::new()
+    let dialog = DialogBuilder::file()
         .set_title(&title)
         .set_filename(&filename)
         .set_location(&location)
-        .add_filter("dmi files", &["dmi"]);
+        .add_filter("dmi files", ["dmi"])
+        .save_single_file();
 
-    if let Ok(Some(file)) = dialog.show_save_single_file() {
+    if let Ok(Some(file)) = dialog.show() {
         if let Some(file) = file.to_str() {
             return Ok(file.to_string());
         }
