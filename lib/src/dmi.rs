@@ -375,21 +375,21 @@ impl State {
             create_dir_all(path)?;
         }
 
-        let frame_key: String;
-
-        {
+        // Generate a unique frame key for storing the state's image frames
+        let frame_key = {
             let mut index = 1u32;
-            let mut path = path.join(".bytes");
             loop {
-                let frame_key_ = format!("{}.{}", self.name, index);
-                path.set_file_name(format!("{frame_key_}.0.bytes"));
-                if !path.exists() {
-                    frame_key = frame_key_;
-                    break;
+                let candidate_key = format!("{}.{}", self.name, index);
+                let test_path = path.join(format!("{candidate_key}.0.bytes"));
+
+                // If the file doesn't exist, we can use this key
+                if !test_path.exists() {
+                    break candidate_key;
                 }
+
                 index += 1;
             }
-        }
+        };
 
         let mut index: u32 = 0;
         for frame in 0..self.frame_count {

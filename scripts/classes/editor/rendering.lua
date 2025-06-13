@@ -44,7 +44,6 @@ function Editor:onpaint(ctx)
 
 	local hovers = {} --[[ @as (string)[] ]]
 	for _, widget in ipairs(self.widgets) do
-
 		-- Styling
 		local stateStyle = COMMON_STATE.normal
 		if widget == self.focused_widget then
@@ -101,8 +100,8 @@ function Editor:onpaint(ctx)
 	if self.dragging and self.drag_widget then
 		local widget = self.drag_widget --[[ @as IconWidget ]]
 		local drag_bounds = Rectangle(
-			self.mouse.position.x - widget.bounds.width/2,
-			self.mouse.position.y - widget.bounds.height/2,
+			self.mouse.position.x - widget.bounds.width / 2,
+			self.mouse.position.y - widget.bounds.height / 2,
 			widget.bounds.width,
 			widget.bounds.height
 		)
@@ -203,10 +202,10 @@ function Editor:repaint_states()
 	local min_index = (self.max_in_a_row * self.scroll)
 	local max_index = min_index + self.max_in_a_row * (self.max_in_a_column + 1)
 	for index, state in ipairs(self.dmi.states) do
--- TODO: fix bug here and in box_bounds below where you can have
--- index = 7, min_index = 9, max_index = 10, max_in_a_row = 9
--- and we don't render anything despite there being no more
--- states past 7, need to render at least max_in_a_row
+		-- TODO: fix bug here and in box_bounds below where you can have
+		-- index = 7, min_index = 9, max_index = 10, max_in_a_row = 9
+		-- and we don't render anything despite there being no more
+		-- states past 7, need to render at least max_in_a_row
 		if index > min_index and index <= max_index then
 			local bounds = self:box_bounds(index)
 			local text_color = nil
@@ -292,7 +291,7 @@ function Editor:box_bounds(index)
 	return Rectangle(
 		(self.dmi.width + BOX_PADDING) * ((row_index - 1) % self.max_in_a_row),
 		(self.dmi.height + BOX_BORDER + BOX_PADDING * 2 + TEXT_HEIGHT) *
-			math.floor((row_index - 1) / self.max_in_a_row) + BOX_PADDING,
+		math.floor((row_index - 1) / self.max_in_a_row) + BOX_PADDING,
 		self.dmi.width + BOX_BORDER,
 		self.dmi.height + BOX_BORDER
 	)
@@ -307,7 +306,6 @@ function Editor:onmousedown(ev)
 
 		-- Don't do anything fancy if we're clicking on a context menu
 		if not self.context_widget then
-
 			local clickedWidget = nil --[[ @type AnyWidget ]]
 			for _, widget in ipairs(self.widgets) do
 				if widget.type == "IconWidget" and widget.bounds:contains(Point(ev.x, ev.y)) then
@@ -390,14 +388,18 @@ function Editor:onmouseup(ev)
 				end
 			end
 			if not triggered then
-				if ev.button == MouseButton.RIGHT then
-					-- If multiple states are selected, show combine option.
+				if ev.button == MouseButton.RIGHT then -- If multiple states are selected, show combine option.
 					local buttonsToAdd = {
-						{ text = "Paste", onclick = function() self:clipboard_paste_state() end },
+						{ text = "Paste",  onclick = function() self:clipboard_paste_state() end },
+						{ text = "Import", onclick = function() self:import_png() end },
 					}
 					if #self.selected_states > 1 then
-						table.insert(buttonsToAdd, { text = "Combine", onclick = function() self:combine_selected_states() end })
-						table.insert(buttonsToAdd, { text = "Deselect", onclick = function() self.selected_states = {}; self:repaint() end })
+						table.insert(buttonsToAdd,
+							{ text = "Combine", onclick = function() self:combine_selected_states() end })
+						table.insert(buttonsToAdd,
+							{ text = "Deselect", onclick = function()
+								self.selected_states = {}; self:repaint()
+							end })
 					end
 					self.context_widget = ContextWidget.new(
 						Rectangle(ev.x, ev.y, 0, 0),
@@ -416,7 +418,7 @@ function Editor:onmouseup(ev)
 				for i, widget in ipairs(self.widgets) do
 					if widget == self.drag_widget then
 						-- Calculate actual state index from widget position
-						local widget_pos = math.floor((i - 1) / 2) + 1  -- Account for text widgets
+						local widget_pos = math.floor((i - 1) / 2) + 1 -- Account for text widgets
 						source_index = widget_pos + min_index
 						break
 					end
@@ -501,7 +503,7 @@ function Editor:onmousemove(ev)
 		-- Limit to valid positions (not beyond the last state + 1)
 		for i = 1, #self.dmi.states + 1 do
 			local bounds = self:box_bounds(i)
-			local center = Point(bounds.x + bounds.width/2, bounds.y + bounds.height/2)
+			local center = Point(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
 			local dist = math.abs(mouse_position.x - center.x) + math.abs(mouse_position.y - center.y)
 
 			if dist < closest_dist then

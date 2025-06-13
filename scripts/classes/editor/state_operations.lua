@@ -50,7 +50,8 @@ function Editor:split_state(state)
 		local start_frame = (i - 1) * frames_per_dir
 
 		for frame = 1, frames_per_dir do
-			local src_path = app.fs.joinPath(self.dmi.temp, state.frame_key .. "." .. tostring(start_frame + frame - 1) .. ".bytes")
+			local src_path = app.fs.joinPath(self.dmi.temp,
+				state.frame_key .. "." .. tostring(start_frame + frame - 1) .. ".bytes")
 			local dst_path = app.fs.joinPath(self.dmi.temp, new_state.frame_key .. "." .. tostring(frame - 1) .. ".bytes")
 
 			self:copyImageBytes(src_path, dst_path)
@@ -88,7 +89,7 @@ function Editor:combine_selected_states()
 		id = "frame_sel_type",
 		label = "Frame Selection:",
 		option = FRAME_SEL_TYPES.all_seq,
-		options = { FRAME_SEL_TYPES.all_seq, FRAME_SEL_TYPES.first_only,  },
+		options = { FRAME_SEL_TYPES.all_seq, FRAME_SEL_TYPES.first_only, },
 	}
 	dialog:button {
 		text = "&OK",
@@ -172,6 +173,7 @@ function Editor:performCombineStates(combinedName, combineType, frameSelType)
 	self.modified = true
 	self.selected_states = {}
 	self:repaint_states()
+	self:gc_open_sprites()
 end
 
 --- Combines the selected states into one new 1-dir iconstate, so each frame is a different state.

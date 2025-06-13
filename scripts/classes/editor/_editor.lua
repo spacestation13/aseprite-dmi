@@ -47,7 +47,7 @@ function Editor.new(title, dmi)
 	self.dmi              = nil
 	self.open_sprites     = {}
 	self.widgets          = {}
-	self.selected_states = {}
+	self.selected_states  = {}
 	self.context_widget   = nil
 	self.save_path        = nil
 	self.open_path        = is_filename and dmi --[[@as string]] or nil
@@ -201,8 +201,9 @@ function Editor:close(event, force)
 		libdmi.remove_dir(self.dmi.temp, false)
 	end
 
+	self:gc_open_sprites()
 	for _, state_sprite in ipairs(self.open_sprites) do
-		if state_sprite.sprite then
+		if state_sprite.sprite and Editor.is_sprite_open(state_sprite.sprite) then
 			state_sprite.sprite:close()
 		end
 	end
@@ -226,7 +227,7 @@ end
 function Editor:show()
 	self.dialog:show {
 		wait = false,
-		autoscrollbars=true,
+		autoscrollbars = true,
 	}
 end
 
