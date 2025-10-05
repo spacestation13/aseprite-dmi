@@ -39,7 +39,7 @@ impl Dmi {
         }
 
         if lines.next().ok_or(DmiError::InvalidMetadataVersion)?
-            != format!("version = {}", DMI_VERSION)
+            != format!("version = {DMI_VERSION}")
         {
             return Err(DmiError::InvalidMetadataVersion);
         }
@@ -114,7 +114,7 @@ impl Dmi {
     pub fn get_metadata(&self) -> String {
         let mut string = String::new();
         string.push_str("# BEGIN DMI\n");
-        string.push_str(format!("version = {}\n", DMI_VERSION).as_str());
+        string.push_str(format!("version = {DMI_VERSION}\n").as_str());
         string.push_str(format!("\twidth = {}\n", self.width).as_str());
         string.push_str(format!("\theight = {}\n", self.height).as_str());
         for state in self.states.iter() {
@@ -128,7 +128,7 @@ impl Dmi {
                     .map(|delay| delay.to_string())
                     .collect::<Vec<_>>()
                     .join(",");
-                string.push_str(format!("\tdelay = {}\n", delays).as_str())
+                string.push_str(format!("\tdelay = {delays}\n").as_str())
             };
             if state.loop_ > 0 {
                 string.push_str(format!("\tloop = {}\n", state.loop_).as_str())
@@ -141,7 +141,7 @@ impl Dmi {
             };
             if !state.hotspots.is_empty() {
                 for hotspot in state.hotspots.iter() {
-                    string.push_str(format!("\thotspot = {}\n", hotspot).as_str());
+                    string.push_str(format!("\thotspot = {hotspot}\n").as_str());
                 }
             }
         }

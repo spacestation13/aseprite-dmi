@@ -82,8 +82,14 @@ function Editor:combine_selected_states()
 	dialog:combobox {
 		id = "combine_type",
 		label = "Used Directions:",
-		option = COMBINE_TYPES.alldirs,
-		options = { COMBINE_TYPES.alldirs, COMBINE_TYPES.onedir },
+		option = COMBINE_TYPES.frames_4dir,
+		options = {
+			COMBINE_TYPES.onedir,
+			COMBINE_TYPES.frames_4dir,
+			COMBINE_TYPES.frames_8dir,
+			COMBINE_TYPES.dirs4_frames,
+			COMBINE_TYPES.dirs8_frames
+		},
 	}
 	dialog:combobox {
 		id = "frame_sel_type",
@@ -163,8 +169,20 @@ function Editor:performCombineStates(combinedName, combineType, frameSelType)
 		if not self:combine1direction(combined_state, sortedStates, frameSelType) then
 			return
 		end
-	elseif combineType == COMBINE_TYPES.alldirs then
-		if not self:combineAllDirections(combined_state, sortedStates, frameSelType) then
+	elseif combineType == COMBINE_TYPES.frames_4dir then
+		if not self:combineFramesFirst(combined_state, sortedStates, frameSelType, 4) then
+			return
+		end
+	elseif combineType == COMBINE_TYPES.frames_8dir then
+		if not self:combineFramesFirst(combined_state, sortedStates, frameSelType, 8) then
+			return
+		end
+	elseif combineType == COMBINE_TYPES.dirs4_frames then
+		if not self:combineDirectionsFirst(combined_state, sortedStates, frameSelType, 4) then
+			return
+		end
+	elseif combineType == COMBINE_TYPES.dirs8_frames then
+		if not self:combineDirectionsFirst(combined_state, sortedStates, frameSelType, 8) then
 			return
 		end
 	end
@@ -197,20 +215,22 @@ function Editor:combine1direction(combined_state, sortedStates, frameSelType)
 	return true
 end
 
---- Combines the selected states into one new multi-dir iconstate, so each frame is a different state.
---- For example, if 2 selected states are 4-dir with 2 frames, the combined state will be 4 dir with 4 frames.
---- @param combined_state State The combined state inject all the parts into.
+--- Combines the selected states with frames first, then directions.
+--- For example, if 2 selected states are 4-dir with 2 frames, the combined state will be 4-dir with 4 frames.
+--- @param combined_state State The combined state to inject all the parts into.
 --- @param sortedStates State[] The iconstates to combine.
 --- @param frameSelType FrameSelType The frame selection type.
-function Editor:combineAllDirections(combined_state, sortedStates, frameSelType)
-	local dirs = sortedStates[1].dirs
+--- @param targetDirs number The number of directions for the combined state (4 or 8).
+function Editor:combineFramesFirst(combined_state, sortedStates, frameSelType, targetDirs)
+	-- Check that all states have the same number of directions or can be converted
 	for _, st in ipairs(sortedStates) do
-		if st.dirs ~= dirs then
-			app.alert { title = "Error", text = "All selected states must have the same number of directions." }
+		if st.dirs > targetDirs then
+			app.alert { title = "Error", text = "Cannot combine states with more directions than the target (" .. targetDirs .. ")." }
 			return false
 		end
 	end
-	combined_state.dirs = dirs
+
+	combined_state.dirs = targetDirs
 
 	local framesToUseList, totalFrames = self:getFrameUsage(sortedStates, frameSelType)
 	combined_state.frame_count = totalFrames
@@ -219,9 +239,17 @@ function Editor:combineAllDirections(combined_state, sortedStates, frameSelType)
 	for idx, st in ipairs(sortedStates) do
 		local framesToUse = framesToUseList[idx]
 		for frame = 0, framesToUse - 1 do
-			for d = 0, dirs - 1 do
-				local srcIndex = (frame * dirs) + d
-				local dstIndex = ((frameOffset + frame) * dirs) + d
+			for d = 0, targetDirs - 1 do
+				local srcIndex
+				if d < st.dirs then
+					-- If the source has this direction, use it
+					srcIndex = (frame * st.dirs) + d
+				else
+					-- Otherwise, use the first direction (usually south)
+					srcIndex = (frame * st.dirs)
+				end
+
+				local dstIndex = ((frameOffset + frame) * targetDirs) + d
 				local srcPath = app.fs.joinPath(self.dmi.temp, st.frame_key .. "." .. srcIndex .. ".bytes")
 				local dstPath = app.fs.joinPath(self.dmi.temp, combined_state.frame_key .. "." .. dstIndex .. ".bytes")
 				self:copyImageBytes(srcPath, dstPath)
@@ -229,6 +257,109 @@ function Editor:combineAllDirections(combined_state, sortedStates, frameSelType)
 		end
 		frameOffset = frameOffset + framesToUse
 	end
+	return true
+end
+
+--- Combines the selected states with directions first, then frames.
+--- Each direction comes from a different state (First→South, Second→North, etc.)
+--- @param combined_state State The combined state to inject all the parts into.
+--- @param sortedStates State[] The iconstates to combine.
+--- @param frameSelType FrameSelType The frame selection type.
+--- @param targetDirs number The number of directions for the combined state (4 or 8).
+function Editor:combineDirectionsFirst(combined_state, sortedStates, frameSelType, targetDirs)
+	if #sortedStates <= 1 then
+		app.alert { title = "Error", text = "Direction-first combination requires at least 2 states." }
+		return false
+	end
+
+	combined_state.dirs = targetDirs
+
+	-- Find the maximum number of frames across all states when using all frames
+	local maxFrameCount = 1
+	if frameSelType == FRAME_SEL_TYPES.all_seq then
+		for _, st in ipairs(sortedStates) do
+			maxFrameCount = math.max(maxFrameCount, st.frame_count)
+		end
+	end
+
+	-- Total frame count is either the dir-based count or max frame count, whichever is larger
+	combined_state.frame_count = maxFrameCount
+
+	-- Map states to directions
+	for stateIndex = 0, #sortedStates - 1 do
+		local dirNumber = stateIndex % targetDirs
+		local currentState = sortedStates[stateIndex + 1]
+
+		local srcDir = 0
+		if currentState.dirs > 1 then
+			srcDir = math.min(dirNumber, currentState.dirs - 1)
+		end
+
+		-- Copy all frames for this state's direction
+		local frameCount = 1
+		if frameSelType == FRAME_SEL_TYPES.all_seq then
+			frameCount = currentState.frame_count
+		end
+
+		for frame = 0, frameCount - 1 do
+			local srcIndex = (frame * currentState.dirs) + srcDir
+			local dstIndex = (frame * targetDirs) + dirNumber
+
+			local srcPath = app.fs.joinPath(self.dmi.temp, currentState.frame_key .. "." .. srcIndex .. ".bytes")
+			local dstPath = app.fs.joinPath(self.dmi.temp, combined_state.frame_key .. "." .. dstIndex .. ".bytes")
+
+			self:copyImageBytes(srcPath, dstPath)
+		end
+
+		-- If this state doesn't have enough frames to fill the output, repeat the last frame
+		if frameSelType == FRAME_SEL_TYPES.all_seq and frameCount < maxFrameCount then
+			local lastSrcFrame = frameCount - 1
+			local lastSrcIndex = (lastSrcFrame * currentState.dirs) + srcDir
+
+			for frame = frameCount, maxFrameCount - 1 do
+				local dstIndex = (frame * targetDirs) + dirNumber
+
+				local srcPath = app.fs.joinPath(self.dmi.temp, currentState.frame_key .. "." .. lastSrcIndex .. ".bytes")
+				local dstPath = app.fs.joinPath(self.dmi.temp, combined_state.frame_key .. "." .. dstIndex .. ".bytes")
+
+				self:copyImageBytes(srcPath, dstPath)
+			end
+		end
+	end
+
+	-- Fill any remaining directions with the last state
+	if #sortedStates < targetDirs then
+		local lastState = sortedStates[#sortedStates]
+
+		for dirNumber = #sortedStates % targetDirs, targetDirs - 1 do
+			if dirNumber == #sortedStates % targetDirs and #sortedStates % targetDirs == 0 then
+				break -- Already filled all directions
+			end
+
+			local srcDir = 0
+			if lastState.dirs > 1 then
+				srcDir = math.min(dirNumber, lastState.dirs - 1)
+			end
+
+			-- Copy all frames for this direction
+			local frameCount = 1
+			if frameSelType == FRAME_SEL_TYPES.all_seq then
+				frameCount = lastState.frame_count
+			end
+
+			for frame = 0, maxFrameCount - 1 do
+				local srcFrame = math.min(frame, frameCount - 1)
+				local srcIndex = (srcFrame * lastState.dirs) + srcDir
+				local dstIndex = (frame * targetDirs) + dirNumber
+
+				local srcPath = app.fs.joinPath(self.dmi.temp, lastState.frame_key .. "." .. srcIndex .. ".bytes")
+				local dstPath = app.fs.joinPath(self.dmi.temp, combined_state.frame_key .. "." .. dstIndex .. ".bytes")
+
+				self:copyImageBytes(srcPath, dstPath)
+			end
+		end
+	end
+
 	return true
 end
 
