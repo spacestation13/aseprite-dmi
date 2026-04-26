@@ -255,7 +255,7 @@ WebSocketMessageType = {
 
 --- @class app
 --- @field apiVersion number
---- @field version any TODO
+--- @field version Version
 --- @field isUIAvailable boolean
 --- @field alert (fun(text: string): number)|(fun(params: app.alert.Params): number)
 --- @field transaction fun(name?: string, callback: function)
@@ -346,6 +346,16 @@ WebSocketMessageType = {
 
 --- @class Plugin.MenuSeparatorParams
 --- @field group string In which existent group we should add this new menu item.
+
+--- @class Version
+--- @field major number
+--- @field minor number
+--- @field patch number
+--- @field prereleaseLabel string
+--- @field prereleaseNumber number
+
+--- @type fun(version: string): Version
+Version = nil
 
 --- @class Image: table
 --- @field clone fun(self: Image): Image
@@ -771,10 +781,12 @@ WebSocketMessageType = {
 --- @field expand fun(dmi: Dmi, x: number, y: number, width: number, height: number): nil, string? Expands the DMI file size. If fails, returns an error message.
 --- @field overlay_color fun(r: number, g: number, b: number, width: number, height: number, ...: number): ...: number|nil Overlays the given bytes of an image on a plain color.
 --- @field remove_dir fun(path: string, soft: boolean): nil, string? Removes a directory. If fails, returns an error message.
+--- @field save_rgba_png fun(width: number, height: number, bytes: string, filename: string): nil, string? Saves an RGBA byte buffer as a PNG file. If fails, returns an error message.
 --- @field exists fun(path: string): boolean Returns true if the path points at an existing entity.
 --- @field check_update fun(): boolean Return true if there is an update available.
 --- @field instances fun(): number?, string? Return the number of Aseprite instances running.
 --- @field save_dialog fun(title: string, filename: string, location: string): string?, string? Shows a save dialog. Returns the path of the file to save or empty string if the user cancels the dialog.
+--- @field save_raw_dialog fun(title: string, filename: string, location: string): string?, string? Shows a raw DMI save dialog. Returns the path of the file to save or empty string if the user cancels the dialog.
 --- @field open_repo fun(path?: string): nil, string? Opens the repository in the default browser. If fails, returns an error message.
 
 --- @class Dmi: table
