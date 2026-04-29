@@ -104,3 +104,15 @@ fn compare_versions(v1: &str, v2: &str) -> Ordering {
 
     v1.cmp(&v2)
 }
+
+/// Sanitizes a string to be safe for use as a filename on all platforms.
+/// Replaces illegal characters with underscores.
+pub fn sanitize_filename(name: &str) -> String {
+    sanitize_filename::sanitize_with_options(
+        name,
+        sanitize_filename::Options {
+            replacement: "_",
+            ..Default::default()
+        },
+    )
+}

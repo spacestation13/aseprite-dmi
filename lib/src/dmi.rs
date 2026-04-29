@@ -10,7 +10,7 @@ use std::io::{BufWriter, Cursor, Read as _, Write as _};
 use std::path::Path;
 use thiserror::Error;
 
-use crate::utils::{find_directory, image_to_base64, optimal_size};
+use crate::utils::{find_directory, image_to_base64, optimal_size, sanitize_filename};
 
 const DMI_VERSION: &str = "4.0";
 
@@ -377,9 +377,15 @@ impl State {
 
         // Generate a unique frame key for storing the state's image frames
         let frame_key = {
+            let safe_name = sanitize_filename(&self.name);
+            let safe_name = if safe_name.is_empty() {
+                "state".to_string()
+            } else {
+                safe_name
+            };
             let mut index = 1u32;
             loop {
-                let candidate_key = format!("{}.{}", self.name, index);
+                let candidate_key = format!("{}.{}", safe_name, index);
                 let test_path = path.join(format!("{candidate_key}.0.bytes"));
 
                 // If the file doesn't exist, we can use this key
