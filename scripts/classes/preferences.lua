@@ -26,9 +26,11 @@ function Preferences.show(plugin)
 		title = "DMI Editor Preferences"
 	}
 
+	dialog:label {
+		text = "Maximum Preview Size:"
+	}
 	dialog:number {
 		id = "preview_size",
-		label = "Preview Size:",
 		text = tostring(Preferences.plugin.preferences.preview_size or DEFAULT_PREVIEW_SIZE),
 		decimals = 0,
 	}
