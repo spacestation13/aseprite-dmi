@@ -48,6 +48,7 @@ The DMI file may be expanded, resized, or cropped via the `File > DMI Editor` me
 
 Under the `File > DMI Editor` menu, there is an `Preferences` menu which contains various options:
 
+-   **Preview Size** _(Default: 128)_: Sets the maximum thumbnail size used for state previews in the DMI editor.
 -   **Auto Overwrite**: Automatically overwrites the source DMI file when saving an iconstate.
 -   **Auto Flatten** _(Enabled by Default)_: Automatically flattens layers downward into directional layers when saving an iconstate, allowing you to fully use Aseprite layers.
 
