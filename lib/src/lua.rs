@@ -17,6 +17,7 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
     exports.set("new_file", lua.create_function(safe!(new_file))?)?;
     exports.set("open_file", lua.create_function(safe!(open_file))?)?;
     exports.set("save_file", lua.create_function(safe!(save_file))?)?;
+    exports.set("save_rgba_png", lua.create_function(safe!(save_rgba_png))?)?;
     exports.set("new_state", lua.create_function(safe!(new_state))?)?;
     exports.set("copy_state", lua.create_function(safe!(copy_state))?)?;
     exports.set("paste_state", lua.create_function(safe!(paste_state))?)?;
@@ -30,6 +31,10 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
     exports.set("open_repo", lua.create_function(safe!(open_repo))?)?;
     exports.set("instances", lua.create_function(instances)?)?;
     exports.set("save_dialog", lua.create_function(safe!(save_dialog))?)?;
+    exports.set(
+        "save_raw_dialog",
+        lua.create_function(safe!(save_raw_dialog))?,
+    )?;
     exports.set("import_png", lua.create_function(safe!(import_png))?)?;
 
     Ok(exports)
@@ -192,6 +197,20 @@ fn remove_dir(_: &Lua, (path, soft): (String, bool)) -> LuaResult<LuaValue> {
     Ok(LuaValue::Nil)
 }
 
+fn save_rgba_png(
+    _: &Lua,
+    (width, height, bytes, filename): (u32, u32, LuaString, String),
+) -> LuaResult<LuaValue> {
+    let image = image::RgbaImage::from_vec(width, height, bytes.as_bytes().to_vec())
+        .ok_or_else(|| LuaError::external("Invalid RGBA buffer size"))?;
+
+    image::DynamicImage::ImageRgba8(image)
+        .save_with_format(&filename, image::ImageFormat::Png)
+        .map_err(crate::dmi::DmiError::from)?;
+
+    Ok(LuaValue::Nil)
+}
+
 fn exists(_: &Lua, path: String) -> LuaResult<bool> {
     let path = Path::new(&path);
 
@@ -207,6 +226,27 @@ fn save_dialog(
         .set_filename(&filename)
         .set_location(&location)
         .add_filter("dmi files", ["dmi"])
+        .save_single_file();
+
+    if let Ok(Some(file)) = dialog.show() {
+        if let Some(file) = file.to_str() {
+            return Ok(file.to_string());
+        }
+    }
+
+    Ok(String::new())
+}
+
+fn save_raw_dialog(
+    _: &Lua,
+    (title, filename, location): (String, String, String),
+) -> LuaResult<String> {
+    let dialog = DialogBuilder::file()
+        .set_title(&title)
+        .set_filename(&filename)
+        .set_location(&location)
+        .add_filter("dmi files", ["dmi"])
+        .add_filter("png files", ["png"])
         .save_single_file();
 
     if let Ok(Some(file)) = dialog.show() {

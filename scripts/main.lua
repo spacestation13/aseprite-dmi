@@ -19,8 +19,6 @@ open_editors = {}
 --- @type LibDmi
 libdmi = nil
 
---- Tracks if we're doing a no-editor DMI open
-local opening_dmi_noeditor = false
 
 --- Initializes the plugin. Called when the plugin is loaded.
 --- @param plugin Plugin The plugin object.
@@ -35,27 +33,29 @@ function init(plugin)
 
 	-- Initialize Preferences
 	Preferences.initialize(plugin)
+	RawDmi.initialize(plugin.path)
 
 	after_listener = app.events:on("aftercommand", function(ev)
 		if ev.name == "OpenFile" then
-			-- Skip DMI editor if coming from Raw Open command
-			if app.sprite and app.sprite.filename:ends_with(".dmi") and not opening_dmi_noeditor then
+			local opening_raw = RawDmi.opening
+			RawDmi.after_open(app.sprite)
+
+			if app.sprite and app.sprite.filename:ends_with(".dmi") and not opening_raw then
 				local filename = app.sprite.filename
 				app.command.CloseFile { ui = false }
 
 				loadlib(plugin.path)
-
 				Editor.new(DIALOG_NAME, filename)
 			end
-			-- Reset the flag after handling the OpenFile event
-			opening_dmi_noeditor = false
 		elseif ev.name == "Exit" then
 			exiting = true
 		end
 	end)
 
 	before_listener = app.events:on("beforecommand", function(ev)
-		if ev.name == "Exit" then
+		if RawDmi.beforecommand(ev) then
+			return
+		elseif ev.name == "Exit" then
 			local stopped = false
 			if #open_editors > 0 then
 				local editors = table.clone(open_editors) --[[@as Editor[] ]]
@@ -104,8 +104,7 @@ function init(plugin)
 		title = "ADVANCED: Open DMI as Spritesheet (Won't save DMI metadata!)",
 		group = "dmi_editor",
 		onclick = function()
-			opening_dmi_noeditor = true
-			app.command.OpenFile()
+			RawDmi.open()
 		end,
 	}
 
