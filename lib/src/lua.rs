@@ -160,32 +160,22 @@ fn expand(
 }
 
 fn overlay_color(
-    _: &Lua,
-    (r, g, b, width, height, bytes): (u8, u8, u8, u32, u32, LuaMultiValue),
-) -> LuaResult<LuaMultiValue> {
+    lua: &Lua,
+    (r, g, b, width, height, bytes): (u8, u8, u8, u32, u32, LuaString),
+) -> LuaResult<LuaValue> {
     use image::{imageops, EncodableLayout, ImageBuffer, Rgba};
 
-    let mut buf = Vec::new();
-    for byte in bytes {
-        if let LuaValue::Integer(byte) = byte {
-            buf.push(byte as u8);
-        }
-    }
+    let buf = bytes.as_bytes().to_vec();
 
     if let Some(top) = ImageBuffer::from_vec(width, height, buf) {
         let mut bottom = ImageBuffer::from_pixel(width, height, Rgba([r, g, b, 255]));
         imageops::overlay(&mut bottom, &top, 0, 0);
 
-        let bytes = bottom
-            .as_bytes()
-            .iter()
-            .map(|byte| LuaValue::Integer(*byte as i64))
-            .collect();
-
-        return Ok(LuaMultiValue::from_vec(bytes));
+        let result = lua.create_string(bottom.as_bytes())?;
+        return Ok(LuaValue::String(result));
     }
 
-    Ok(LuaMultiValue::from_vec(vec![LuaValue::Nil]))
+    Ok(LuaValue::Nil)
 }
 
 fn remove_dir(_: &Lua, (path, soft): (String, bool)) -> LuaResult<LuaValue> {

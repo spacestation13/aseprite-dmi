@@ -226,11 +226,6 @@ function Editor:repaint_states()
 			end
 
 			local icon = self.image_cache:get(state.frame_key)
-			local bytes = string.char(libdmi.overlay_color(app.theme.color.face.red, app.theme.color.face.green,
-				app.theme.color.face.blue, icon.width, icon.height, string.byte(icon.bytes, 1, #icon.bytes)) --[[@as number]])
-
-			local icon = Image(icon.width, icon.height)
-			icon.bytes = bytes
 
 			-- Create IconWidget and store its state for selection logic
 			local iconWidget = IconWidget.new(

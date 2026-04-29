@@ -32,7 +32,12 @@ function load_image_bytes(file)
 
 	assert(width and height and bytes, "Invalid file")
 
-	image = Image(width, height)
+	image = Image(ImageSpec {
+		width = width,
+		height = height,
+		colorMode = ColorMode.RGB,
+		transparentColor = app.pixelColor.rgba(0, 0, 0, 0)
+	})
 	image.bytes = bytes
 
 	return image
