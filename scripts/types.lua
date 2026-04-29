@@ -278,6 +278,7 @@ WebSocketMessageType = {
 --- @field params table
 --- @field events app.events
 --- @field theme app.theme
+--- @field uiScale number
 --- @field fs app.fs
 --- @field open fun(filename: string): Sprite|nil Opens a new sprite loading it from the given filename.
 
@@ -603,7 +604,7 @@ WebSocketMessageType = {
 --- @field bounds? Rectangle
 
 --- @class Dialog.ModifyParams: table<string, any>
---- @field id string
+--- @field id? string
 --- @field title? string
 
 --- @class Dialog.NewRowParams

@@ -3,6 +3,31 @@ local CONTEXT_BUTTON_HEIGHT = 0
 local BOX_BORDER = 4
 local BOX_PADDING = 5
 
+function Editor:max_preview_size()
+	local preview_size = Preferences.getPreviewSize and Preferences.getPreviewSize() or 128
+	return math.max(1, preview_size)
+end
+
+function Editor:preview_dimensions()
+	if not self.dmi then
+		return 1, 1
+	end
+
+	local max_preview_size = self:max_preview_size()
+	local longest = math.max(self.dmi.width, self.dmi.height)
+	if longest <= max_preview_size then
+		return self.dmi.width, self.dmi.height
+	end
+
+	local scale = max_preview_size / longest
+	return math.max(1, math.floor(self.dmi.width * scale + 0.5)), math.max(1, math.floor(self.dmi.height * scale + 0.5))
+end
+
+function Editor:preview_cell_dimensions()
+	local preview_width, preview_height = self:preview_dimensions()
+	return preview_width + BOX_BORDER, preview_height + BOX_BORDER
+end
+
 --- Repaints the editor.
 function Editor:repaint()
 	self.dialog:repaint()
@@ -18,8 +43,10 @@ function Editor:onpaint(ctx)
 		return
 	end
 
-	local min_width = self.dmi and (self.dmi.width + BOX_PADDING) or 1
-	local min_height = self.dmi and (self.dmi.height + BOX_BORDER + BOX_PADDING * 2 + TEXT_HEIGHT) or 1
+	local preview_width, preview_height = self:preview_dimensions()
+	local cell_width, cell_height = self:preview_cell_dimensions()
+	local min_width = self.dmi and (cell_width + BOX_PADDING) or 1
+	local min_height = self.dmi and (cell_height + BOX_PADDING * 2 + TEXT_HEIGHT) or 1
 
 	self.canvas_width = math.max(ctx.width, min_width)
 	self.canvas_height = math.max(ctx.height, min_height)
@@ -62,10 +89,10 @@ function Editor:onpaint(ctx)
 			ctx:drawImage(
 				widget.icon,
 				widget.icon.bounds,
-				Rectangle(widget.bounds.x + (widget.bounds.width - self.dmi.width) / 2,
-					widget.bounds.y + (widget.bounds.height - self.dmi.height) / 2,
-					widget.icon.bounds.width,
-					widget.icon.bounds.height)
+				Rectangle(widget.bounds.x + (widget.bounds.width - preview_width) / 2,
+					widget.bounds.y + (widget.bounds.height - preview_height) / 2,
+					preview_width,
+					preview_height)
 			)
 		elseif widget.type == "TextWidget" then
 			local widget = widget --[[ @as TextWidget ]]
@@ -111,10 +138,10 @@ function Editor:onpaint(ctx)
 		ctx:drawImage(
 			widget.icon,
 			widget.icon.bounds,
-			Rectangle(drag_bounds.x + (drag_bounds.width - self.dmi.width) / 2,
-				drag_bounds.y + (drag_bounds.height - self.dmi.height) / 2,
-				widget.icon.bounds.width,
-				widget.icon.bounds.height)
+			Rectangle(drag_bounds.x + (drag_bounds.width - preview_width) / 2,
+				drag_bounds.y + (drag_bounds.height - preview_height) / 2,
+				preview_width,
+				preview_height)
 		)
 		ctx.opacity = 255
 
@@ -197,6 +224,7 @@ end
 --- Only creates state widgets for states that are currently visible based on the scroll position.
 --- Calls the repaint function to update the editor display.
 function Editor:repaint_states()
+	self:update_title()
 	self.widgets = {}
 	local duplicates = {}
 	local min_index = (self.max_in_a_row * self.scroll)
@@ -283,12 +311,13 @@ end
 
 function Editor:box_bounds(index)
 	local row_index = index - self.max_in_a_row * self.scroll
+	local cell_width, cell_height = self:preview_cell_dimensions()
 	return Rectangle(
-		(self.dmi.width + BOX_PADDING) * ((row_index - 1) % self.max_in_a_row),
-		(self.dmi.height + BOX_BORDER + BOX_PADDING * 2 + TEXT_HEIGHT) *
+		(cell_width + BOX_PADDING) * ((row_index - 1) % self.max_in_a_row),
+		(cell_height + BOX_PADDING * 2 + TEXT_HEIGHT) *
 		math.floor((row_index - 1) / self.max_in_a_row) + BOX_PADDING,
-		self.dmi.width + BOX_BORDER,
-		self.dmi.height + BOX_BORDER
+		cell_width,
+		cell_height
 	)
 end
 

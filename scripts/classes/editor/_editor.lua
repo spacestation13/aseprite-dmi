@@ -1,6 +1,7 @@
 --- Editor is a class representing a DMI editor.
 --- It provides functionality for editing DMI files.
 --- @class Editor
+--- @field base_title string The base title of the editor.
 --- @field title string The title of the editor.
 --- @field canvas_width number The width of the canvas.
 --- @field canvas_height number The height of the canvas.
@@ -39,6 +40,7 @@ function Editor.new(title, dmi)
 
 	local is_filename     = type(dmi) == "string"
 
+	self.base_title       = title
 	self.title            = title
 	self.focused_widget   = nil
 	self.hovering_widgets = {}
@@ -102,6 +104,18 @@ function Editor:new_dialog(title)
 		text = "Save",
 		onclick = function() self:save() end
 	}
+end
+
+function Editor:update_title()
+	local title = self.base_title or self.title
+	if self.dmi then
+		title = string.format("%s (%dx%d)", title, self.dmi.width, self.dmi.height)
+	end
+
+	self.title = title
+	if self.dialog then
+		self.dialog:modify { title = title }
+	end
 end
 
 --- Displays a warning dialog asking the user to save changes to the sprite before closing.
