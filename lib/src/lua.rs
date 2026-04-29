@@ -31,7 +31,10 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
     exports.set("open_repo", lua.create_function(safe!(open_repo))?)?;
     exports.set("instances", lua.create_function(instances)?)?;
     exports.set("save_dialog", lua.create_function(safe!(save_dialog))?)?;
-    exports.set("save_raw_dialog", lua.create_function(safe!(save_raw_dialog))?)?;
+    exports.set(
+        "save_raw_dialog",
+        lua.create_function(safe!(save_raw_dialog))?,
+    )?;
     exports.set("import_png", lua.create_function(safe!(import_png))?)?;
 
     Ok(exports)
