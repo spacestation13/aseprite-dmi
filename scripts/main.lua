@@ -229,9 +229,9 @@ function loadlib(plugin_path)
 	if not libdmi then
 		if app.fs.pathSeparator ~= "/" then
 			package.loadlib(app.fs.joinPath(plugin_path, LUA_LIB --[[@as string]]), "")
-		else if not return package.config:sub(1,1) == "/" and not package.cpath:find("%.dylib") ~= nil
+		elseif package.config:sub(1,1) == "/" and not package.cpath:find("%.dylib") then
 			package.cpath = package.cpath .. ";?.so"
-		else if return package.config:sub(1,1) == "/" and package.cpath:find("%.dylib") ~= nil
+		elseif package.config:sub(1,1) == "/" and package.cpath:find("%.dylib") then
 			package.cpath = package.cpath .. ";?.dylib"
 		end
 		libdmi = package.loadlib(app.fs.joinPath(plugin_path, DMI_LIB), "luaopen_dmi_module")()
