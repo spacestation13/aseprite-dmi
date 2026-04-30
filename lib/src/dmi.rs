@@ -173,7 +173,16 @@ impl Dmi {
         reader.set_format(image::ImageFormat::Png);
 
         let mut image = reader.decode()?;
+
+        if dmi.width == 0 || dmi.height == 0 {
+            return Err(DmiError::ImageSizeMismatch);
+        }
+
         let grid_width = image.width() / dmi.width;
+        if grid_width == 0 {
+            return Err(DmiError::ImageSizeMismatch);
+        }
+        let grid_height = image.height() / dmi.height;
 
         let mut index = 0;
         for state in dmi.states.iter_mut() {
@@ -197,9 +206,14 @@ impl Dmi {
 
             for _ in 0..state.frame_count {
                 for _ in 0..state.dirs {
+                    let x = index % grid_width;
+                    let y = index / grid_width;
+                    if x >= grid_width || y >= grid_height {
+                        return Err(DmiError::ImageSizeMismatch);
+                    }
                     let image = image.crop(
-                        dmi.width * (index % grid_width),
-                        dmi.height * (index / grid_width),
+                        dmi.width * x,
+                        dmi.height * y,
                         dmi.width,
                         dmi.height,
                     );
