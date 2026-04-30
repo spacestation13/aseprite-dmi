@@ -142,7 +142,6 @@ function Editor:save_warning()
 
 	dialog:button {
 		text = "&Save",
-		focus = true,
 		onclick = function()
 			if self:save() then
 				result = 1
@@ -153,6 +152,7 @@ function Editor:save_warning()
 
 	dialog:button {
 		text = "Do&n't Save",
+		focus = true,
 		onclick = function()
 			result = 2
 			dialog:close()
@@ -211,15 +211,16 @@ function Editor:close(event, force)
 		end
 	end
 
-	if self.dmi then
-		libdmi.remove_dir(self.dmi.temp, false)
-	end
-
+	-- Close sprites first to release file locks, then remove temp directory
 	self:gc_open_sprites()
 	for _, state_sprite in ipairs(self.open_sprites) do
 		if state_sprite.sprite and Editor.is_sprite_open(state_sprite.sprite) then
 			state_sprite.sprite:close()
 		end
+	end
+
+	if self.dmi then
+		libdmi.remove_dir(self.dmi.temp, false)
 	end
 
 	app.events:off(self.beforecommand)
@@ -248,12 +249,13 @@ end
 --- Opens a DMI file and displays it in the editor.
 --- @param dmi? Dmi The DMI object to be opened if not passed `Editor.open_path` will be used.
 function Editor:open_file(dmi)
-	if self.dmi then
-		libdmi.remove_dir(self.dmi.temp, false)
-	end
-
+	-- Close sprites first to release file locks, then remove temp directory
 	for _, state_sprite in ipairs(self.open_sprites) do
 		state_sprite.sprite:close()
+	end
+
+	if self.dmi then
+		libdmi.remove_dir(self.dmi.temp, false)
 	end
 
 	self.image_cache:clear()
