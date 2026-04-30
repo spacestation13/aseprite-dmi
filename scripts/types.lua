@@ -332,6 +332,7 @@ WebSocketMessageType = {
 --- @field newCommand fun(self: Plugin, params: Plugin.CommandParams) Creates a new command that can be associated to keyboard shortcuts and it's added in the app menu in the specific `"group"`. Groups are defined in the `gui.xml` file inside the `<menus>` element.
 --- @field newMenuGroup fun(self: Plugin, params: Plugin.MenuGroupParams) Creates a new menu item which will contain a submenu grouping several plugin commands.
 --- @field newMenuSeparator fun(self: Plugin, params: Plugin.MenuSeparatorParams) Creates a menu separator in the given menu group, useful to separate several Plugin:newCommand.
+--- @field newFileFormat fun(self: Plugin, params: Plugin.FileFormatParams) Registers a new file format that can be opened/saved by Aseprite.
 
 --- @class Plugin.CommandParams
 --- @field id string ID to identify this new command in `Plugin:newCommand{ id=id, ... }` calls to add several keyboard shortcuts to the same command.
@@ -347,6 +348,12 @@ WebSocketMessageType = {
 
 --- @class Plugin.MenuSeparatorParams
 --- @field group string In which existent group we should add this new menu item.
+
+--- @class Plugin.FileFormatParams
+--- @field name string Human-readable name for the file format.
+--- @field extension string File extension (without dot) this format handles.
+--- @field onload? fun(ev: {filename: string, file: file*}): Sprite Called when loading a file of this format. Must return a Sprite.
+--- @field onsave? fun(ev: {filename: string, file: file*, sprite: Sprite}): boolean Called when saving a file of this format. Must return true on success.
 
 --- @class Version
 --- @field major number
@@ -783,11 +790,11 @@ Version = nil
 --- @field overlay_color fun(r: number, g: number, b: number, width: number, height: number, bytes: string): string|nil Overlays the given bytes of an image on a plain color.
 --- @field remove_dir fun(path: string, soft: boolean): nil, string? Removes a directory. If fails, returns an error message.
 --- @field save_rgba_png fun(width: number, height: number, bytes: string, filename: string): nil, string? Saves an RGBA byte buffer as a PNG file. If fails, returns an error message.
+--- @field read_dmi_png fun(filename: string): {width: number, height: number, bytes: string}, string? Reads a DMI file and returns its dimensions and raw RGBA bytes.
 --- @field exists fun(path: string): boolean Returns true if the path points at an existing entity.
 --- @field check_update fun(): boolean Return true if there is an update available.
 --- @field instances fun(): number?, string? Return the number of Aseprite instances running.
 --- @field save_dialog fun(title: string, filename: string, location: string): string?, string? Shows a save dialog. Returns the path of the file to save or empty string if the user cancels the dialog.
---- @field save_raw_dialog fun(title: string, filename: string, location: string): string?, string? Shows a raw DMI save dialog. Returns the path of the file to save or empty string if the user cancels the dialog.
 --- @field open_repo fun(path?: string): nil, string? Opens the repository in the default browser. If fails, returns an error message.
 
 --- @class Dmi: table

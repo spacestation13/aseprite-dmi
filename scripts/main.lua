@@ -23,28 +23,51 @@ libdmi = nil
 --- Initializes the plugin. Called when the plugin is loaded.
 --- @param plugin Plugin The plugin object.
 function init(plugin)
-	if app.apiVersion < 27 then
-		return app.alert("This script requires Aseprite v1.3.3 or above")
-	end
-
 	if not app.isUIAvailable then
 		return
+	end
+
+	if app.version < Version("1.3.18-beta3") then
+		return app.alert { title = DIALOG_NAME, text = "This extension requires Aseprite v1.3.18-beta3 or later." }
 	end
 
 	-- Initialize Preferences
 	Preferences.initialize(plugin)
 	RawDmi.initialize(plugin.path)
 
+	-- Load the native library early so newFileFormat callbacks can use it
+	loadlib(plugin.path)
+
+	-- Register .dmi as a custom file format
+	plugin:newFileFormat {
+		name = "Dream Maker Image",
+		extension = "dmi",
+		onload = function(ev)
+			-- Return a minimal placeholder sprite. The DMI editor reads the
+			-- file itself; raw mode bypasses this handler entirely by opening
+			-- a temp .png copy with Aseprite's native PNG loader.
+			return Sprite(1, 1)
+		end,
+		onsave = function(ev)
+			if RawDmi.is_sprite(ev.sprite) then
+				local image = Image(ev.sprite)
+				libdmi.save_rgba_png(image.width, image.height, image.bytes, ev.filename)
+				return true
+			end
+			-- Non-raw .dmi saves shouldn't happen normally (the editor manages its own saves).
+			-- Refuse the save to prevent silent DMI metadata loss.
+			app.alert { title = DIALOG_NAME, text = "Use the DMI Editor to save .dmi files with metadata preserved." }
+			return false
+		end,
+	}
+
 	after_listener = app.events:on("aftercommand", function(ev)
 		if ev.name == "OpenFile" then
-			local opening_raw = RawDmi.opening
-			RawDmi.after_open(app.sprite)
-
-			if app.sprite and app.sprite.filename:ends_with(".dmi") and not opening_raw then
+			if app.sprite and app.sprite.filename:ends_with(".dmi")
+				and not RawDmi.is_sprite(app.sprite) then
 				local filename = app.sprite.filename
 				app.command.CloseFile { ui = false }
 
-				loadlib(plugin.path)
 				Editor.new(DIALOG_NAME, filename)
 			end
 		elseif ev.name == "Exit" then
@@ -175,7 +198,6 @@ function init(plugin)
 		title = "Report Issue",
 		group = "dmi_editor",
 		onclick = function()
-			loadlib(plugin.path)
 			libdmi.open_repo("issues")
 		end,
 	}
@@ -185,7 +207,6 @@ function init(plugin)
 		title = "Releases",
 		group = "dmi_editor",
 		onclick = function()
-			loadlib(plugin.path)
 			libdmi.open_repo("releases")
 		end,
 	}

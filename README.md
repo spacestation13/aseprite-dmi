@@ -12,17 +12,19 @@ This project is a DMI (BYOND's Dream Maker icon files) editor extension for Asep
 The latest version of this extension is available for download from the [Releases](https://github.com/spacestation13/aseprite-dmi/releases) page.
 The plugin will also prompt you to download an update when a new version is released.
 
+**Requires Aseprite v1.3.18-beta3 or later.**
+
 ## Usage
 
 Once the project has been downloaded or built, the extension can be added to Aseprite by dragging and dropping it into the application or by selecting the 'Add Extension' button in the 'Edit > Preferences > Extensions' menu.
 
-**DMI files can now be opened in Aseprite in the same way as any other file format.** You will need to change the open file dialog filter to 'All Files'.
+**DMI files can now be opened in Aseprite in the same way as any other file format.**
 
 ### Linux
 
 Unfortunately, due to dynamic library linking issues, **Aseprite running on Linux via Steam is not supported.**
 
-Running a Windows build via Wine works just fine, and is what we recommend.
+Running a Windows build via Wine works just fine (reportedly), and is what we recommend.
 
 ### Creating New Files
 

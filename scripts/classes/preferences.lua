@@ -39,7 +39,7 @@ function Preferences.show(plugin)
 
 	dialog:check {
 		id = "auto_overwrite",
-		text = "Overwrite source DMI files when saving an iconstate.",
+		text = "Auto-save .dmi to disk when saving an iconstate.",
 		selected = Preferences.plugin.preferences.auto_overwrite,
 	}
 

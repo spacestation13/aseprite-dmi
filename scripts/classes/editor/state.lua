@@ -16,8 +16,6 @@ function Editor.new_file(plugin_path)
 				return
 			end
 
-			loadlib(plugin_path)
-
 			local dmi, error = libdmi.new_file("untitled", width, height, TEMP_DIR)
 			if not error then
 				Editor.new(DIALOG_NAME, dmi --[[@as Dmi]])
