@@ -15,6 +15,9 @@ function Preferences.initialize(plugin)
 	if not Preferences.plugin.preferences.auto_flatten then
 		Preferences.plugin.preferences.auto_flatten = true
 	end
+	if Preferences.plugin.preferences.direction_layer_colors == nil then
+		Preferences.plugin.preferences.direction_layer_colors = true
+	end
 	if not Preferences.plugin.preferences.preview_size then
 		Preferences.plugin.preferences.preview_size = DEFAULT_PREVIEW_SIZE
 	end
@@ -51,6 +54,14 @@ function Preferences.show(plugin)
 		selected = Preferences.plugin.preferences.auto_flatten,
 	}
 
+	dialog:newrow()
+
+	dialog:check {
+		id = "direction_layer_colors",
+		text = "Apply direction-based layer colors to states.",
+		selected = Preferences.plugin.preferences.direction_layer_colors ~= false,
+	}
+
 	dialog:button {
 		text = "&OK",
 		focus = true,
@@ -64,6 +75,7 @@ function Preferences.show(plugin)
 			Preferences.plugin.preferences.preview_size = preview_size
 			Preferences.plugin.preferences.auto_overwrite = dialog.data.auto_overwrite
 			Preferences.plugin.preferences.auto_flatten = dialog.data.auto_flatten
+			Preferences.plugin.preferences.direction_layer_colors = dialog.data.direction_layer_colors
 
 			if open_editors then
 				for _, editor in ipairs(open_editors) do
@@ -97,6 +109,11 @@ end
 --- Gets whether auto-flatten is enabled
 function Preferences.getAutoFlatten()
 	return Preferences.plugin.preferences.auto_flatten or false
+end
+
+--- Gets whether direction layer coloring is enabled
+function Preferences.getDirectionLayerColors()
+	return Preferences.plugin.preferences.direction_layer_colors ~= false
 end
 
 function Preferences.getPreviewSize()
