@@ -211,12 +211,7 @@ impl Dmi {
                     if x >= grid_width || y >= grid_height {
                         return Err(DmiError::ImageSizeMismatch);
                     }
-                    let image = image.crop(
-                        dmi.width * x,
-                        dmi.height * y,
-                        dmi.width,
-                        dmi.height,
-                    );
+                    let image = image.crop(dmi.width * x, dmi.height * y, dmi.width, dmi.height);
                     if image.width() != dmi.width || image.height() != dmi.height {
                         return Err(DmiError::ImageSizeMismatch);
                     }
