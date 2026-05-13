@@ -60,6 +60,13 @@ end
 --- @param dmi Dmi The DMI file.
 --- @param state State The state of the image.
 function ImageCache:load_state(dmi, state)
-	local image = load_image_bytes(app.fs.joinPath(dmi.temp, state.frame_key .. ".0.bytes"))
-	self:set(state.frame_key, image)
+	local frame_count = math.max(1, math.floor(state.frame_count or 1))
+	local dirs = math.max(1, math.floor(state.dirs or 1))
+
+	for frame = 1, frame_count, 1 do
+		-- Cache only the south direction frame for previews.
+		local frame_index = (frame - 1) * dirs
+		local image = load_image_bytes(app.fs.joinPath(dmi.temp, state.frame_key .. "." .. frame_index .. ".bytes"))
+		self:set(state.frame_key, image, frame)
+	end
 end

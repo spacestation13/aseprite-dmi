@@ -67,6 +67,8 @@ function Editor.new(title, dmi)
 	self.modified         = false
 
 	self.image_cache      = ImageCache.new()
+	self.animation_timer  = nil
+	self.animation_running = false
 
 	self.beforecommand    = app.events:on("beforecommand", function(ev) self:onbeforecommand(ev) end)
 
@@ -186,6 +188,8 @@ function Editor:close(event, force)
 		return true
 	end
 
+	self:stop_animation_timer()
+
 	if self:is_modified() and not force then
 		if event then
 			local bounds = self.dialog.bounds
@@ -239,6 +243,8 @@ function Editor:close(event, force)
 	self.open_sprites = nil
 	self.beforecommand = nil
 	self.aftercommand = nil
+	self.animation_timer = nil
+	self.animation_running = false
 
 	return true
 end
@@ -254,6 +260,8 @@ end
 --- Opens a DMI file and displays it in the editor.
 --- @param dmi? Dmi The DMI object to be opened if not passed `Editor.open_path` will be used.
 function Editor:open_file(dmi)
+	self:stop_animation_timer()
+
 	-- Close sprites first to release file locks, then remove temp directory
 	for _, state_sprite in ipairs(self.open_sprites) do
 		state_sprite.sprite:close()

@@ -21,6 +21,9 @@ function Preferences.initialize(plugin)
 	if not Preferences.plugin.preferences.preview_size then
 		Preferences.plugin.preferences.preview_size = DEFAULT_PREVIEW_SIZE
 	end
+	if Preferences.plugin.preferences.animated_previews == nil then
+		Preferences.plugin.preferences.animated_previews = true
+	end
 end
 
 --- Shows the preferences dialog.
@@ -62,6 +65,14 @@ function Preferences.show(plugin)
 		selected = Preferences.plugin.preferences.direction_layer_colors ~= false,
 	}
 
+	dialog:newrow()
+
+	dialog:check {
+		id = "animated_previews",
+		text = "Animate (south)state previews.",
+		selected = Preferences.plugin.preferences.animated_previews ~= false,
+	}
+
 	dialog:button {
 		text = "&OK",
 		focus = true,
@@ -76,6 +87,7 @@ function Preferences.show(plugin)
 			Preferences.plugin.preferences.auto_overwrite = dialog.data.auto_overwrite
 			Preferences.plugin.preferences.auto_flatten = dialog.data.auto_flatten
 			Preferences.plugin.preferences.direction_layer_colors = dialog.data.direction_layer_colors
+			Preferences.plugin.preferences.animated_previews = dialog.data.animated_previews
 
 			if open_editors then
 				for _, editor in ipairs(open_editors) do
@@ -118,6 +130,10 @@ end
 
 function Preferences.getPreviewSize()
 	return Preferences.plugin.preferences.preview_size or DEFAULT_PREVIEW_SIZE
+end
+
+function Preferences.getAnimatePreviews()
+	return Preferences.plugin.preferences.animated_previews ~= false
 end
 
 return Preferences

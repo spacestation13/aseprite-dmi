@@ -37,11 +37,14 @@ end
 --- @param ctx GraphicsContext The drawing context used to draw on the editor canvas.
 function Editor:onpaint(ctx)
 	if self.loading then
+		self:update_animation_timer(false)
 		local size = ctx:measureText("Loading file...")
 		ctx.color = app.theme.color.text
 		ctx:fillText("Loading file...", (ctx.width - size.width) / 2, (ctx.height - size.height) / 2)
 		return
 	end
+
+	local now = os.clock()
 
 	local preview_width, preview_height = self:preview_dimensions()
 	local cell_width, cell_height = self:preview_cell_dimensions()
@@ -85,10 +88,11 @@ function Editor:onpaint(ctx)
 		end
 
 		if widget.type == "IconWidget" then
+			local icon = self:preview_image_for_widget(widget, now)
 			ctx:drawThemeRect(stateStyle.part, widget.bounds)
 			ctx:drawImage(
-				widget.icon,
-				widget.icon.bounds,
+				icon,
+				icon.bounds,
 				Rectangle(widget.bounds.x + (widget.bounds.width - preview_width) / 2,
 					widget.bounds.y + (widget.bounds.height - preview_height) / 2,
 					preview_width,
@@ -126,6 +130,7 @@ function Editor:onpaint(ctx)
 	-- Add dragging overlay
 	if self.dragging and self.drag_widget then
 		local widget = self.drag_widget --[[ @as IconWidget ]]
+		local icon = self:preview_image_for_widget(widget, now)
 		local drag_bounds = Rectangle(
 			self.mouse.position.x - widget.bounds.width / 2,
 			self.mouse.position.y - widget.bounds.height / 2,
@@ -136,8 +141,8 @@ function Editor:onpaint(ctx)
 		ctx.opacity = 128
 		ctx:drawThemeRect(COMMON_STATE.hot.part, drag_bounds)
 		ctx:drawImage(
-			widget.icon,
-			widget.icon.bounds,
+			icon,
+			icon.bounds,
 			Rectangle(drag_bounds.x + (drag_bounds.width - preview_width) / 2,
 				drag_bounds.y + (drag_bounds.height - preview_height) / 2,
 				preview_width,
@@ -151,6 +156,9 @@ function Editor:onpaint(ctx)
 			ctx:drawThemeRect("selected", Rectangle(drop_bounds.x - 2, drop_bounds.y - 2, 4, drop_bounds.height + 4))
 		end
 	end
+
+	local should_animate = self:has_visible_animated_previews()
+	self:update_animation_timer(should_animate)
 
 	if self.context_widget then
 		local widget = self.context_widget --[[ @as ContextWidget ]]
@@ -217,6 +225,7 @@ function Editor:onpaint(ctx)
 		ctx:drawThemeRect("sunken_normal", Rectangle(x, self.mouse.position.y - size.height, size.width, size.height))
 		ctx:fillText(text, x + BOX_PADDING, self.mouse.position.y - (text_size.height + size.height) / 2)
 	end
+
 end
 
 --- Repaints the states in the editor.
