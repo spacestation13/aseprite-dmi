@@ -104,6 +104,11 @@ function Editor:new_dialog(title)
 		text = "Save",
 		onclick = function() self:save() end
 	}
+
+	self.dialog:button {
+		text = "Save As",
+		onclick = function() self:save_as() end
+	}
 end
 
 function Editor:update_title()
@@ -288,24 +293,31 @@ function Editor:open_file(dmi)
 	end
 end
 
---- Saves the current DMI file.
+--- Saves the current DMI file to the current path.
 --- If the DMI file is not set, the function returns without doing anything.
---- Displays a success or failure message using the Aseprite app.alert function.
---- @param no_dialog boolean|nil If true, skips the save dialog and overwrites the current file
 --- @return boolean success Whether the DMI file has been saved. May still return true even if the file has not been saved successfully.
-function Editor:save(no_dialog)
+function Editor:save()
+	if not self.dmi then return false end
+
+	local filename = self:path()
+	self.save_path = filename
+	local _, err = libdmi.save_file(self.dmi, filename --[[@as string]])
+	if not err then
+		self.modified = false
+	end
+	return true
+end
+
+--- Saves the current DMI file by prompting for a destination.
+--- If the DMI file is not set, the function returns without doing anything.
+--- @return boolean success Whether the DMI file has been saved.
+function Editor:save_as()
 	if not self.dmi then return false end
 
 	local path = self:path()
-	local filename = path
-	local error
-
-	if not no_dialog then
-		local result = libdmi.save_dialog("Save File", app.fs.fileTitle(path), app.fs.filePath(path))
-		filename, error = result or "", nil
-	end
-
-	if (#filename > 0) and not error then
+	local result = libdmi.save_dialog("Save File", app.fs.fileTitle(path), app.fs.filePath(path))
+	local filename = result or ""
+	if #filename > 0 then
 		self.save_path = filename
 		local _, err = libdmi.save_file(self.dmi, filename --[[@as string]])
 		if not err then
@@ -338,7 +350,7 @@ function Editor:onbeforecommand(ev)
 					ev.stopPropagation()
 				end
 				if Preferences.getAutoOverwrite and Preferences.getAutoOverwrite() then
-					self:save(true)
+					self:save()
 				end
 				break
 			end
