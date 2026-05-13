@@ -55,6 +55,10 @@ function Editor:open_state(state)
 	end
 
 	local preview_image = self.image_cache:get(state.frame_key)
+	if not preview_image then
+		app.alert { title = self.title, text = "Failed to load state preview image" }
+		return
+	end
 	local transparentColor = transparent_color(preview_image)
 
 	local sprite = Sprite(ImageSpec {
@@ -91,11 +95,20 @@ function Editor:open_state(state)
 				if Preferences.getDirectionLayerColors and Preferences.getDirectionLayerColors() then
 					sprite.layers[layer].color = direction_color(direction_index)
 				end
+				local cel_image = nil
+				if index == 1 then
+					cel_image = self.image_cache:get(state.frame_key)
+				end
+				if not cel_image then
+					cel_image = load_image_bytes(app.fs.joinPath(self.dmi.temp, state.frame_key .. "." .. math.floor(index - 1) .. ".bytes"))
+				end
+				if not cel_image then
+					cel_image = preview_image
+				end
 				sprite:newCel(
 					sprite.layers[layer],
 					sprite.frames[frame],
-					index == 1 and self.image_cache:get(state.frame_key) or
-					load_image_bytes(app.fs.joinPath(self.dmi.temp, state.frame_key .. "." .. math.floor(index - 1) .. ".bytes")),
+					cel_image,
 					Point(0, 0)
 				)
 				index = index + 1
@@ -354,7 +367,10 @@ function Editor:set_state_dirs(state, directions)
 								if cel and cel.image then
 									image:drawImage(cel.image, cel.position)
 								else
-									image:drawImage(self.image_cache:get(state.frame_key), Point(0, 0))
+									local fallback = self.image_cache:get(state.frame_key)
+									if fallback then
+										image:drawImage(fallback, Point(0, 0))
+									end
 								end
 
 								sprite:newCel(layer, frame, image, Point(0, 0))

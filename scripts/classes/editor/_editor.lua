@@ -220,6 +220,10 @@ function Editor:close(event, force)
 		end
 	end
 
+	-- Unregister event listeners before closing sprites to prevent callbacks during cleanup
+	app.events:off(self.beforecommand)
+	app.events:off(self.aftercommand)
+
 	-- Close sprites first to release file locks, then remove temp directory
 	self:gc_open_sprites()
 	for _, state_sprite in ipairs(self.open_sprites) do
@@ -231,9 +235,6 @@ function Editor:close(event, force)
 	if self.dmi then
 		libdmi.remove_dir(self.dmi.temp, false)
 	end
-
-	app.events:off(self.beforecommand)
-	app.events:off(self.aftercommand)
 
 	self.mouse = nil
 	self.focused_widget = nil
@@ -351,6 +352,7 @@ local save_file_as = nil
 --- This function is called before executing a command in the Aseprite editor. It checks the event name and performs specific actions based on the event type.
 --- @param ev table The event object containing information about the event.
 function Editor:onbeforecommand(ev)
+	if self.closed then return end
 	if ev.name == "SaveFile" then
 		for _, state_sprite in ipairs(self.open_sprites) do
 			if app.sprite == state_sprite.sprite then
@@ -378,6 +380,7 @@ end
 --- Callback function called after a Aseprite command is executed.
 --- @param ev table The event object containing information about the command.
 function Editor:onaftercommand(ev)
+	if self.closed then return end
 	if ev.name == "SaveFileAs" then
 		for i, state_sprite in ipairs(self.open_sprites) do
 			if app.sprite == state_sprite.sprite then

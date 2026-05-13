@@ -162,7 +162,11 @@ impl Dmi {
         let metadata = chunk.get_text()?;
 
         let mut dmi = Self::new(
-            path.as_ref().file_stem().unwrap().to_str().unwrap().into(),
+            path.as_ref()
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("unnamed")
+                .into(),
             32,
             32,
         );
@@ -297,7 +301,7 @@ impl Dmi {
             width: self.width,
             height: self.height,
             states,
-            temp: path.to_str().unwrap().to_string(),
+            temp: path.to_str().unwrap_or_default().to_string(),
         })
     }
     pub fn from_serialized(serialized: SerializedDmi) -> DmiResult<Dmi> {
@@ -623,34 +627,34 @@ fn load_image_from_bytes<P: AsRef<Path>>(path: P) -> DmiResult<DynamicImage> {
     let mut file = File::open(path)?;
     file.read_to_end(&mut bytes)?;
 
-    let mut width = String::new();
-    let mut height = String::new();
-    let mut index = 0;
+    let width_nl = bytes.iter().position(|&b| b == 0x0A)
+        .ok_or(DmiError::MissingData)?;
+    let height_nl = bytes[width_nl + 1..].iter().position(|&b| b == 0x0A)
+        .map(|p| p + width_nl + 1)
+        .ok_or(DmiError::MissingData)?;
 
-    while bytes[index] != 0x0A {
-        width.push(bytes[index] as char);
-        index += 1;
+    let width: u32 = std::str::from_utf8(&bytes[..width_nl])
+        .map_err(|_| DmiError::MissingData)?
+        .trim()
+        .parse()?;
+    let height: u32 = std::str::from_utf8(&bytes[width_nl + 1..height_nl])
+        .map_err(|_| DmiError::MissingData)?
+        .trim()
+        .parse()?;
+
+    let pixel_data = &bytes[height_nl + 1..];
+    let expected_len = (width as usize).saturating_mul(height as usize).saturating_mul(4);
+    if pixel_data.len() < expected_len {
+        return Err(DmiError::MissingData);
     }
-
-    index += 1;
-
-    while bytes[index] != 0x0A {
-        height.push(bytes[index] as char);
-        index += 1;
-    }
-
-    index += 1;
-
-    let width = width.parse()?;
-    let height = height.parse()?;
 
     let mut image_buffer: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(width, height);
-
+    let mut index = 0;
     for pixel in image_buffer.pixels_mut() {
-        pixel[0] = bytes[index];
-        pixel[1] = bytes[index + 1];
-        pixel[2] = bytes[index + 2];
-        pixel[3] = bytes[index + 3];
+        pixel[0] = pixel_data[index];
+        pixel[1] = pixel_data[index + 1];
+        pixel[2] = pixel_data[index + 2];
+        pixel[3] = pixel_data[index + 3];
         index += 4;
     }
 

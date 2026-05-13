@@ -37,7 +37,11 @@ where
     P: AsRef<OsStr>,
 {
     let mut path = Path::new(&path).to_path_buf();
-    let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+    let file_name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("state")
+        .to_string();
 
     let mut index = 1u32;
     loop {

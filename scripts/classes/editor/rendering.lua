@@ -38,6 +38,7 @@ end
 --- This function is called when the editor needs to repaint its contents.
 --- @param ctx GraphicsContext The drawing context used to draw on the editor canvas.
 function Editor:onpaint(ctx)
+	if self.closed then return end
 	if self.loading then
 		self:update_animation_timer(false)
 		local size = ctx:measureText("Loading file...")
@@ -92,14 +93,16 @@ function Editor:onpaint(ctx)
 		if widget.type == "IconWidget" then
 			local icon = self:preview_image_for_widget(widget, now)
 			ctx:drawThemeRect(stateStyle.part, widget.bounds)
-			ctx:drawImage(
-				icon,
-				icon.bounds,
-				Rectangle(widget.bounds.x + (widget.bounds.width - preview_width) / 2,
-					widget.bounds.y + (widget.bounds.height - preview_height) / 2,
-					preview_width,
-					preview_height)
-			)
+			if icon then
+				ctx:drawImage(
+					icon --[[@as Image]],
+					icon.bounds,
+					Rectangle(widget.bounds.x + (widget.bounds.width - preview_width) / 2,
+						widget.bounds.y + (widget.bounds.height - preview_height) / 2,
+						preview_width,
+						preview_height)
+				)
+			end
 		elseif widget.type == "TextWidget" then
 			local widget = widget --[[ @as TextWidget ]]
 
@@ -142,14 +145,16 @@ function Editor:onpaint(ctx)
 
 		ctx.opacity = 128
 		ctx:drawThemeRect(COMMON_STATE.hot.part, drag_bounds)
-		ctx:drawImage(
-			icon,
-			icon.bounds,
-			Rectangle(drag_bounds.x + (drag_bounds.width - preview_width) / 2,
-				drag_bounds.y + (drag_bounds.height - preview_height) / 2,
-				preview_width,
+		if icon then
+			ctx:drawImage(
+				icon --[[@as Image]],
+				icon.bounds,
+				Rectangle(drag_bounds.x + (drag_bounds.width - preview_width) / 2,
+					drag_bounds.y + (drag_bounds.height - preview_height) / 2,
+					preview_width,
 				preview_height)
-		)
+			)
+		end
 		ctx.opacity = 255
 
 		-- Draw insert indicator
@@ -270,7 +275,7 @@ function Editor:repaint_states()
 				end
 			end
 
-			local icon = self.image_cache:get(state.frame_key)
+			local icon = self.image_cache:get(state.frame_key) --[[@as Image]]
 
 			-- Create IconWidget and store its state for selection logic
 			local iconWidget = IconWidget.new(
@@ -341,6 +346,7 @@ end
 --- Handles the mouse down event in the editor and triggers a repaint.
 --- @param ev MouseEvent The mouse event object.
 function Editor:onmousedown(ev)
+	if self.closed then return end
 	if ev.button == MouseButton.LEFT then
 		-- Don't set this until after selection behaivor is handled
 		self.focused_widget = nil
@@ -397,6 +403,7 @@ end
 --- Handles the mouse up event in the editor and triggers a repaint.
 --- @param ev MouseEvent The mouse event object.
 function Editor:onmouseup(ev)
+	if self.closed then return end
 	local repaint = true
 	if ev.button == MouseButton.LEFT or ev.button == MouseButton.RIGHT then
 		if self.context_widget then
@@ -451,7 +458,7 @@ function Editor:onmouseup(ev)
 		end
 		-- Add logic to finalize drag-and-drop or click actions
 		if ev.button == MouseButton.LEFT then
-			if self.dragging and self.drag_widget and self.drop_index then
+			if self.dragging and self.drag_widget and self.drop_index and self.dmi then
 				-- Find source state index using widget index and scroll offset
 				local source_index = nil
 				local min_index = self.max_in_a_row * self.scroll
@@ -512,6 +519,7 @@ end
 --- Updates the mouse position and triggers a repaint.
 --- @param ev MouseEvent The mouse event containing the x and y coordinates.
 function Editor:onmousemove(ev)
+	if self.closed then return end
 	local mouse_position = Point(ev.x, ev.y)
 	local should_repaint = false
 	local hovering_widgets = {} --[[@type AnyWidget[] ]]
@@ -536,7 +544,7 @@ function Editor:onmousemove(ev)
 		end
 	end
 
-	if self.dragging then
+	if self.dragging and self.dmi then
 		-- Find potential drop location
 		local closest_index = nil
 		local closest_dist = math.huge
@@ -604,7 +612,7 @@ end
 --- Handles the mouse wheel event for scrolling through DMI states.
 --- @param ev table The mouse wheel event object.
 function Editor:onwheel(ev)
-	if not self.dmi then return end
+	if self.closed or not self.dmi then return end
 
 	local overflow = (#self.dmi.states + 1) - self.max_in_a_row * self.max_in_a_column
 
