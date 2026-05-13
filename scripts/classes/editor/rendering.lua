@@ -30,7 +30,9 @@ end
 
 --- Repaints the editor.
 function Editor:repaint()
-	self.dialog:repaint()
+	if self.dialog then
+		self.dialog:repaint()
+	end
 end
 
 --- This function is called when the editor needs to repaint its contents.
@@ -235,6 +237,12 @@ end
 function Editor:repaint_states()
 	self:update_title()
 	self.widgets = {}
+	if not self.dmi then
+		self:update_animation_timer(false)
+		self:repaint()
+		return
+	end
+
 	local duplicates = {}
 	local min_index = (self.max_in_a_row * self.scroll)
 	local max_index = min_index + self.max_in_a_row * (self.max_in_a_column + 1)
