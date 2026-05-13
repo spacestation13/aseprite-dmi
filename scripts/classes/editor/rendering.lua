@@ -59,8 +59,8 @@ function Editor:onpaint(ctx)
 		CONTEXT_BUTTON_HEIGHT = TEXT_HEIGHT + BOX_PADDING * 2
 	end
 
-	local max_row = self.dmi and math.floor(self.canvas_width / min_width) or 1
-	local max_column = self.dmi and math.floor(self.canvas_height / min_height) or 1
+	local max_row = self.dmi and math.floor((self.canvas_width + BOX_PADDING) / min_width) or 1
+	local max_column = self.dmi and math.floor((self.canvas_height + BOX_PADDING) / min_height) or 1
 
 	if max_row ~= self.max_in_a_row or max_column ~= self.max_in_a_column then
 		self.max_in_a_row = math.max(max_row, 1)

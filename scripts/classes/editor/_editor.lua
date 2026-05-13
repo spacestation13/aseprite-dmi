@@ -58,7 +58,7 @@ function Editor.new(title, dmi)
 	self.drag_start_time  = math.huge
 	self.drop_index       = nil
 
-	self.canvas_width     = 185
+	self.canvas_width     = 160
 	self.canvas_height    = 215
 	self.max_in_a_row     = 1
 	self.max_in_a_column  = 1
