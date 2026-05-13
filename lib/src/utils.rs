@@ -17,7 +17,7 @@ pub fn image_to_base64(image: &DynamicImage) -> Result<String> {
         let mut writer = BufWriter::new(&mut image_data);
         let mut encoder = Encoder::new(&mut writer, image.width(), image.height());
 
-        encoder.set_compression(Compression::Best);
+        encoder.set_compression(Compression::High);
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
 

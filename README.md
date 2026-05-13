@@ -18,7 +18,7 @@ The plugin will also prompt you to download an update when a new version is rele
 
 Once the project has been downloaded or built, the extension can be added to Aseprite by dragging and dropping it into the application or by selecting the 'Add Extension' button in the 'Edit > Preferences > Extensions' menu.
 
-**DMI files can now be opened in Aseprite in the same way as any other file format.**
+**DMI files can be opened in Aseprite in the same way as any other file format.**
 
 ### Linux
 

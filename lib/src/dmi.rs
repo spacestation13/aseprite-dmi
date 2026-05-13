@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::ffi::OsStr;
 use std::fs::{create_dir_all, remove_dir_all, File};
-use std::io::{BufWriter, Cursor, Read as _, Write as _};
+use std::io::{BufReader, BufWriter, Cursor, Read as _, Write as _};
 use std::path::Path;
 use thiserror::Error;
 
@@ -152,7 +152,7 @@ impl Dmi {
     where
         P: AsRef<Path>,
     {
-        let decoder = Decoder::new(File::open(&path)?);
+        let decoder = Decoder::new(BufReader::new(File::open(&path)?));
         let reader = decoder.read_info()?;
         let chunk = reader
             .info()
@@ -258,7 +258,7 @@ impl Dmi {
         let mut writer = BufWriter::new(File::create(path)?);
         let mut encoder = Encoder::new(&mut writer, width, height);
 
-        encoder.set_compression(Compression::Best);
+        encoder.set_compression(Compression::High);
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
 
