@@ -627,9 +627,13 @@ fn load_image_from_bytes<P: AsRef<Path>>(path: P) -> DmiResult<DynamicImage> {
     let mut file = File::open(path)?;
     file.read_to_end(&mut bytes)?;
 
-    let width_nl = bytes.iter().position(|&b| b == 0x0A)
+    let width_nl = bytes
+        .iter()
+        .position(|&b| b == 0x0A)
         .ok_or(DmiError::MissingData)?;
-    let height_nl = bytes[width_nl + 1..].iter().position(|&b| b == 0x0A)
+    let height_nl = bytes[width_nl + 1..]
+        .iter()
+        .position(|&b| b == 0x0A)
         .map(|p| p + width_nl + 1)
         .ok_or(DmiError::MissingData)?;
 
@@ -643,7 +647,9 @@ fn load_image_from_bytes<P: AsRef<Path>>(path: P) -> DmiResult<DynamicImage> {
         .parse()?;
 
     let pixel_data = &bytes[height_nl + 1..];
-    let expected_len = (width as usize).saturating_mul(height as usize).saturating_mul(4);
+    let expected_len = (width as usize)
+        .saturating_mul(height as usize)
+        .saturating_mul(4);
     if pixel_data.len() < expected_len {
         return Err(DmiError::MissingData);
     }
