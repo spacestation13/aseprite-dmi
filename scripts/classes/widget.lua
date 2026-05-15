@@ -15,6 +15,7 @@
 --- @class IconWidget
 --- @field editor Editor The editor object.
 --- @field bounds Rectangle The bounds of the widget.
+--- @field draw_rect Rectangle|nil Pre-computed destination rect for drawImage (avoids per-frame allocation).
 --- @field state? WidgetState The state of the widget (optional).
 --- @field icon Image The icon of the widget.
 --- @field onleftclick MouseFunction|nil The onleftclick function of the widget.
@@ -36,6 +37,7 @@ function IconWidget.new(editor, bounds, icon, onleftclick, onrightclick, iconsta
 
 	self.editor = editor
 	self.bounds = bounds
+	self.draw_rect = nil
 	self.icon = icon
 	self.onleftclick = onleftclick or nil
 	self.onrightclick = onrightclick or nil

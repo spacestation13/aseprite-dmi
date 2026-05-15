@@ -144,6 +144,9 @@ function StateSprite:save()
 	self.state.frame_count = #self.sprite.frames
 	self.state.delays = {}
 
+	-- Clear the old cache entry so stale frames from a prior frame count don't linger.
+	self.editor.image_cache:remove(self.state.frame_key)
+
 	local index = 0
 	for frame_index, frame in ipairs(self.sprite.frames) do
 		if #self.sprite.frames > 1 then
@@ -166,8 +169,10 @@ function StateSprite:save()
 
 				save_image_bytes(image, app.fs.joinPath(self.editor.dmi.temp, self.state.frame_key .. "." .. index .. ".bytes"))
 
-				if frame_index == 1 and layer_index == #self.sprite.layers then
-					self.editor.image_cache:set(self.state.frame_key, image)
+				-- Update the preview cache for the south (top-layer) direction of each frame
+				-- so animated previews reflect the saved content immediately.
+				if layer_index == #self.sprite.layers then
+					self.editor.image_cache:set(self.state.frame_key, image, frame_index)
 				end
 			end
 			index = index + 1

@@ -75,6 +75,9 @@ function Editor:onpaint(ctx)
 		return
 	end
 
+	-- Shared source rect for all icon draws this frame (avoids N allocations from icon.bounds).
+	local icon_src_rect = self.dmi and Rectangle(0, 0, self.dmi.width, self.dmi.height) or nil
+
 	local hovers = {} --[[ @as (string)[] ]]
 	for _, widget in ipairs(self.widgets) do
 		-- Styling
@@ -93,11 +96,12 @@ function Editor:onpaint(ctx)
 		if widget.type == "IconWidget" then
 			local icon = self:preview_image_for_widget(widget, now)
 			ctx:drawThemeRect(stateStyle.part, widget.bounds)
-			if icon then
+			if icon and icon_src_rect then
 				ctx:drawImage(
 					icon --[[@as Image]],
-					icon.bounds,
-					Rectangle(widget.bounds.x + (widget.bounds.width - preview_width) / 2,
+					icon_src_rect,
+					widget.draw_rect or Rectangle(
+						widget.bounds.x + (widget.bounds.width - preview_width) / 2,
 						widget.bounds.y + (widget.bounds.height - preview_height) / 2,
 						preview_width,
 						preview_height)
@@ -148,7 +152,7 @@ function Editor:onpaint(ctx)
 		if icon then
 			ctx:drawImage(
 				icon --[[@as Image]],
-				icon.bounds,
+				icon_src_rect,
 				Rectangle(drag_bounds.x + (drag_bounds.width - preview_width) / 2,
 					drag_bounds.y + (drag_bounds.height - preview_height) / 2,
 					preview_width,
@@ -248,6 +252,7 @@ function Editor:repaint_states()
 		return
 	end
 
+	local preview_width, preview_height = self:preview_dimensions()
 	local duplicates = {}
 	local min_index = (self.max_in_a_row * self.scroll)
 	local max_index = min_index + self.max_in_a_row * (self.max_in_a_column + 1)
@@ -286,6 +291,12 @@ function Editor:repaint_states()
 				function() self:open_state(state) end,
 				function(ev) self:state_context(state, ev) end,
 				state
+			)
+			iconWidget.draw_rect = Rectangle(
+				bounds.x + (bounds.width - preview_width) / 2,
+				bounds.y + (bounds.height - preview_height) / 2,
+				preview_width,
+				preview_height
 			)
 			table.insert(self.widgets, iconWidget)
 

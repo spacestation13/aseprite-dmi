@@ -63,21 +63,32 @@ function init(plugin)
 
 	after_listener = app.events:on("aftercommand", function(ev)
 		if ev.name == "OpenFile" then
-			if app.sprite and app.sprite.filename:ends_with(".dmi")
-				and not RawDmi.is_sprite(app.sprite) then
+			-- Loop to handle batch opens (multiple .dmi files at once).
+			-- Each CloseFile makes the next sprite active; keep going until
+			-- no more unprocessed .dmi placeholders are in front.
+			local processed = 0
+			while app.sprite and app.sprite.filename:ends_with(".dmi")
+				and not RawDmi.is_sprite(app.sprite) do
+				processed = processed + 1
+				if processed > 100 then break end -- safety limit
+
 				local filename = app.sprite.filename
 				app.command.CloseFile { ui = false }
 
 				-- Prevent duplicate editor instances for the same file
 				local normalized = string.lower(filename)
+				local found = false
 				for _, editor in ipairs(open_editors) do
 					if not editor.closed and string.lower(editor:path()) == normalized then
 						editor:repaint()
-						return
+						found = true
+						break
 					end
 				end
 
-				Editor.new(DIALOG_NAME, filename)
+				if not found then
+					Editor.new(DIALOG_NAME, filename)
+				end
 			end
 		elseif ev.name == "Exit" then
 			exiting = true
@@ -224,11 +235,7 @@ end
 --- Exits the plugin. Called when the plugin is removed or Aseprite is closed.
 --- @param plugin Plugin The plugin object.
 function exit(plugin)
-	if not exiting and libdmi then
-		print(
-			"To uninstall the extension, re-open the Aseprite without using the extension and try again.\nThis happens beacuse once the library (dll) is loaded, it cannot be unloaded.\n")
-		return
-	end
+	-- Always clean up event listeners to prevent duplicates if init() runs again
 	if after_listener then
 		app.events:off(after_listener)
 		after_listener = nil
@@ -242,6 +249,13 @@ function exit(plugin)
 		for _, editor in ipairs(editors) do
 			editor:close(false, true)
 		end
+	end
+	if not exiting and libdmi then
+		-- DLL cannot be unloaded while the process is running; keep libdmi
+		-- alive so a subsequent init() can reuse it via loadlib().
+		print(
+			"To uninstall the extension, re-open the Aseprite without using the extension and try again.\nThis happens because once the library dll is loaded, it cannot be unloaded.\n")
+		return
 	end
 	if libdmi then
 		libdmi.remove_dir(TEMP_DIR, true)

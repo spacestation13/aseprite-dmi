@@ -113,6 +113,11 @@ function Editor:update_animation_timer(should_run)
 			return timer_constructor {
 				interval = ANIMATION_TICK_INTERVAL,
 				ontick = function()
+					-- Nudge the GC on every tick so transient userdata objects
+					-- (Rectangles, Sizes, etc. created during repaints) are collected
+					-- promptly rather than accumulating between GC cycles.
+					collectgarbage("step")
+
 					if self.closed or not self.dialog or self.loading then
 						return
 					end
