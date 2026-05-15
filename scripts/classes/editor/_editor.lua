@@ -287,7 +287,6 @@ function Editor:open_file(dmi)
 		local dmi, error = libdmi.open_file(self.open_path, TEMP_DIR)
 		if not error then
 			self.dmi = dmi --[[@as Dmi]]
-			self.image_cache:load_previews(self.dmi)
 		else
 			app.alert { title = "Error", text = { "Failed to open the DMI file", error } }
 		end
@@ -297,7 +296,6 @@ function Editor:open_file(dmi)
 	else
 		self.dmi = dmi
 		self.loading = false
-		self.image_cache:load_previews(self.dmi)
 		self:repaint_states()
 	end
 end

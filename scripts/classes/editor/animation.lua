@@ -64,6 +64,11 @@ function Editor:preview_image_for_widget(widget, now)
 		return self.image_cache:get(state.frame_key, 1) or widget.icon
 	end
 
+	local cached_frames = self.image_cache and self.image_cache.images and self.image_cache.images[state.frame_key]
+	if not cached_frames or #cached_frames <= 1 then
+		return self.image_cache:get(state.frame_key, 1) or widget.icon
+	end
+
 	local frame = self:preview_frame_for_state(state, now)
 	return self.image_cache:get(state.frame_key, frame) or self.image_cache:get(state.frame_key, 1) or widget.icon
 end
@@ -80,7 +85,8 @@ function Editor:has_visible_animated_previews()
 	for _, widget in ipairs(self.widgets) do
 		if widget.type == "IconWidget" then
 			local state = widget.iconstate
-			if state and math.max(1, math.floor(state.frame_count or 1)) > 1 then
+			local cached_frames = state and self.image_cache and self.image_cache.images and self.image_cache.images[state.frame_key]
+			if state and cached_frames and #cached_frames > 1 and math.max(1, math.floor(state.frame_count or 1)) > 1 then
 				return true
 			end
 		end

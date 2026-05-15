@@ -68,6 +68,15 @@ function init(plugin)
 				local filename = app.sprite.filename
 				app.command.CloseFile { ui = false }
 
+				-- Prevent duplicate editor instances for the same file
+				local normalized = string.lower(filename)
+				for _, editor in ipairs(open_editors) do
+					if not editor.closed and string.lower(editor:path()) == normalized then
+						editor:repaint()
+						return
+					end
+				end
+
 				Editor.new(DIALOG_NAME, filename)
 			end
 		elseif ev.name == "Exit" then
@@ -254,7 +263,19 @@ function loadlib(plugin_path)
 		elseif package.config:sub(1,1) == "/" and package.cpath:find("%.dylib") then
 			package.cpath = package.cpath .. ";?.dylib"
 		end
-		libdmi = package.loadlib(app.fs.joinPath(plugin_path, DMI_LIB), "luaopen_dmi_module")()
+		local loader, err = package.loadlib(app.fs.joinPath(plugin_path, DMI_LIB), "luaopen_dmi_module")
+		if not loader then
+			app.alert { title = DIALOG_NAME, text = { "Failed to load DMI library", err or "Unknown error" } }
+			return
+		end
+
+		local ok, module = pcall(loader)
+		if not ok then
+			app.alert { title = DIALOG_NAME, text = { "Failed to initialize DMI library", tostring(module) } }
+			return
+		end
+
+		libdmi = module
 		general_check()
 	end
 end

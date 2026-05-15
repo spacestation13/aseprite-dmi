@@ -195,7 +195,7 @@ impl Dmi {
                 let delay_count = state.delays.len();
                 match delay_count.cmp(&frame_count) {
                     Ordering::Less => {
-                        let last_delay = *state.delays.last().unwrap();
+                        let last_delay = *state.delays.last().ok_or(DmiError::MissingData)?;
                         let additional_delays = vec![last_delay; frame_count - delay_count];
                         state.delays.extend(additional_delays);
                     }

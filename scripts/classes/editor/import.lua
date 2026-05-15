@@ -58,7 +58,7 @@ function Editor:process_png_import(filename)
 		return
 	end
 	self.dmi = updated_dmi
-	self.image_cache:load_previews(self.dmi)
+	self.image_cache:clear()
 	self.modified = true
 	self:repaint_states()
 	self:gc_open_sprites()

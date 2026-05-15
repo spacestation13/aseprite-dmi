@@ -50,6 +50,21 @@ function ImageCache:clear()
 	self.images = {}
 end
 
+--- Ensures cached preview images exist for the given state.
+--- @param dmi Dmi
+--- @param state State
+function ImageCache:ensure_state(dmi, state)
+	if not state or not state.frame_key then
+		return
+	end
+
+	if self.images[state.frame_key] then
+		return
+	end
+
+	self:load_state(dmi, state)
+end
+
 --- Loads preview images for each state in the DMI file and caches them in the ImageCache.
 --- @param dmi Dmi The DMI file object.
 function ImageCache:load_previews(dmi)

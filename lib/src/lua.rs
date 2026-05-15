@@ -25,12 +25,12 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
     exports.set("resize", lua.create_function(safe!(resize))?)?;
     exports.set("crop", lua.create_function(safe!(crop))?)?;
     exports.set("expand", lua.create_function(safe!(expand))?)?;
-    exports.set("overlay_color", lua.create_function(overlay_color)?)?;
+    exports.set("overlay_color", lua.create_function(safe!(overlay_color))?)?;
     exports.set("remove_dir", lua.create_function(safe!(remove_dir))?)?;
-    exports.set("exists", lua.create_function(exists)?)?;
-    exports.set("check_update", lua.create_function(check_update)?)?;
+    exports.set("exists", lua.create_function(safe!(exists))?)?;
+    exports.set("check_update", lua.create_function(safe!(check_update))?)?;
     exports.set("open_repo", lua.create_function(safe!(open_repo))?)?;
-    exports.set("instances", lua.create_function(instances)?)?;
+    exports.set("instances", lua.create_function(safe!(instances))?)?;
     exports.set("save_dialog", lua.create_function(safe!(save_dialog))?)?;
     exports.set("import_png", lua.create_function(safe!(import_png))?)?;
 
@@ -123,7 +123,7 @@ fn resize(
         "catmullrom" => image::imageops::FilterType::CatmullRom,
         "gaussian" => image::imageops::FilterType::Gaussian,
         "lanczos3" => image::imageops::FilterType::Lanczos3,
-        _ => unreachable!(),
+        _ => return Err(LuaError::external(format!("Unknown resize method: {}", method))),
     };
 
     let mut dmi = Dmi::from_serialized(dmi)?;

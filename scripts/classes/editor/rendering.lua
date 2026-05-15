@@ -275,6 +275,7 @@ function Editor:repaint_states()
 				end
 			end
 
+			self.image_cache:ensure_state(self.dmi, state)
 			local icon = self.image_cache:get(state.frame_key) --[[@as Image]]
 
 			-- Create IconWidget and store its state for selection logic

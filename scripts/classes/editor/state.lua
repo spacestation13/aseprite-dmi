@@ -54,6 +54,7 @@ function Editor:open_state(state)
 		end
 	end
 
+	self.image_cache:ensure_state(self.dmi, state)
 	local preview_image = self.image_cache:get(state.frame_key)
 	if not preview_image then
 		app.alert { title = self.title, text = "Failed to load state preview image" }
@@ -1082,15 +1083,16 @@ end
 --- Reloads all open states in the editor.
 function Editor:reload_open_states()
 	local open_states = {} --[[@type State[] ]]
+	self:gc_open_sprites()
 	for _, state_sprite in ipairs(self.open_sprites) do
-		if state_sprite.sprite then
+		if state_sprite.sprite and Editor.is_sprite_open(state_sprite.sprite) then
 			state_sprite.sprite:close()
 			table.insert(open_states, state_sprite.state)
 		end
 	end
 
 	self.open_sprites = {}
-	self.image_cache:load_previews(self.dmi)
+	self.image_cache:clear()
 	self:repaint_states()
 
 	for _, state in ipairs(open_states) do
