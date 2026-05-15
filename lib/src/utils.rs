@@ -1,5 +1,5 @@
 use anyhow::{Context as _, Result};
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use image::DynamicImage;
 use png::{Compression, Encoder};
 use serde_json::Value;

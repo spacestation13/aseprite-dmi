@@ -1,11 +1,11 @@
-use base64::{engine::general_purpose, Engine as _};
-use image::{imageops, ImageBuffer, Rgba};
+use base64::{Engine as _, engine::general_purpose};
 use image::{DynamicImage, ImageReader};
+use image::{ImageBuffer, Rgba, imageops};
 use png::{Compression, Decoder, Encoder};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::ffi::OsStr;
-use std::fs::{create_dir_all, remove_dir_all, File};
+use std::fs::{File, create_dir_all, remove_dir_all};
 use std::io::{BufReader, BufWriter, Cursor, Read as _, Write as _};
 use std::path::Path;
 use thiserror::Error;
@@ -253,11 +253,10 @@ impl Dmi {
             }
         }
 
-        if let Some(parent) = path.as_ref().parent() {
-            if !parent.exists() {
+        if let Some(parent) = path.as_ref().parent()
+            && !parent.exists() {
                 create_dir_all(parent)?;
             }
-        }
 
         let mut writer = BufWriter::new(File::create(path)?);
         let mut encoder = Encoder::new(&mut writer, width, height);

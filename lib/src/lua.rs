@@ -123,7 +123,12 @@ fn resize(
         "catmullrom" => image::imageops::FilterType::CatmullRom,
         "gaussian" => image::imageops::FilterType::Gaussian,
         "lanczos3" => image::imageops::FilterType::Lanczos3,
-        _ => return Err(LuaError::external(format!("Unknown resize method: {}", method))),
+        _ => {
+            return Err(LuaError::external(format!(
+                "Unknown resize method: {}",
+                method
+            )));
+        }
     };
 
     let mut dmi = Dmi::from_serialized(dmi)?;
@@ -165,7 +170,7 @@ fn overlay_color(
     lua: &Lua,
     (r, g, b, width, height, bytes): (u8, u8, u8, u32, u32, LuaString),
 ) -> LuaResult<LuaValue> {
-    use image::{imageops, EncodableLayout, ImageBuffer, Rgba};
+    use image::{EncodableLayout, ImageBuffer, Rgba, imageops};
 
     let buf = bytes.as_bytes().to_vec();
 
@@ -248,11 +253,10 @@ fn save_dialog(
         .add_filter("dmi files", ["dmi"])
         .save_single_file();
 
-    if let Ok(Some(file)) = dialog.show() {
-        if let Some(file) = file.to_str() {
+    if let Ok(Some(file)) = dialog.show()
+        && let Some(file) = file.to_str() {
             return Ok(file.to_string());
         }
-    }
 
     Ok(String::new())
 }
