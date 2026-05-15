@@ -69,7 +69,7 @@ function Preferences.show(plugin)
 
 	dialog:check {
 		id = "animated_previews",
-		text = "Animate (south)state previews.",
+		text = "Animate (south) state previews.",
 		selected = Preferences.plugin.preferences.animated_previews ~= false,
 	}
 

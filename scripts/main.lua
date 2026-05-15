@@ -27,7 +27,9 @@ function init(plugin)
 		return
 	end
 
-	if app.version < Version("1.3.18-beta3") then
+	local min_version = Version("1.3.18-beta3")
+	local v = app.version
+	if v < min_version and not (v.major == 1 and v.minor == 3 and v.patch == 18 and v.prereleaseLabel == "dev") then
 		return app.alert { title = DIALOG_NAME, text = "This extension requires Aseprite v1.3.18-beta3 or later." }
 	end
 
@@ -63,9 +65,8 @@ function init(plugin)
 
 	after_listener = app.events:on("aftercommand", function(ev)
 		if ev.name == "OpenFile" then
-			-- Loop to handle batch opens (multiple .dmi files at once).
-			-- Each CloseFile makes the next sprite active; keep going until
-			-- no more unprocessed .dmi placeholders are in front.
+			-- Collect all .dmi placeholder sprites first, then close them, then create editors.
+			local filenames = {}
 			local processed = 0
 			while app.sprite and app.sprite.filename:ends_with(".dmi")
 				and not RawDmi.is_sprite(app.sprite) do
@@ -87,15 +88,37 @@ function init(plugin)
 				end
 
 				if not found then
-					Editor.new(DIALOG_NAME, filename)
+					table.insert(filenames, filename)
 				end
+			end
+
+			-- Now create editors outside the close loop
+			for _, filename in ipairs(filenames) do
+				Editor.new(DIALOG_NAME, filename)
 			end
 		elseif ev.name == "Exit" then
 			exiting = true
 		end
+
+		-- Dispatch to open editors.  We do NOT register per-editor
+		-- listeners because calling app.events:on() from inside an
+		-- event callback can reallocate Aseprite's internal callback
+		-- vector while Events::call is iterating it (use-after-free).
+		for _, editor in ipairs(open_editors) do
+			if not editor.closed then
+				editor:onaftercommand(ev)
+			end
+		end
 	end)
 
 	before_listener = app.events:on("beforecommand", function(ev)
+		-- Dispatch to open editors first (same reason as aftercommand above).
+		for _, editor in ipairs(open_editors) do
+			if not editor.closed then
+				editor:onbeforecommand(ev)
+			end
+		end
+
 		if RawDmi.beforecommand(ev) then
 			return
 		elseif ev.name == "Exit" then

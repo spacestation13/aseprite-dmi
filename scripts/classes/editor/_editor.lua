@@ -16,8 +16,6 @@
 --- @field widgets (AnyWidget)[] A table containing all state widgets.
 --- @field selected_states State[] Selected icon widgets to possibly combine.
 --- @field context_widget ContextWidget|nil The state that is currently being right clicked
---- @field beforecommand number The event object for the "beforecommand" event.
---- @field aftercommand number The event object for the "aftercommand" event.
 --- @field dialog Dialog The dialog object.
 --- @field save_path string|nil The path of the file to be saved.
 --- @field open_path string|nil The path of the file to be opened.
@@ -69,10 +67,6 @@ function Editor.new(title, dmi)
 	self.image_cache      = ImageCache.new()
 	self.animation_timer  = nil
 	self.animation_running = false
-
-	self.beforecommand    = app.events:on("beforecommand", function(ev) self:onbeforecommand(ev) end)
-
-	self.aftercommand     = app.events:on("aftercommand", function(ev) self:onaftercommand(ev) end)
 
 	self:new_dialog(title)
 	self:show()
@@ -220,10 +214,6 @@ function Editor:close(event, force)
 		end
 	end
 
-	-- Unregister event listeners before closing sprites to prevent callbacks during cleanup
-	app.events:off(self.beforecommand)
-	app.events:off(self.aftercommand)
-
 	-- Close sprites first to release file locks, then remove temp directory
 	self:gc_open_sprites()
 	for _, state_sprite in ipairs(self.open_sprites) do
@@ -242,8 +232,6 @@ function Editor:close(event, force)
 	self.widgets = nil
 	self.dmi = nil
 	self.open_sprites = nil
-	self.beforecommand = nil
-	self.aftercommand = nil
 	self.animation_timer = nil
 	self.animation_running = false
 
