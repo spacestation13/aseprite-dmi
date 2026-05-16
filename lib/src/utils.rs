@@ -1,5 +1,5 @@
 use anyhow::{Context as _, Result};
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use image::DynamicImage;
 use png::{Compression, Encoder};
 use serde_json::Value;
@@ -17,7 +17,7 @@ pub fn image_to_base64(image: &DynamicImage) -> Result<String> {
         let mut writer = BufWriter::new(&mut image_data);
         let mut encoder = Encoder::new(&mut writer, image.width(), image.height());
 
-        encoder.set_compression(Compression::Best);
+        encoder.set_compression(Compression::High);
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
 
@@ -37,7 +37,11 @@ where
     P: AsRef<OsStr>,
 {
     let mut path = Path::new(&path).to_path_buf();
-    let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+    let file_name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("state")
+        .to_string();
 
     let mut index = 1u32;
     loop {
@@ -103,4 +107,16 @@ fn compare_versions(v1: &str, v2: &str) -> Ordering {
         .collect::<Vec<_>>();
 
     v1.cmp(&v2)
+}
+
+/// Sanitizes a string to be safe for use as a filename on all platforms.
+/// Replaces illegal characters with underscores.
+pub fn sanitize_filename(name: &str) -> String {
+    sanitize_filename::sanitize_with_options(
+        name,
+        sanitize_filename::Options {
+            replacement: "_",
+            ..Default::default()
+        },
+    )
 }

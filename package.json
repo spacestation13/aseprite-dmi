@@ -2,11 +2,15 @@
 	"name": "asprite-dmi",
 	"displayName": "DMI Editor",
 	"description": "DMI Editor Extension for Aseprite",
-	"version": "1.3.0",
+	"version": "1.4.0",
 	"contributors": [
 		{
 			"name": "Seefaaa",
 			"url": "https://github.com/Seefaaa"
+		},
+		{
+			"name": "ZeWaka",
+			"url": "https://github.com/ZeWaka"
 		},
 		{
 			"name": "Space Station 13 Community",
@@ -30,6 +34,9 @@
 				"path": "./scripts/classes/editor/_editor.lua"
 			},
 			{
+				"path": "./scripts/classes/editor/animation.lua"
+			},
+			{
 				"path": "./scripts/classes/editor/rendering.lua"
 			},
 			{
@@ -43,6 +50,9 @@
 			},
 			{
 				"path": "./scripts/classes/statesprite.lua"
+			},
+			{
+				"path": "./scripts/classes/raw_dmi.lua"
 			},
 			{
 				"path": "./scripts/classes/widget.lua"

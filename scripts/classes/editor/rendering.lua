@@ -3,23 +3,56 @@ local CONTEXT_BUTTON_HEIGHT = 0
 local BOX_BORDER = 4
 local BOX_PADDING = 5
 
+function Editor:max_preview_size()
+	local preview_size = Preferences.getPreviewSize and Preferences.getPreviewSize() or 128
+	return math.max(1, preview_size)
+end
+
+function Editor:preview_dimensions()
+	if not self.dmi then
+		return 1, 1
+	end
+
+	local max_preview_size = self:max_preview_size()
+	local longest = math.max(self.dmi.width, self.dmi.height)
+	if longest <= max_preview_size then
+		return self.dmi.width, self.dmi.height
+	end
+
+	local scale = max_preview_size / longest
+	return math.max(1, math.floor(self.dmi.width * scale + 0.5)), math.max(1, math.floor(self.dmi.height * scale + 0.5))
+end
+
+function Editor:preview_cell_dimensions()
+	local preview_width, preview_height = self:preview_dimensions()
+	return preview_width + BOX_BORDER, preview_height + BOX_BORDER
+end
+
 --- Repaints the editor.
 function Editor:repaint()
-	self.dialog:repaint()
+	if self.dialog then
+		self.dialog:repaint()
+	end
 end
 
 --- This function is called when the editor needs to repaint its contents.
 --- @param ctx GraphicsContext The drawing context used to draw on the editor canvas.
 function Editor:onpaint(ctx)
+	if self.closed then return end
 	if self.loading then
+		self:update_animation_timer(false)
 		local size = ctx:measureText("Loading file...")
 		ctx.color = app.theme.color.text
 		ctx:fillText("Loading file...", (ctx.width - size.width) / 2, (ctx.height - size.height) / 2)
 		return
 	end
 
-	local min_width = self.dmi and (self.dmi.width + BOX_PADDING) or 1
-	local min_height = self.dmi and (self.dmi.height + BOX_BORDER + BOX_PADDING * 2 + TEXT_HEIGHT) or 1
+	local now = os.clock()
+
+	local preview_width, preview_height = self:preview_dimensions()
+	local cell_width, cell_height = self:preview_cell_dimensions()
+	local min_width = self.dmi and (cell_width + BOX_PADDING) or 1
+	local min_height = self.dmi and (cell_height + BOX_PADDING * 2 + TEXT_HEIGHT) or 1
 
 	self.canvas_width = math.max(ctx.width, min_width)
 	self.canvas_height = math.max(ctx.height, min_height)
@@ -32,8 +65,8 @@ function Editor:onpaint(ctx)
 		CONTEXT_BUTTON_HEIGHT = TEXT_HEIGHT + BOX_PADDING * 2
 	end
 
-	local max_row = self.dmi and math.floor(self.canvas_width / min_width) or 1
-	local max_column = self.dmi and math.floor(self.canvas_height / min_height) or 1
+	local max_row = self.dmi and math.floor((self.canvas_width + BOX_PADDING) / min_width) or 1
+	local max_column = self.dmi and math.floor((self.canvas_height + BOX_PADDING) / min_height) or 1
 
 	if max_row ~= self.max_in_a_row or max_column ~= self.max_in_a_column then
 		self.max_in_a_row = math.max(max_row, 1)
@@ -41,6 +74,9 @@ function Editor:onpaint(ctx)
 		self:repaint_states()
 		return
 	end
+
+	-- Shared source rect for all icon draws this frame (avoids N allocations from icon.bounds).
+	local icon_src_rect = self.dmi and Rectangle(0, 0, self.dmi.width, self.dmi.height) or nil
 
 	local hovers = {} --[[ @as (string)[] ]]
 	for _, widget in ipairs(self.widgets) do
@@ -58,15 +94,19 @@ function Editor:onpaint(ctx)
 		end
 
 		if widget.type == "IconWidget" then
+			local icon = self:preview_image_for_widget(widget, now)
 			ctx:drawThemeRect(stateStyle.part, widget.bounds)
-			ctx:drawImage(
-				widget.icon,
-				widget.icon.bounds,
-				Rectangle(widget.bounds.x + (widget.bounds.width - self.dmi.width) / 2,
-					widget.bounds.y + (widget.bounds.height - self.dmi.height) / 2,
-					widget.icon.bounds.width,
-					widget.icon.bounds.height)
-			)
+			if icon and icon_src_rect then
+				ctx:drawImage(
+					icon --[[@as Image]],
+					icon_src_rect,
+					widget.draw_rect or Rectangle(
+						widget.bounds.x + (widget.bounds.width - preview_width) / 2,
+						widget.bounds.y + (widget.bounds.height - preview_height) / 2,
+						preview_width,
+						preview_height)
+				)
+			end
 		elseif widget.type == "TextWidget" then
 			local widget = widget --[[ @as TextWidget ]]
 
@@ -99,6 +139,7 @@ function Editor:onpaint(ctx)
 	-- Add dragging overlay
 	if self.dragging and self.drag_widget then
 		local widget = self.drag_widget --[[ @as IconWidget ]]
+		local icon = self:preview_image_for_widget(widget, now)
 		local drag_bounds = Rectangle(
 			self.mouse.position.x - widget.bounds.width / 2,
 			self.mouse.position.y - widget.bounds.height / 2,
@@ -108,14 +149,16 @@ function Editor:onpaint(ctx)
 
 		ctx.opacity = 128
 		ctx:drawThemeRect(COMMON_STATE.hot.part, drag_bounds)
-		ctx:drawImage(
-			widget.icon,
-			widget.icon.bounds,
-			Rectangle(drag_bounds.x + (drag_bounds.width - self.dmi.width) / 2,
-				drag_bounds.y + (drag_bounds.height - self.dmi.height) / 2,
-				widget.icon.bounds.width,
-				widget.icon.bounds.height)
-		)
+		if icon then
+			ctx:drawImage(
+				icon --[[@as Image]],
+				icon_src_rect,
+				Rectangle(drag_bounds.x + (drag_bounds.width - preview_width) / 2,
+					drag_bounds.y + (drag_bounds.height - preview_height) / 2,
+					preview_width,
+				preview_height)
+			)
+		end
 		ctx.opacity = 255
 
 		-- Draw insert indicator
@@ -124,6 +167,9 @@ function Editor:onpaint(ctx)
 			ctx:drawThemeRect("selected", Rectangle(drop_bounds.x - 2, drop_bounds.y - 2, 4, drop_bounds.height + 4))
 		end
 	end
+
+	local should_animate = self:has_visible_animated_previews()
+	self:update_animation_timer(should_animate)
 
 	if self.context_widget then
 		local widget = self.context_widget --[[ @as ContextWidget ]]
@@ -190,6 +236,7 @@ function Editor:onpaint(ctx)
 		ctx:drawThemeRect("sunken_normal", Rectangle(x, self.mouse.position.y - size.height, size.width, size.height))
 		ctx:fillText(text, x + BOX_PADDING, self.mouse.position.y - (text_size.height + size.height) / 2)
 	end
+
 end
 
 --- Repaints the states in the editor.
@@ -197,7 +244,15 @@ end
 --- Only creates state widgets for states that are currently visible based on the scroll position.
 --- Calls the repaint function to update the editor display.
 function Editor:repaint_states()
+	self:update_title()
 	self.widgets = {}
+	if not self.dmi then
+		self:update_animation_timer(false)
+		self:repaint()
+		return
+	end
+
+	local preview_width, preview_height = self:preview_dimensions()
 	local duplicates = {}
 	local min_index = (self.max_in_a_row * self.scroll)
 	local max_index = min_index + self.max_in_a_row * (self.max_in_a_column + 1)
@@ -225,12 +280,8 @@ function Editor:repaint_states()
 				end
 			end
 
-			local icon = self.image_cache:get(state.frame_key)
-			local bytes = string.char(libdmi.overlay_color(app.theme.color.face.red, app.theme.color.face.green,
-				app.theme.color.face.blue, icon.width, icon.height, string.byte(icon.bytes, 1, #icon.bytes)) --[[@as number]])
-
-			local icon = Image(icon.width, icon.height)
-			icon.bytes = bytes
+			self.image_cache:ensure_state(self.dmi, state)
+			local icon = self.image_cache:get(state.frame_key) --[[@as Image]]
 
 			-- Create IconWidget and store its state for selection logic
 			local iconWidget = IconWidget.new(
@@ -240,6 +291,12 @@ function Editor:repaint_states()
 				function() self:open_state(state) end,
 				function(ev) self:state_context(state, ev) end,
 				state
+			)
+			iconWidget.draw_rect = Rectangle(
+				bounds.x + (bounds.width - preview_width) / 2,
+				bounds.y + (bounds.height - preview_height) / 2,
+				preview_width,
+				preview_height
 			)
 			table.insert(self.widgets, iconWidget)
 
@@ -288,18 +345,20 @@ end
 
 function Editor:box_bounds(index)
 	local row_index = index - self.max_in_a_row * self.scroll
+	local cell_width, cell_height = self:preview_cell_dimensions()
 	return Rectangle(
-		(self.dmi.width + BOX_PADDING) * ((row_index - 1) % self.max_in_a_row),
-		(self.dmi.height + BOX_BORDER + BOX_PADDING * 2 + TEXT_HEIGHT) *
+		(cell_width + BOX_PADDING) * ((row_index - 1) % self.max_in_a_row),
+		(cell_height + BOX_PADDING * 2 + TEXT_HEIGHT) *
 		math.floor((row_index - 1) / self.max_in_a_row) + BOX_PADDING,
-		self.dmi.width + BOX_BORDER,
-		self.dmi.height + BOX_BORDER
+		cell_width,
+		cell_height
 	)
 end
 
 --- Handles the mouse down event in the editor and triggers a repaint.
 --- @param ev MouseEvent The mouse event object.
 function Editor:onmousedown(ev)
+	if self.closed then return end
 	if ev.button == MouseButton.LEFT then
 		-- Don't set this until after selection behaivor is handled
 		self.focused_widget = nil
@@ -356,6 +415,7 @@ end
 --- Handles the mouse up event in the editor and triggers a repaint.
 --- @param ev MouseEvent The mouse event object.
 function Editor:onmouseup(ev)
+	if self.closed then return end
 	local repaint = true
 	if ev.button == MouseButton.LEFT or ev.button == MouseButton.RIGHT then
 		if self.context_widget then
@@ -410,7 +470,7 @@ function Editor:onmouseup(ev)
 		end
 		-- Add logic to finalize drag-and-drop or click actions
 		if ev.button == MouseButton.LEFT then
-			if self.dragging and self.drag_widget and self.drop_index then
+			if self.dragging and self.drag_widget and self.drop_index and self.dmi then
 				-- Find source state index using widget index and scroll offset
 				local source_index = nil
 				local min_index = self.max_in_a_row * self.scroll
@@ -471,6 +531,7 @@ end
 --- Updates the mouse position and triggers a repaint.
 --- @param ev MouseEvent The mouse event containing the x and y coordinates.
 function Editor:onmousemove(ev)
+	if self.closed then return end
 	local mouse_position = Point(ev.x, ev.y)
 	local should_repaint = false
 	local hovering_widgets = {} --[[@type AnyWidget[] ]]
@@ -495,7 +556,7 @@ function Editor:onmousemove(ev)
 		end
 	end
 
-	if self.dragging then
+	if self.dragging and self.dmi then
 		-- Find potential drop location
 		local closest_index = nil
 		local closest_dist = math.huge
@@ -563,7 +624,7 @@ end
 --- Handles the mouse wheel event for scrolling through DMI states.
 --- @param ev table The mouse wheel event object.
 function Editor:onwheel(ev)
-	if not self.dmi then return end
+	if self.closed or not self.dmi then return end
 
 	local overflow = (#self.dmi.states + 1) - self.max_in_a_row * self.max_in_a_column
 

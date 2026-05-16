@@ -18,11 +18,11 @@ end
 --- Function to load image from bytes file.
 --- Thanks to `Astropulse` for sharing [this](https://community.aseprite.org/t/loading-ui-images-for-graphicscontext-elements-at-lightning-speed/21128) article.
 --- @param file string The path to the file.
---- @return Image image The image loaded from the file.
+--- @return Image|nil image The image loaded from the file.
 function load_image_bytes(file)
 	local file = io.open(file, "rb")
 
-	assert(file, "File not found")
+	if not file then return nil end
 
 	local width = tonumber(file:read("*line"))
 	local height = tonumber(file:read("*line"))
@@ -30,9 +30,14 @@ function load_image_bytes(file)
 
 	file:close()
 
-	assert(width and height and bytes, "Invalid file")
+	if not width or not height or not bytes then return nil end
 
-	image = Image(width, height)
+	local image = Image(ImageSpec {
+		width = width,
+		height = height,
+		colorMode = ColorMode.RGB,
+		transparentColor = app.pixelColor.rgba(0, 0, 0, 0)
+	})
 	image.bytes = bytes
 
 	return image
@@ -44,7 +49,7 @@ end
 function save_image_bytes(image, file)
 	local file = io.open(file, "wb")
 
-	assert(file, "File not found")
+	if not file then return end
 
 	file:write(image.width .. "\n")
 	file:write(image.height .. "\n")

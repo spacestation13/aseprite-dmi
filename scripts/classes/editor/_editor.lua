@@ -1,6 +1,7 @@
 --- Editor is a class representing a DMI editor.
 --- It provides functionality for editing DMI files.
 --- @class Editor
+--- @field base_title string The base title of the editor.
 --- @field title string The title of the editor.
 --- @field canvas_width number The width of the canvas.
 --- @field canvas_height number The height of the canvas.
@@ -15,8 +16,6 @@
 --- @field widgets (AnyWidget)[] A table containing all state widgets.
 --- @field selected_states State[] Selected icon widgets to possibly combine.
 --- @field context_widget ContextWidget|nil The state that is currently being right clicked
---- @field beforecommand number The event object for the "beforecommand" event.
---- @field aftercommand number The event object for the "aftercommand" event.
 --- @field dialog Dialog The dialog object.
 --- @field save_path string|nil The path of the file to be saved.
 --- @field open_path string|nil The path of the file to be opened.
@@ -39,6 +38,7 @@ function Editor.new(title, dmi)
 
 	local is_filename     = type(dmi) == "string"
 
+	self.base_title       = title
 	self.title            = title
 	self.focused_widget   = nil
 	self.hovering_widgets = {}
@@ -56,7 +56,7 @@ function Editor.new(title, dmi)
 	self.drag_start_time  = math.huge
 	self.drop_index       = nil
 
-	self.canvas_width     = 185
+	self.canvas_width     = 160
 	self.canvas_height    = 215
 	self.max_in_a_row     = 1
 	self.max_in_a_column  = 1
@@ -65,10 +65,8 @@ function Editor.new(title, dmi)
 	self.modified         = false
 
 	self.image_cache      = ImageCache.new()
-
-	self.beforecommand    = app.events:on("beforecommand", function(ev) self:onbeforecommand(ev) end)
-
-	self.aftercommand     = app.events:on("aftercommand", function(ev) self:onaftercommand(ev) end)
+	self.animation_timer  = nil
+	self.animation_running = false
 
 	self:new_dialog(title)
 	self:show()
@@ -102,6 +100,23 @@ function Editor:new_dialog(title)
 		text = "Save",
 		onclick = function() self:save() end
 	}
+
+	self.dialog:button {
+		text = "Save As",
+		onclick = function() self:save_as() end
+	}
+end
+
+function Editor:update_title()
+	local title = self.base_title or self.title
+	if self.dmi then
+		title = string.format("%s (%dx%d)", title, self.dmi.width, self.dmi.height)
+	end
+
+	self.title = title
+	if self.dialog then
+		self.dialog:modify { title = title }
+	end
 end
 
 --- Displays a warning dialog asking the user to save changes to the sprite before closing.
@@ -128,7 +143,6 @@ function Editor:save_warning()
 
 	dialog:button {
 		text = "&Save",
-		focus = true,
 		onclick = function()
 			if self:save() then
 				result = 1
@@ -139,6 +153,7 @@ function Editor:save_warning()
 
 	dialog:button {
 		text = "Do&n't Save",
+		focus = true,
 		onclick = function()
 			result = 2
 			dialog:close()
@@ -166,6 +181,8 @@ function Editor:close(event, force)
 	if self.closed then
 		return true
 	end
+
+	self:stop_animation_timer()
 
 	if self:is_modified() and not force then
 		if event then
@@ -197,10 +214,7 @@ function Editor:close(event, force)
 		end
 	end
 
-	if self.dmi then
-		libdmi.remove_dir(self.dmi.temp, false)
-	end
-
+	-- Close sprites first to release file locks, then remove temp directory
 	self:gc_open_sprites()
 	for _, state_sprite in ipairs(self.open_sprites) do
 		if state_sprite.sprite and Editor.is_sprite_open(state_sprite.sprite) then
@@ -208,8 +222,9 @@ function Editor:close(event, force)
 		end
 	end
 
-	app.events:off(self.beforecommand)
-	app.events:off(self.aftercommand)
+	if self.dmi then
+		libdmi.remove_dir(self.dmi.temp, false)
+	end
 
 	self.mouse = nil
 	self.focused_widget = nil
@@ -217,8 +232,8 @@ function Editor:close(event, force)
 	self.widgets = nil
 	self.dmi = nil
 	self.open_sprites = nil
-	self.beforecommand = nil
-	self.aftercommand = nil
+	self.animation_timer = nil
+	self.animation_running = false
 
 	return true
 end
@@ -234,12 +249,15 @@ end
 --- Opens a DMI file and displays it in the editor.
 --- @param dmi? Dmi The DMI object to be opened if not passed `Editor.open_path` will be used.
 function Editor:open_file(dmi)
-	if self.dmi then
-		libdmi.remove_dir(self.dmi.temp, false)
-	end
+	self:stop_animation_timer()
 
+	-- Close sprites first to release file locks, then remove temp directory
 	for _, state_sprite in ipairs(self.open_sprites) do
 		state_sprite.sprite:close()
+	end
+
+	if self.dmi then
+		libdmi.remove_dir(self.dmi.temp, false)
 	end
 
 	self.image_cache:clear()
@@ -257,7 +275,6 @@ function Editor:open_file(dmi)
 		local dmi, error = libdmi.open_file(self.open_path, TEMP_DIR)
 		if not error then
 			self.dmi = dmi --[[@as Dmi]]
-			self.image_cache:load_previews(self.dmi)
 		else
 			app.alert { title = "Error", text = { "Failed to open the DMI file", error } }
 		end
@@ -267,29 +284,35 @@ function Editor:open_file(dmi)
 	else
 		self.dmi = dmi
 		self.loading = false
-		self.image_cache:load_previews(self.dmi)
 		self:repaint_states()
 	end
 end
 
---- Saves the current DMI file.
+--- Saves the current DMI file to the current path.
 --- If the DMI file is not set, the function returns without doing anything.
---- Displays a success or failure message using the Aseprite app.alert function.
---- @param no_dialog boolean|nil If true, skips the save dialog and overwrites the current file
 --- @return boolean success Whether the DMI file has been saved. May still return true even if the file has not been saved successfully.
-function Editor:save(no_dialog)
+function Editor:save()
+	if not self.dmi then return false end
+
+	local filename = self:path()
+	self.save_path = filename
+	local _, err = libdmi.save_file(self.dmi, filename --[[@as string]])
+	if not err then
+		self.modified = false
+	end
+	return true
+end
+
+--- Saves the current DMI file by prompting for a destination.
+--- If the DMI file is not set, the function returns without doing anything.
+--- @return boolean success Whether the DMI file has been saved.
+function Editor:save_as()
 	if not self.dmi then return false end
 
 	local path = self:path()
-	local filename = path
-	local error
-
-	if not no_dialog then
-		local result = libdmi.save_dialog("Save File", app.fs.fileTitle(path), app.fs.filePath(path))
-		filename, error = result or "", nil
-	end
-
-	if (#filename > 0) and not error then
+	local result = libdmi.save_dialog("Save File", app.fs.fileTitle(path), app.fs.filePath(path))
+	local filename = result or ""
+	if #filename > 0 then
 		self.save_path = filename
 		local _, err = libdmi.save_file(self.dmi, filename --[[@as string]])
 		if not err then
@@ -315,6 +338,7 @@ local save_file_as = nil
 --- This function is called before executing a command in the Aseprite editor. It checks the event name and performs specific actions based on the event type.
 --- @param ev table The event object containing information about the event.
 function Editor:onbeforecommand(ev)
+	if self.closed then return end
 	if ev.name == "SaveFile" then
 		for _, state_sprite in ipairs(self.open_sprites) do
 			if app.sprite == state_sprite.sprite then
@@ -322,7 +346,7 @@ function Editor:onbeforecommand(ev)
 					ev.stopPropagation()
 				end
 				if Preferences.getAutoOverwrite and Preferences.getAutoOverwrite() then
-					self:save(true)
+					self:save()
 				end
 				break
 			end
@@ -342,6 +366,7 @@ end
 --- Callback function called after a Aseprite command is executed.
 --- @param ev table The event object containing information about the command.
 function Editor:onaftercommand(ev)
+	if self.closed then return end
 	if ev.name == "SaveFileAs" then
 		for i, state_sprite in ipairs(self.open_sprites) do
 			if app.sprite == state_sprite.sprite then

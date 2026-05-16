@@ -255,7 +255,7 @@ WebSocketMessageType = {
 
 --- @class app
 --- @field apiVersion number
---- @field version any TODO
+--- @field version Version
 --- @field isUIAvailable boolean
 --- @field alert (fun(text: string): number)|(fun(params: app.alert.Params): number)
 --- @field transaction fun(name?: string, callback: function)
@@ -278,6 +278,7 @@ WebSocketMessageType = {
 --- @field params table
 --- @field events app.events
 --- @field theme app.theme
+--- @field uiScale number
 --- @field fs app.fs
 --- @field open fun(filename: string): Sprite|nil Opens a new sprite loading it from the given filename.
 
@@ -331,6 +332,7 @@ WebSocketMessageType = {
 --- @field newCommand fun(self: Plugin, params: Plugin.CommandParams) Creates a new command that can be associated to keyboard shortcuts and it's added in the app menu in the specific `"group"`. Groups are defined in the `gui.xml` file inside the `<menus>` element.
 --- @field newMenuGroup fun(self: Plugin, params: Plugin.MenuGroupParams) Creates a new menu item which will contain a submenu grouping several plugin commands.
 --- @field newMenuSeparator fun(self: Plugin, params: Plugin.MenuSeparatorParams) Creates a menu separator in the given menu group, useful to separate several Plugin:newCommand.
+--- @field newFileFormat fun(self: Plugin, params: Plugin.FileFormatParams) Registers a new file format that can be opened/saved by Aseprite.
 
 --- @class Plugin.CommandParams
 --- @field id string ID to identify this new command in `Plugin:newCommand{ id=id, ... }` calls to add several keyboard shortcuts to the same command.
@@ -346,6 +348,22 @@ WebSocketMessageType = {
 
 --- @class Plugin.MenuSeparatorParams
 --- @field group string In which existent group we should add this new menu item.
+
+--- @class Plugin.FileFormatParams
+--- @field name string Human-readable name for the file format.
+--- @field extension string File extension (without dot) this format handles.
+--- @field onload? fun(ev: {filename: string, file: file*}): Sprite Called when loading a file of this format. Must return a Sprite.
+--- @field onsave? fun(ev: {filename: string, file: file*, sprite: Sprite}): boolean Called when saving a file of this format. Must return true on success.
+
+--- @class Version
+--- @field major number
+--- @field minor number
+--- @field patch number
+--- @field prereleaseLabel string
+--- @field prereleaseNumber number
+
+--- @type fun(version: string): Version
+Version = nil
 
 --- @class Image: table
 --- @field clone fun(self: Image): Image
@@ -603,7 +621,7 @@ WebSocketMessageType = {
 --- @field bounds? Rectangle
 
 --- @class Dialog.ModifyParams: table<string, any>
---- @field id string
+--- @field id? string
 --- @field title? string
 
 --- @class Dialog.NewRowParams
@@ -769,8 +787,10 @@ WebSocketMessageType = {
 --- @field resize fun(dmi: Dmi, width: number, height: number, medhod: string): nil, string? Resizes the DMI file. If fails, returns an error message.
 --- @field crop fun(dmi: Dmi, x: number, y: number, width: number, height: number): nil, string? Crops the DMI file. If fails, returns an error message.
 --- @field expand fun(dmi: Dmi, x: number, y: number, width: number, height: number): nil, string? Expands the DMI file size. If fails, returns an error message.
---- @field overlay_color fun(r: number, g: number, b: number, width: number, height: number, ...: number): ...: number|nil Overlays the given bytes of an image on a plain color.
+--- @field overlay_color fun(r: number, g: number, b: number, width: number, height: number, bytes: string): string|nil Overlays the given bytes of an image on a plain color.
 --- @field remove_dir fun(path: string, soft: boolean): nil, string? Removes a directory. If fails, returns an error message.
+--- @field save_rgba_png fun(width: number, height: number, bytes: string, filename: string): nil, string? Saves an RGBA byte buffer as a PNG file. If fails, returns an error message.
+--- @field read_dmi_png fun(filename: string): {width: number, height: number, bytes: string}, string? Reads a DMI file and returns its dimensions and raw RGBA bytes.
 --- @field exists fun(path: string): boolean Returns true if the path points at an existing entity.
 --- @field check_update fun(): boolean Return true if there is an update available.
 --- @field instances fun(): number?, string? Return the number of Aseprite instances running.

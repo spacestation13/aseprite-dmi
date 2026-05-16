@@ -16,8 +16,6 @@ function Editor.new_file(plugin_path)
 				return
 			end
 
-			loadlib(plugin_path)
-
 			local dmi, error = libdmi.new_file("untitled", width, height, TEMP_DIR)
 			if not error then
 				Editor.new(DIALOG_NAME, dmi --[[@as Dmi]])
@@ -26,6 +24,24 @@ function Editor.new_file(plugin_path)
 			end
 		end
 	end
+end
+
+local DIRECTION_ALPHA = 70
+local DIRECTION_COLORS = {
+	Color { r = 96,  g = 0,   b = 0,   a = DIRECTION_ALPHA }, -- South: red
+	Color { r = 0,   g = 0,   b = 96,  a = DIRECTION_ALPHA }, -- North: blue
+	Color { r = 96,  g = 96,  b = 0,   a = DIRECTION_ALPHA }, -- East: yellow
+	Color { r = 0,   g = 96,  b = 0,   a = DIRECTION_ALPHA }, -- West: green
+	Color { r = 96,  g = 48,  b = 0,   a = DIRECTION_ALPHA }, -- Southeast: orange
+	Color { r = 48,  g = 96,  b = 0,   a = DIRECTION_ALPHA }, -- Southwest: chartreuse
+	Color { r = 0,   g = 96,  b = 96,  a = DIRECTION_ALPHA }, -- Northeast: teal
+	Color { r = 48,  g = 0,   b = 96,  a = DIRECTION_ALPHA }, -- Northwest: purple
+}
+
+---@param direction_index number
+---@return Color
+local function direction_color(direction_index)
+	return DIRECTION_COLORS[direction_index] or Color{ r=255, g=255, b=255, a=DIRECTION_ALPHA }
 end
 
 --- Opens a state in the Aseprite editor by creating a new sprite and populating it with frames and layers based on the provided state.
@@ -38,7 +54,12 @@ function Editor:open_state(state)
 		end
 	end
 
+	self.image_cache:ensure_state(self.dmi, state)
 	local preview_image = self.image_cache:get(state.frame_key)
+	if not preview_image then
+		app.alert { title = self.title, text = "Failed to load state preview image" }
+		return
+	end
 	local transparentColor = transparent_color(preview_image)
 
 	local sprite = Sprite(ImageSpec {
@@ -70,12 +91,25 @@ function Editor:open_state(state)
 		local index = 1
 		for frame = 1, #sprite.frames, 1 do
 			for layer = #sprite.layers, 1, -1 do
-				sprite.layers[layer].name = DIRECTION_NAMES[#sprite.layers - layer + 1]
+				local direction_index = #sprite.layers - layer + 1
+				sprite.layers[layer].name = DIRECTION_NAMES[direction_index]
+				if Preferences.getDirectionLayerColors and Preferences.getDirectionLayerColors() then
+					sprite.layers[layer].color = direction_color(direction_index)
+				end
+				local cel_image = nil
+				if index == 1 then
+					cel_image = self.image_cache:get(state.frame_key)
+				end
+				if not cel_image then
+					cel_image = load_image_bytes(app.fs.joinPath(self.dmi.temp, state.frame_key .. "." .. math.floor(index - 1) .. ".bytes"))
+				end
+				if not cel_image then
+					cel_image = preview_image
+				end
 				sprite:newCel(
 					sprite.layers[layer],
 					sprite.frames[frame],
-					index == 1 and self.image_cache:get(state.frame_key) or
-					load_image_bytes(app.fs.joinPath(self.dmi.temp, state.frame_key .. "." .. math.floor(index - 1) .. ".bytes")),
+					cel_image,
 					Point(0, 0)
 				)
 				index = index + 1
@@ -131,7 +165,13 @@ function Editor:state_context(state, ev)
 		{ text = "Properties", onclick = function() self:state_properties(state) end },
 		{ text = "Open",       onclick = function() self:open_state(state) end },
 		{ text = "Copy",       onclick = function() self:clipboard_copy_state(state) end },
-		{ text = "Remove",     onclick = function() self:remove_state(state) end },
+		{ text = "Remove",     onclick = function()
+			if #self.selected_states > 1 and table.index_of(self.selected_states, state) ~= 0 then
+				self:remove_selected_states()
+			else
+				self:remove_state(state)
+			end
+		end },
 		{ text = "Split",      onclick = function() self:split_state(state) end },
 		{ text = "Select",
 			onclick = function()
@@ -143,6 +183,7 @@ function Editor:state_context(state, ev)
 			end
 		},
 	}
+
 	if #self.selected_states > 1 then
 		table.insert(buttons, { text = "Combine", onclick = function() self:combine_selected_states() end })
 		table.insert(buttons, {
@@ -156,6 +197,7 @@ function Editor:state_context(state, ev)
 			end
 		})
 	end
+
 	self.context_widget = ContextWidget.new(
 		Rectangle(ev.x, ev.y, 0, 0),
 		buttons
@@ -308,6 +350,9 @@ function Editor:set_state_dirs(state, directions)
 						local layer = sprite:newLayer()
 						layer.stackIndex = 1
 						layer.name = layer_name
+						if Preferences.getDirectionLayerColors and Preferences.getDirectionLayerColors() then
+							layer.color = direction_color(i)
+						end
 						layer.isVisible = false
 
 						if primary_layer then
@@ -323,7 +368,10 @@ function Editor:set_state_dirs(state, directions)
 								if cel and cel.image then
 									image:drawImage(cel.image, cel.position)
 								else
-									image:drawImage(self.image_cache:get(state.frame_key), Point(0, 0))
+									local fallback = self.image_cache:get(state.frame_key)
+									if fallback then
+										image:drawImage(fallback, Point(0, 0))
+									end
 								end
 
 								sprite:newCel(layer, frame, image, Point(0, 0))
@@ -370,6 +418,14 @@ function Editor:remove_state(state)
 	self.image_cache:remove(state.frame_key)
 	self:repaint_states()
 	self:gc_open_sprites()
+end
+
+--- Removes all selected states from the DMI file.
+function Editor:remove_selected_states()
+	for i = #self.selected_states, 1, -1 do
+		self:remove_state(self.selected_states[i])
+	end
+	self.selected_states = {}
 end
 
 --- Copies a state to the clipboard.
@@ -1027,15 +1083,16 @@ end
 --- Reloads all open states in the editor.
 function Editor:reload_open_states()
 	local open_states = {} --[[@type State[] ]]
+	self:gc_open_sprites()
 	for _, state_sprite in ipairs(self.open_sprites) do
-		if state_sprite.sprite then
+		if state_sprite.sprite and Editor.is_sprite_open(state_sprite.sprite) then
 			state_sprite.sprite:close()
 			table.insert(open_states, state_sprite.state)
 		end
 	end
 
 	self.open_sprites = {}
-	self.image_cache:load_previews(self.dmi)
+	self.image_cache:clear()
 	self:repaint_states()
 
 	for _, state in ipairs(open_states) do

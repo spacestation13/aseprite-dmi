@@ -17,18 +17,20 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
     exports.set("new_file", lua.create_function(safe!(new_file))?)?;
     exports.set("open_file", lua.create_function(safe!(open_file))?)?;
     exports.set("save_file", lua.create_function(safe!(save_file))?)?;
+    exports.set("save_rgba_png", lua.create_function(safe!(save_rgba_png))?)?;
+    exports.set("read_dmi_png", lua.create_function(safe!(read_dmi_png))?)?;
     exports.set("new_state", lua.create_function(safe!(new_state))?)?;
     exports.set("copy_state", lua.create_function(safe!(copy_state))?)?;
     exports.set("paste_state", lua.create_function(safe!(paste_state))?)?;
     exports.set("resize", lua.create_function(safe!(resize))?)?;
     exports.set("crop", lua.create_function(safe!(crop))?)?;
     exports.set("expand", lua.create_function(safe!(expand))?)?;
-    exports.set("overlay_color", lua.create_function(overlay_color)?)?;
+    exports.set("overlay_color", lua.create_function(safe!(overlay_color))?)?;
     exports.set("remove_dir", lua.create_function(safe!(remove_dir))?)?;
-    exports.set("exists", lua.create_function(exists)?)?;
-    exports.set("check_update", lua.create_function(check_update)?)?;
+    exports.set("exists", lua.create_function(safe!(exists))?)?;
+    exports.set("check_update", lua.create_function(safe!(check_update))?)?;
     exports.set("open_repo", lua.create_function(safe!(open_repo))?)?;
-    exports.set("instances", lua.create_function(instances)?)?;
+    exports.set("instances", lua.create_function(safe!(instances))?)?;
     exports.set("save_dialog", lua.create_function(safe!(save_dialog))?)?;
     exports.set("import_png", lua.create_function(safe!(import_png))?)?;
 
@@ -121,7 +123,12 @@ fn resize(
         "catmullrom" => image::imageops::FilterType::CatmullRom,
         "gaussian" => image::imageops::FilterType::Gaussian,
         "lanczos3" => image::imageops::FilterType::Lanczos3,
-        _ => unreachable!(),
+        _ => {
+            return Err(LuaError::external(format!(
+                "Unknown resize method: {}",
+                method
+            )));
+        }
     };
 
     let mut dmi = Dmi::from_serialized(dmi)?;
@@ -160,32 +167,22 @@ fn expand(
 }
 
 fn overlay_color(
-    _: &Lua,
-    (r, g, b, width, height, bytes): (u8, u8, u8, u32, u32, LuaMultiValue),
-) -> LuaResult<LuaMultiValue> {
-    use image::{imageops, EncodableLayout, ImageBuffer, Rgba};
+    lua: &Lua,
+    (r, g, b, width, height, bytes): (u8, u8, u8, u32, u32, LuaString),
+) -> LuaResult<LuaValue> {
+    use image::{EncodableLayout, ImageBuffer, Rgba, imageops};
 
-    let mut buf = Vec::new();
-    for byte in bytes {
-        if let LuaValue::Integer(byte) = byte {
-            buf.push(byte as u8);
-        }
-    }
+    let buf = bytes.as_bytes().to_vec();
 
     if let Some(top) = ImageBuffer::from_vec(width, height, buf) {
         let mut bottom = ImageBuffer::from_pixel(width, height, Rgba([r, g, b, 255]));
         imageops::overlay(&mut bottom, &top, 0, 0);
 
-        let bytes = bottom
-            .as_bytes()
-            .iter()
-            .map(|byte| LuaValue::Integer(*byte as i64))
-            .collect();
-
-        return Ok(LuaMultiValue::from_vec(bytes));
+        let result = lua.create_string(bottom.as_bytes())?;
+        return Ok(LuaValue::String(result));
     }
 
-    Ok(LuaMultiValue::from_vec(vec![LuaValue::Nil]))
+    Ok(LuaValue::Nil)
 }
 
 fn remove_dir(_: &Lua, (path, soft): (String, bool)) -> LuaResult<LuaValue> {
@@ -198,6 +195,43 @@ fn remove_dir(_: &Lua, (path, soft): (String, bool)) -> LuaResult<LuaValue> {
             fs::remove_dir(path)?;
         }
     }
+
+    Ok(LuaValue::Nil)
+}
+
+fn read_dmi_png(lua: &Lua, filename: String) -> LuaResult<LuaTable> {
+    use image::GenericImageView;
+
+    let path = Path::new(&filename);
+    if !path.is_file() {
+        return Err(LuaError::external("File does not exist"));
+    }
+
+    let mut reader = image::ImageReader::open(path).map_err(LuaError::external)?;
+    reader.set_format(image::ImageFormat::Png);
+    let image = reader.decode().map_err(LuaError::external)?;
+
+    let (width, height) = image.dimensions();
+    let rgba_bytes = image.into_rgba8().into_raw();
+
+    let table = lua.create_table()?;
+    table.set("width", width)?;
+    table.set("height", height)?;
+    table.set("bytes", lua.create_string(&rgba_bytes)?)?;
+
+    Ok(table)
+}
+
+fn save_rgba_png(
+    _: &Lua,
+    (width, height, bytes, filename): (u32, u32, LuaString, String),
+) -> LuaResult<LuaValue> {
+    let image = image::RgbaImage::from_vec(width, height, bytes.as_bytes().to_vec())
+        .ok_or_else(|| LuaError::external("Invalid RGBA buffer size"))?;
+
+    image::DynamicImage::ImageRgba8(image)
+        .save_with_format(&filename, image::ImageFormat::Png)
+        .map_err(crate::dmi::DmiError::from)?;
 
     Ok(LuaValue::Nil)
 }
@@ -219,10 +253,10 @@ fn save_dialog(
         .add_filter("dmi files", ["dmi"])
         .save_single_file();
 
-    if let Ok(Some(file)) = dialog.show() {
-        if let Some(file) = file.to_str() {
-            return Ok(file.to_string());
-        }
+    if let Ok(Some(file)) = dialog.show()
+        && let Some(file) = file.to_str()
+    {
+        return Ok(file.to_string());
     }
 
     Ok(String::new())

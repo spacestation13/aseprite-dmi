@@ -18,9 +18,11 @@ end
 --- If no frame is specified, the first frame is returned.
 --- @param key string The key of the image.
 --- @param frame number? (optional) The frame number of the image.
---- @return Image image The retrieved image.
+--- @return Image|nil image The retrieved image.
 function ImageCache:get(key, frame)
-	return self.images[key][frame or 1]
+	local entry = self.images[key]
+	if not entry then return nil end
+	return entry[frame or 1]
 end
 
 --- Sets the specified image for the given state and frame in the ImageCache.
@@ -48,6 +50,21 @@ function ImageCache:clear()
 	self.images = {}
 end
 
+--- Ensures cached preview images exist for the given state.
+--- @param dmi Dmi
+--- @param state State
+function ImageCache:ensure_state(dmi, state)
+	if not state or not state.frame_key then
+		return
+	end
+
+	if self.images[state.frame_key] then
+		return
+	end
+
+	self:load_state(dmi, state)
+end
+
 --- Loads preview images for each state in the DMI file and caches them in the ImageCache.
 --- @param dmi Dmi The DMI file object.
 function ImageCache:load_previews(dmi)
@@ -60,6 +77,21 @@ end
 --- @param dmi Dmi The DMI file.
 --- @param state State The state of the image.
 function ImageCache:load_state(dmi, state)
-	local image = load_image_bytes(app.fs.joinPath(dmi.temp, state.frame_key .. ".0.bytes"))
-	self:set(state.frame_key, image)
+	local frame_count = math.max(1, math.floor(state.frame_count or 1))
+	local dirs = math.max(1, math.floor(state.dirs or 1))
+
+	for frame = 1, frame_count, 1 do
+		-- Cache only the south direction frame for previews.
+		local frame_index = (frame - 1) * dirs
+		local image = load_image_bytes(app.fs.joinPath(dmi.temp, state.frame_key .. "." .. frame_index .. ".bytes"))
+		if not image then
+			image = Image(ImageSpec {
+				width = dmi.width,
+				height = dmi.height,
+				colorMode = ColorMode.RGB,
+				transparentColor = app.pixelColor.rgba(0, 0, 0, 0)
+			})
+		end
+		self:set(state.frame_key, image, frame)
+	end
 end

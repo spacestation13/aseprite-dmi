@@ -1,16 +1,16 @@
-use base64::{engine::general_purpose, Engine as _};
-use image::{imageops, ImageBuffer, Rgba};
+use base64::{Engine as _, engine::general_purpose};
 use image::{DynamicImage, ImageReader};
+use image::{ImageBuffer, Rgba, imageops};
 use png::{Compression, Decoder, Encoder};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::ffi::OsStr;
-use std::fs::{create_dir_all, remove_dir_all, File};
-use std::io::{BufWriter, Cursor, Read as _, Write as _};
+use std::fs::{File, create_dir_all, remove_dir_all};
+use std::io::{BufReader, BufWriter, Cursor, Read as _, Write as _};
 use std::path::Path;
 use thiserror::Error;
 
-use crate::utils::{find_directory, image_to_base64, optimal_size};
+use crate::utils::{find_directory, image_to_base64, optimal_size, sanitize_filename};
 
 const DMI_VERSION: &str = "4.0";
 
@@ -152,7 +152,7 @@ impl Dmi {
     where
         P: AsRef<Path>,
     {
-        let decoder = Decoder::new(File::open(&path)?);
+        let decoder = Decoder::new(BufReader::new(File::open(&path)?));
         let reader = decoder.read_info()?;
         let chunk = reader
             .info()
@@ -162,7 +162,11 @@ impl Dmi {
         let metadata = chunk.get_text()?;
 
         let mut dmi = Self::new(
-            path.as_ref().file_stem().unwrap().to_str().unwrap().into(),
+            path.as_ref()
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("unnamed")
+                .into(),
             32,
             32,
         );
@@ -173,7 +177,16 @@ impl Dmi {
         reader.set_format(image::ImageFormat::Png);
 
         let mut image = reader.decode()?;
+
+        if dmi.width == 0 || dmi.height == 0 {
+            return Err(DmiError::ImageSizeMismatch);
+        }
+
         let grid_width = image.width() / dmi.width;
+        if grid_width == 0 {
+            return Err(DmiError::ImageSizeMismatch);
+        }
+        let grid_height = image.height() / dmi.height;
 
         let mut index = 0;
         for state in dmi.states.iter_mut() {
@@ -182,7 +195,7 @@ impl Dmi {
                 let delay_count = state.delays.len();
                 match delay_count.cmp(&frame_count) {
                     Ordering::Less => {
-                        let last_delay = *state.delays.last().unwrap();
+                        let last_delay = *state.delays.last().ok_or(DmiError::MissingData)?;
                         let additional_delays = vec![last_delay; frame_count - delay_count];
                         state.delays.extend(additional_delays);
                     }
@@ -197,12 +210,12 @@ impl Dmi {
 
             for _ in 0..state.frame_count {
                 for _ in 0..state.dirs {
-                    let image = image.crop(
-                        dmi.width * (index % grid_width),
-                        dmi.height * (index / grid_width),
-                        dmi.width,
-                        dmi.height,
-                    );
+                    let x = index % grid_width;
+                    let y = index / grid_width;
+                    if x >= grid_width || y >= grid_height {
+                        return Err(DmiError::ImageSizeMismatch);
+                    }
+                    let image = image.crop(dmi.width * x, dmi.height * y, dmi.width, dmi.height);
                     if image.width() != dmi.width || image.height() != dmi.height {
                         return Err(DmiError::ImageSizeMismatch);
                     }
@@ -240,16 +253,16 @@ impl Dmi {
             }
         }
 
-        if let Some(parent) = path.as_ref().parent() {
-            if !parent.exists() {
-                create_dir_all(parent)?;
-            }
+        if let Some(parent) = path.as_ref().parent()
+            && !parent.exists()
+        {
+            create_dir_all(parent)?;
         }
 
         let mut writer = BufWriter::new(File::create(path)?);
         let mut encoder = Encoder::new(&mut writer, width, height);
 
-        encoder.set_compression(Compression::Best);
+        encoder.set_compression(Compression::High);
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
 
@@ -288,7 +301,7 @@ impl Dmi {
             width: self.width,
             height: self.height,
             states,
-            temp: path.to_str().unwrap().to_string(),
+            temp: path.to_str().unwrap_or_default().to_string(),
         })
     }
     pub fn from_serialized(serialized: SerializedDmi) -> DmiResult<Dmi> {
@@ -377,9 +390,15 @@ impl State {
 
         // Generate a unique frame key for storing the state's image frames
         let frame_key = {
+            let safe_name = sanitize_filename(&self.name);
+            let safe_name = if safe_name.is_empty() {
+                "state".to_string()
+            } else {
+                safe_name
+            };
             let mut index = 1u32;
             loop {
-                let candidate_key = format!("{}.{}", self.name, index);
+                let candidate_key = format!("{}.{}", safe_name, index);
                 let test_path = path.join(format!("{candidate_key}.0.bytes"));
 
                 // If the file doesn't exist, we can use this key
@@ -608,34 +627,40 @@ fn load_image_from_bytes<P: AsRef<Path>>(path: P) -> DmiResult<DynamicImage> {
     let mut file = File::open(path)?;
     file.read_to_end(&mut bytes)?;
 
-    let mut width = String::new();
-    let mut height = String::new();
-    let mut index = 0;
+    let width_nl = bytes
+        .iter()
+        .position(|&b| b == 0x0A)
+        .ok_or(DmiError::MissingData)?;
+    let height_nl = bytes[width_nl + 1..]
+        .iter()
+        .position(|&b| b == 0x0A)
+        .map(|p| p + width_nl + 1)
+        .ok_or(DmiError::MissingData)?;
 
-    while bytes[index] != 0x0A {
-        width.push(bytes[index] as char);
-        index += 1;
+    let width: u32 = std::str::from_utf8(&bytes[..width_nl])
+        .map_err(|_| DmiError::MissingData)?
+        .trim()
+        .parse()?;
+    let height: u32 = std::str::from_utf8(&bytes[width_nl + 1..height_nl])
+        .map_err(|_| DmiError::MissingData)?
+        .trim()
+        .parse()?;
+
+    let pixel_data = &bytes[height_nl + 1..];
+    let expected_len = (width as usize)
+        .saturating_mul(height as usize)
+        .saturating_mul(4);
+    if pixel_data.len() < expected_len {
+        return Err(DmiError::MissingData);
     }
-
-    index += 1;
-
-    while bytes[index] != 0x0A {
-        height.push(bytes[index] as char);
-        index += 1;
-    }
-
-    index += 1;
-
-    let width = width.parse()?;
-    let height = height.parse()?;
 
     let mut image_buffer: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(width, height);
-
+    let mut index = 0;
     for pixel in image_buffer.pixels_mut() {
-        pixel[0] = bytes[index];
-        pixel[1] = bytes[index + 1];
-        pixel[2] = bytes[index + 2];
-        pixel[3] = bytes[index + 3];
+        pixel[0] = pixel_data[index];
+        pixel[1] = pixel_data[index + 1];
+        pixel[2] = pixel_data[index + 2];
+        pixel[3] = pixel_data[index + 3];
         index += 4;
     }
 
