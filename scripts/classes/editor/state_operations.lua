@@ -127,12 +127,22 @@ function Editor:combine_selected_states()
 		option = defaultOption,
 		options = combineOptions,
 	}
-	dialog:combobox {
-		id = "frame_sel_type",
-		label = "Frame Selection:",
-		option = FRAME_SEL_TYPES.all_seq,
-		options = { FRAME_SEL_TYPES.all_seq, FRAME_SEL_TYPES.first_only, },
-	}
+	-- Only show frame selection if any selected state has multiple frames
+	local hasMultipleFrames = false
+	for _, st in ipairs(self.selected_states) do
+		if st.frame_count > 1 then
+			hasMultipleFrames = true
+			break
+		end
+	end
+	if hasMultipleFrames then
+		dialog:combobox {
+			id = "frame_sel_type",
+			label = "Frame Selection:",
+			option = FRAME_SEL_TYPES.all_seq,
+			options = { FRAME_SEL_TYPES.all_seq, FRAME_SEL_TYPES.first_only, },
+		}
+	end
 	dialog:button {
 		text = "&OK",
 		focus = true,
