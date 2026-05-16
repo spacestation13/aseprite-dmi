@@ -185,19 +185,11 @@ function Editor:state_context(state, ev)
 				self:split_state(state)
 			end
 		end },
-		{ text = "Select",
-			onclick = function()
-				local i = table.index_of(self.selected_states, state)
-				if i == 0 then
-					table.insert(self.selected_states, state)
-				end
-				self:repaint()
-			end
-		},
 	}
 
-	if #self.selected_states > 1 then
-		table.insert(buttons, { text = "Combine", onclick = function() self:combine_selected_states() end })
+	local isSelected = table.index_of(self.selected_states, state) ~= 0
+
+	if isSelected then
 		table.insert(buttons, {
 			text = "Deselect",
 			onclick = function()
@@ -205,6 +197,25 @@ function Editor:state_context(state, ev)
 				if i ~= 0 then
 					table.remove(self.selected_states, i)
 				end
+				self:repaint()
+			end
+		})
+	else
+		table.insert(buttons, {
+			text = "Select",
+			onclick = function()
+				table.insert(self.selected_states, state)
+				self:repaint()
+			end
+		})
+	end
+
+	if #self.selected_states > 1 then
+		table.insert(buttons, { text = "Combine", onclick = function() self:combine_selected_states() end })
+		table.insert(buttons, {
+			text = "Deselect All",
+			onclick = function()
+				self.selected_states = {}
 				self:repaint()
 			end
 		})
