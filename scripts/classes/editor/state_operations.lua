@@ -65,7 +65,29 @@ function Editor:split_state(state)
 	-- Mark as modified and remove the original state
 	self.modified = true
 	self:remove_state(state)
-	self:repaint_states()
+end
+
+--- Splits all selected multi-directional states into individual states.
+function Editor:split_selected_states()
+	if not self.dmi or #self.selected_states == 0 then return end
+
+	local to_split = {}
+	for _, state in ipairs(self.selected_states) do
+		if state.dirs > 1 then
+			table.insert(to_split, state)
+		end
+	end
+
+	if #to_split == 0 then
+		app.alert { title = "Warning", text = "No selected states have multiple directions to split" }
+		return
+	end
+
+	for _, state in ipairs(to_split) do
+		self:split_state(state)
+	end
+
+	self.selected_states = {}
 end
 
 --- Combines multiple selected states into one state.

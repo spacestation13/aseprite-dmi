@@ -178,7 +178,13 @@ function Editor:state_context(state, ev)
 				self:remove_state(state)
 			end
 		end },
-		{ text = "Split",      onclick = function() self:split_state(state) end },
+		{ text = "Split",      onclick = function()
+			if #self.selected_states > 1 and table.index_of(self.selected_states, state) ~= 0 then
+				self:split_selected_states()
+			else
+				self:split_state(state)
+			end
+		end },
 		{ text = "Select",
 			onclick = function()
 				local i = table.index_of(self.selected_states, state)
