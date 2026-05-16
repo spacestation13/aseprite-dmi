@@ -300,6 +300,11 @@ function Editor:repaint_states()
 			)
 			table.insert(self.widgets, iconWidget)
 
+			local display_name = #state.name > 0 and state.name or "no name"
+			if state.movement and not text_color then
+				text_color = Color { red = 100, green = 180, blue = 255, alpha = 255 }
+			end
+
 			table.insert(self.widgets, TextWidget.new(
 				self,
 				Rectangle(
@@ -308,7 +313,7 @@ function Editor:repaint_states()
 					bounds.width,
 					TEXT_HEIGHT
 				),
-				#state.name > 0 and state.name or "no name",
+				display_name,
 				text_color,
 				state.name,
 				function() self:state_properties(state) end,
