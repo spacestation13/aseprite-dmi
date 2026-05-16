@@ -46,13 +46,14 @@ function Editor:split_state(state)
 		new_state.delays = table.clone(state.delays)
 
 		-- Copy the image data for this direction
-		local frames_per_dir = state.frame_count
-		local start_frame = (i - 1) * frames_per_dir
-
-		for frame = 1, frames_per_dir do
+		-- Layout is frame-major: index = frame * dirs + dir
+		local dir = i - 1
+		for frame = 0, state.frame_count - 1 do
+			local src_index = frame * state.dirs + dir
 			local src_path = app.fs.joinPath(self.dmi.temp,
-				state.frame_key .. "." .. tostring(start_frame + frame - 1) .. ".bytes")
-			local dst_path = app.fs.joinPath(self.dmi.temp, new_state.frame_key .. "." .. tostring(frame - 1) .. ".bytes")
+				state.frame_key .. "." .. src_index .. ".bytes")
+			local dst_path = app.fs.joinPath(self.dmi.temp,
+				new_state.frame_key .. "." .. frame .. ".bytes")
 
 			self:copyImageBytes(src_path, dst_path)
 		end
@@ -82,8 +83,14 @@ function Editor:combine_selected_states()
 	dialog:combobox {
 		id = "combine_type",
 		label = "Used Directions:",
-		option = COMBINE_TYPES.alldirs,
-		options = { COMBINE_TYPES.alldirs, COMBINE_TYPES.onedir },
+		option = COMBINE_TYPES.frames_4dir,
+		options = {
+			COMBINE_TYPES.onedir,
+			COMBINE_TYPES.frames_4dir,
+			COMBINE_TYPES.frames_8dir,
+			COMBINE_TYPES.dirs4_frames,
+			COMBINE_TYPES.dirs8_frames
+		},
 	}
 	dialog:combobox {
 		id = "frame_sel_type",
@@ -159,15 +166,22 @@ function Editor:performCombineStates(combinedName, combineType, frameSelType)
 	end
 
 	combined_state.name = combinedName
+
+	local success
 	if combineType == COMBINE_TYPES.onedir then
-		if not self:combine1direction(combined_state, sortedStates, frameSelType) then
-			return
-		end
-	elseif combineType == COMBINE_TYPES.alldirs then
-		if not self:combineAllDirections(combined_state, sortedStates, frameSelType) then
-			return
-		end
+		success = self:combine1direction(combined_state, sortedStates, frameSelType)
+	elseif combineType == COMBINE_TYPES.frames_4dir then
+		success = self:combineFramesFirst(combined_state, sortedStates, frameSelType, 4)
+	elseif combineType == COMBINE_TYPES.frames_8dir then
+		success = self:combineFramesFirst(combined_state, sortedStates, frameSelType, 8)
+	elseif combineType == COMBINE_TYPES.dirs4_frames then
+		success = self:combineDirectionsFirst(combined_state, sortedStates, frameSelType, 4)
+	elseif combineType == COMBINE_TYPES.dirs8_frames then
+		success = self:combineDirectionsFirst(combined_state, sortedStates, frameSelType, 8)
 	end
+
+	if not success then return end
+
 	table.insert(self.dmi.states, combined_state)
 	self.image_cache:load_state(self.dmi, combined_state)
 	self.modified = true
@@ -176,59 +190,136 @@ function Editor:performCombineStates(combinedName, combineType, frameSelType)
 	self:gc_open_sprites()
 end
 
---- Combines the selected states into one new 1-dir iconstate, so each frame is a different state.
---- @param combined_state State The combined state inject all the parts into.
+--- Combines the selected states into one new 1-dir iconstate, taking direction 0 (south) from each.
+--- @param combined_state State The combined state to inject all the parts into.
 --- @param sortedStates State[] The iconstates to combine.
+--- @param frameSelType FrameSelType The frame selection type.
 function Editor:combine1direction(combined_state, sortedStates, frameSelType)
 	combined_state.dirs = 1
 	local framesToUseList, total_frames = self:getFrameUsage(sortedStates, frameSelType)
 	combined_state.frame_count = total_frames
 
+	local combinedDelays = {}
 	local frameIndex = 0
 	for idx, st in ipairs(sortedStates) do
 		local framesToUse = framesToUseList[idx]
-		for i = 0, framesToUse - 1 do
-			local srcPath = app.fs.joinPath(self.dmi.temp, st.frame_key .. "." .. i .. ".bytes")
+		for frame = 0, framesToUse - 1 do
+			-- Pick direction 0 (south) from each frame of the source state
+			local srcIndex = frame * st.dirs
+			local srcPath = app.fs.joinPath(self.dmi.temp, st.frame_key .. "." .. srcIndex .. ".bytes")
 			local dstPath = app.fs.joinPath(self.dmi.temp, combined_state.frame_key .. "." .. frameIndex .. ".bytes")
 			self:copyImageBytes(srcPath, dstPath)
+			table.insert(combinedDelays, st.delays[frame + 1] or 1)
 			frameIndex = frameIndex + 1
 		end
 	end
+	combined_state.delays = combinedDelays
 	return true
 end
 
---- Combines the selected states into one new multi-dir iconstate, so each frame is a different state.
---- For example, if 2 selected states are 4-dir with 2 frames, the combined state will be 4 dir with 4 frames.
---- @param combined_state State The combined state inject all the parts into.
+--- Combines the selected states with frames first, then directions.
+--- For example, if 2 selected states are 4-dir with 2 frames, the combined state will be 4-dir with 4 frames.
+--- @param combined_state State The combined state to inject all the parts into.
 --- @param sortedStates State[] The iconstates to combine.
 --- @param frameSelType FrameSelType The frame selection type.
-function Editor:combineAllDirections(combined_state, sortedStates, frameSelType)
-	local dirs = sortedStates[1].dirs
+--- @param targetDirs number The number of directions for the combined state (4 or 8).
+function Editor:combineFramesFirst(combined_state, sortedStates, frameSelType, targetDirs)
+	-- Check that all states have the same number of directions or can be converted
 	for _, st in ipairs(sortedStates) do
-		if st.dirs ~= dirs then
-			app.alert { title = "Error", text = "All selected states must have the same number of directions." }
+		if st.dirs > targetDirs then
+			app.alert { title = "Error", text = "Cannot combine states with more directions than the target (" .. targetDirs .. ")." }
 			return false
 		end
 	end
-	combined_state.dirs = dirs
+
+	combined_state.dirs = targetDirs
 
 	local framesToUseList, totalFrames = self:getFrameUsage(sortedStates, frameSelType)
 	combined_state.frame_count = totalFrames
 
+	local combinedDelays = {}
 	local frameOffset = 0
 	for idx, st in ipairs(sortedStates) do
 		local framesToUse = framesToUseList[idx]
 		for frame = 0, framesToUse - 1 do
-			for d = 0, dirs - 1 do
-				local srcIndex = (frame * dirs) + d
-				local dstIndex = ((frameOffset + frame) * dirs) + d
+			for d = 0, targetDirs - 1 do
+				local srcIndex
+				if d < st.dirs then
+					-- If the source has this direction, use it
+					srcIndex = (frame * st.dirs) + d
+				else
+					-- Otherwise, use the first direction (usually south)
+					srcIndex = (frame * st.dirs)
+				end
+
+				local dstIndex = ((frameOffset + frame) * targetDirs) + d
 				local srcPath = app.fs.joinPath(self.dmi.temp, st.frame_key .. "." .. srcIndex .. ".bytes")
 				local dstPath = app.fs.joinPath(self.dmi.temp, combined_state.frame_key .. "." .. dstIndex .. ".bytes")
 				self:copyImageBytes(srcPath, dstPath)
 			end
+			table.insert(combinedDelays, st.delays[frame + 1] or 1)
 		end
 		frameOffset = frameOffset + framesToUse
 	end
+	combined_state.delays = combinedDelays
+	return true
+end
+
+--- Combines the selected states with directions first, then frames.
+--- Each direction comes from a different state (First→South, Second→North, etc.)
+--- If fewer states than directions, the last state fills remaining directions.
+--- @param combined_state State The combined state to inject all the parts into.
+--- @param sortedStates State[] The iconstates to combine.
+--- @param frameSelType FrameSelType The frame selection type.
+--- @param targetDirs number The number of directions for the combined state (4 or 8).
+function Editor:combineDirectionsFirst(combined_state, sortedStates, frameSelType, targetDirs)
+	if #sortedStates < 2 then
+		app.alert { title = "Error", text = "Direction-first combination requires at least 2 states." }
+		return false
+	end
+
+	combined_state.dirs = targetDirs
+
+	-- Determine max frame count across all used states
+	local maxFrameCount = 1
+	if frameSelType == FRAME_SEL_TYPES.all_seq then
+		for i = 1, math.min(#sortedStates, targetDirs) do
+			maxFrameCount = math.max(maxFrameCount, sortedStates[i].frame_count)
+		end
+	end
+	combined_state.frame_count = maxFrameCount
+
+	-- Build delays from the first state (South direction source)
+	local firstState = sortedStates[1]
+	local combinedDelays = {}
+	for f = 1, maxFrameCount do
+		table.insert(combinedDelays, firstState.delays[f] or 1)
+	end
+	combined_state.delays = combinedDelays
+
+	-- Iterate over each target direction and assign a source state
+	for d = 0, targetDirs - 1 do
+		-- Clamp to last state if fewer states than directions
+		local stateIdx = math.min(d + 1, #sortedStates)
+		local currentState = sortedStates[stateIdx]
+
+		-- Pick matching direction from source, or dir 0 if source has fewer dirs
+		local srcDir = math.min(d, currentState.dirs - 1)
+
+		local frameCount = (frameSelType == FRAME_SEL_TYPES.first_only) and 1 or currentState.frame_count
+
+		for frame = 0, maxFrameCount - 1 do
+			-- Repeat last frame if source has fewer frames
+			local srcFrame = math.min(frame, frameCount - 1)
+			local srcIndex = srcFrame * currentState.dirs + srcDir
+			local dstIndex = frame * targetDirs + d
+
+			local srcPath = app.fs.joinPath(self.dmi.temp, currentState.frame_key .. "." .. srcIndex .. ".bytes")
+			local dstPath = app.fs.joinPath(self.dmi.temp, combined_state.frame_key .. "." .. dstIndex .. ".bytes")
+			self:copyImageBytes(srcPath, dstPath)
+		end
+	end
+
 	return true
 end
 

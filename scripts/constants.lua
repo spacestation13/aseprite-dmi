@@ -14,10 +14,13 @@ COMMON_STATE = {
 	selected = { part = "sunken_mini_focused", color = "button_normal_text" },
 } --[[@as WidgetState]]
 
---- @alias CombineType "1 direction"|"All directions"
+--- @alias CombineType "1 direction"|"Frames first, 4 directions"|"Frames first, 8 directions"|"4 directions first, then frames"|"8 directions first, then frames"
 COMBINE_TYPES = {
 	onedir = "1 direction",
-	alldirs = "All directions",
+	frames_4dir = "Frames first, 4 directions",
+	frames_8dir = "Frames first, 8 directions",
+	dirs4_frames = "4 directions first, then frames",
+	dirs8_frames = "8 directions first, then frames",
 }
 
 --- @alias FrameSelType "First frame only"|"All frames"
