@@ -626,11 +626,31 @@ function Editor:onmousemove(ev)
 	end
 end
 
---- Handles the mouse wheel event for scrolling through DMI states.
+--- Handles the mouse wheel event for scrolling and zooming.
 --- @param ev table The mouse wheel event object.
 function Editor:onwheel(ev)
 	if self.closed or not self.dmi then return end
 
+	-- Ctrl+wheel: zoom preview size
+	if ev.ctrlKey then
+		local current = Preferences.getPreviewSize()
+		local step = ev.deltaY > 0 and -16 or 16
+		local newSize = math.max(16, math.min(512, current + step))
+		-- Check if the visual preview actually changes at this size
+		local longest = math.max(self.dmi.width, self.dmi.height)
+		if step > 0 and current >= longest then
+			return -- Already showing at native size, no point zooming further
+		end
+		newSize = math.min(newSize, math.max(longest, 16))
+		if newSize ~= current then
+			Preferences.plugin.preferences.preview_size = newSize
+			self.scroll = 0
+			self:repaint_states()
+		end
+		return
+	end
+
+	-- Normal wheel: scroll
 	local overflow = (#self.dmi.states + 1) - self.max_in_a_row * self.max_in_a_column
 
 	if overflow <= 0 then return end
