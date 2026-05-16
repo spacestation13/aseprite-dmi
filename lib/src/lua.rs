@@ -254,9 +254,10 @@ fn save_dialog(
         .save_single_file();
 
     if let Ok(Some(file)) = dialog.show()
-        && let Some(file) = file.to_str() {
-            return Ok(file.to_string());
-        }
+        && let Some(file) = file.to_str()
+    {
+        return Ok(file.to_string());
+    }
 
     Ok(String::new())
 }

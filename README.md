@@ -1,6 +1,6 @@
 # DMI Editor for Aseprite
 
-This project is a DMI (BYOND's Dream Maker icon files) editor extension for Aseprite, a popular pixel art tool. It is written in Rust and Lua and aims to enhance the Aseprite experience by providing tools for editing and managing DMI files.
+This project is a DMI (BYOND's Dream Maker icon files) editor extension for [Aseprite](https://www.aseprite.org), a popular pixel art tool. It is written in Rust and Lua and aims to enhance the Aseprite experience by providing tools for editing and managing DMI files.
 
 ![demo screenshot](./.github/demo.png)
 
@@ -25,7 +25,7 @@ Running a Windows build via Wine works just fine (reportedly), and is what we re
 
 ### Creating New Files
 
-New files can be created via the following pathway: `File > DMI Editor > New DMI File`.
+New files can be created via: `File > DMI Editor > New DMI File`
 
 ### Changing Iconstate Properties
 
@@ -35,21 +35,13 @@ The state properties, including the state name, can be modified by right clickin
 
 Right-clicking on the state will bring up the context menu. The context menu allows the user to copy the state to the clipboard, which can then be pasted at a later stage. Right click on an empty space within the editor to paste the copied state. The states are copied in the JSON format, with PNG images, which are base64-encoded, included for the frames.
 
-### Frames and Delays
-
-In Aseprite's timeline, new frames can be added and delays between frames can be modified.
-
 ### Expand, Resize, Crop
 
-The DMI file may be expanded, resized, or cropped via the `File > DMI Editor` menu. It should be noted that the active sprite must be a DMI iconstate in order to utilise these commands.
+The DMI file may be expanded, resized, or cropped via the `File > DMI Editor` menu.
 
 ### Plugin Preferences
 
-Under the `File > DMI Editor` menu, there is an `Preferences` menu which contains various options:
-
--   **Preview Size** _(Default: 128)_: Sets the maximum thumbnail size used for state previews in the DMI editor.
--   **Auto Overwrite**: Automatically overwrites the source DMI file when saving an iconstate.
--   **Auto Flatten** _(Enabled by Default)_: Automatically flattens layers downward into directional layers when saving an iconstate, allowing you to fully use Aseprite layers.
+Under the `File > DMI Editor` menu, there is an `Preferences` menu which contains various options.
 
 ## Building the Project
 
@@ -62,10 +54,10 @@ To build the project, run `tools/build.py` Python script.
 
 ### Releasing
 
-Push a tag like `v1.0.8` via `git`, after changing the Cargo.toml and package.json files.
+Push a git tag like `v1.0.8`, after changing the Cargo.toml and package.json files.
 
 ## LICENSE
 
 **GPLv3**, for more details see the [LICENSE](./LICENSE).
 
-Originally created by [Seefaaa](https://github.com/Seefaaa) at https://github.com/Seefaaa/aseprite-dmi.
+Originally created by [Seefaaa](https://github.com/Seefaaa) at https://github.com/Seefaaa/aseprite-dmi

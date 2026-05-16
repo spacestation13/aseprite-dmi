@@ -254,9 +254,10 @@ impl Dmi {
         }
 
         if let Some(parent) = path.as_ref().parent()
-            && !parent.exists() {
-                create_dir_all(parent)?;
-            }
+            && !parent.exists()
+        {
+            create_dir_all(parent)?;
+        }
 
         let mut writer = BufWriter::new(File::create(path)?);
         let mut encoder = Encoder::new(&mut writer, width, height);
