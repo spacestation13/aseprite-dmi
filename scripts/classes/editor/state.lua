@@ -164,7 +164,13 @@ function Editor:state_context(state, ev)
 	local buttons = {
 		{ text = "Properties", onclick = function() self:state_properties(state) end },
 		{ text = "Open",       onclick = function() self:open_state(state) end },
-		{ text = "Copy",       onclick = function() self:clipboard_copy_state(state) end },
+		{ text = "Copy",       onclick = function()
+			if #self.selected_states > 1 and table.index_of(self.selected_states, state) ~= 0 then
+				self:clipboard_copy_selected_states()
+			else
+				self:clipboard_copy_state(state)
+			end
+		end },
 		{ text = "Remove",     onclick = function()
 			if #self.selected_states > 1 and table.index_of(self.selected_states, state) ~= 0 then
 				self:remove_selected_states()
@@ -441,18 +447,44 @@ function Editor:clipboard_copy_state(state)
 		end
 	end
 
-	libdmi.copy_state(state, self.dmi.temp)
+	libdmi.copy_states({ state }, self.dmi.temp)
 end
 
---- Creates a new state in the DMI file copied from the clipboard.
+--- Copies all selected states to the clipboard.
+function Editor:clipboard_copy_selected_states()
+	if not self.dmi or #self.selected_states == 0 then return end
+
+	for _, state in ipairs(self.selected_states) do
+		for _, state_sprite in ipairs(self.open_sprites) do
+			if state_sprite.state == state and state_sprite.sprite.isModified then
+				app.alert { title = self.title, text = "Save all open sprites first" }
+				return
+			end
+		end
+	end
+
+	-- Collect states in DMI order
+	local sorted = {}
+	for _, state in ipairs(self.dmi.states) do
+		if table.index_of(self.selected_states, state) ~= 0 then
+			table.insert(sorted, state)
+		end
+	end
+
+	libdmi.copy_states(sorted, self.dmi.temp)
+end
+
+--- Pastes states from the clipboard into the DMI file.
 function Editor:clipboard_paste_state()
 	if not self.dmi then return end
 
-	local state = libdmi.paste_state(self.dmi.width, self.dmi.height, self.dmi.temp)
-	if state then
+	local states = libdmi.paste_states(self.dmi.width, self.dmi.height, self.dmi.temp)
+	if states and #states > 0 then
 		self.modified = true
-		table.insert(self.dmi.states, state)
-		self.image_cache:load_state(self.dmi, state)
+		for _, state in ipairs(states) do
+			table.insert(self.dmi.states, state)
+			self.image_cache:load_state(self.dmi, state)
+		end
 		self:repaint_states()
 		self:gc_open_sprites()
 	end

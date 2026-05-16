@@ -782,8 +782,8 @@ Version = nil
 --- @field save_file fun(dmi: Dmi, filename: string): nil, string? Saves the DMI file. If fails, returns an error message.
 --- @field import_png fun(dmi: Dmi, filename: string): Dmi?, string? Imports a PNG file into the DMI editor. If fails, returns nil and an error message.
 --- @field new_state fun(width: number, height: number, temp: string, name?: string): State?, string? Creates a new state. If fails, returns nil and an error message.
---- @field copy_state fun(state: State, temp: string): nil, string? Copies the state to the clipboard. If fails, returns an error message.
---- @field paste_state fun(width: number, height: number, temp: string): State?, string? Pastes the state from the clipboard. If fails, returns nil and an error message.
+--- @field copy_states fun(states: State[], temp: string): nil, string? Copies one or more states to the clipboard. If fails, returns an error message.
+--- @field paste_states fun(width: number, height: number, temp: string): State[]?, string? Pastes states from the clipboard. If fails, returns nil and an error message.
 --- @field resize fun(dmi: Dmi, width: number, height: number, medhod: string): nil, string? Resizes the DMI file. If fails, returns an error message.
 --- @field crop fun(dmi: Dmi, x: number, y: number, width: number, height: number): nil, string? Crops the DMI file. If fails, returns an error message.
 --- @field expand fun(dmi: Dmi, x: number, y: number, width: number, height: number): nil, string? Expands the DMI file size. If fails, returns an error message.

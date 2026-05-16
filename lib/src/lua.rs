@@ -20,8 +20,8 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
     exports.set("save_rgba_png", lua.create_function(safe!(save_rgba_png))?)?;
     exports.set("read_dmi_png", lua.create_function(safe!(read_dmi_png))?)?;
     exports.set("new_state", lua.create_function(safe!(new_state))?)?;
-    exports.set("copy_state", lua.create_function(safe!(copy_state))?)?;
-    exports.set("paste_state", lua.create_function(safe!(paste_state))?)?;
+    exports.set("copy_states", lua.create_function(safe!(copy_states))?)?;
+    exports.set("paste_states", lua.create_function(safe!(paste_states))?)?;
     exports.set("resize", lua.create_function(safe!(resize))?)?;
     exports.set("crop", lua.create_function(safe!(crop))?)?;
     exports.set("expand", lua.create_function(safe!(expand))?)?;
@@ -81,33 +81,50 @@ fn new_state(
     Ok(table)
 }
 
-fn copy_state(_: &Lua, (state, temp): (LuaTable, String)) -> LuaResult<LuaValue> {
+fn copy_states(_: &Lua, (states, temp): (Vec<LuaTable>, String)) -> LuaResult<LuaValue> {
     if !Path::new(&temp).exists() {
         Err("Temp directory does not exist".to_string()).into_lua_err()?
     }
 
-    let state = SerializedState::from_lua_table(state)?;
-    let state = State::from_serialized(state, temp)?.into_clipboard()?;
-    let state = serde_json::to_string(&state).map_err(ExternalError::Serde)?;
+    let mut clipboard_states = Vec::new();
+    for state_table in states {
+        let state = SerializedState::from_lua_table(state_table)?;
+        let state = State::from_serialized(state, &temp)?.into_clipboard()?;
+        clipboard_states.push(state);
+    }
 
+    let json = serde_json::to_string(&clipboard_states).map_err(ExternalError::Serde)?;
     let mut clipboard = arboard::Clipboard::new().map_err(ExternalError::Arboard)?;
-    clipboard.set_text(state).map_err(ExternalError::Arboard)?;
+    clipboard.set_text(json).map_err(ExternalError::Arboard)?;
 
     Ok(LuaValue::Nil)
 }
 
-fn paste_state(lua: &Lua, (width, height, temp): (u32, u32, String)) -> LuaResult<LuaTable> {
+fn paste_states(lua: &Lua, (width, height, temp): (u32, u32, String)) -> LuaResult<Vec<LuaTable>> {
     if !Path::new(&temp).exists() {
         Err("Temp directory does not exist".to_string()).into_lua_err()?
     }
 
     let mut clipboard = arboard::Clipboard::new().map_err(ExternalError::Arboard)?;
-    let state = clipboard.get_text().map_err(ExternalError::Arboard)?;
-    let state = serde_json::from_str::<ClipboardState>(&state).map_err(ExternalError::Serde)?;
-    let state = State::from_clipboard(state, width, height)?.to_serialized(temp)?;
-    let table = state.into_lua_table(lua)?;
+    let text = clipboard.get_text().map_err(ExternalError::Arboard)?;
 
-    Ok(table)
+    // Try multi-state format first, fall back to single state
+    let clipboard_states: Vec<ClipboardState> =
+        if let Ok(states) = serde_json::from_str::<Vec<ClipboardState>>(&text) {
+            states
+        } else if let Ok(state) = serde_json::from_str::<ClipboardState>(&text) {
+            vec![state]
+        } else {
+            return Err("Clipboard does not contain valid state data".to_string()).into_lua_err();
+        };
+
+    let mut tables = Vec::new();
+    for state in clipboard_states {
+        let state = State::from_clipboard(state, width, height)?.to_serialized(&temp)?;
+        tables.push(state.into_lua_table(lua)?);
+    }
+
+    Ok(tables)
 }
 
 fn resize(
