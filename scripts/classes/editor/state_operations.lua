@@ -74,6 +74,25 @@ function Editor:combine_selected_states()
 		app.alert { title = self.title, text = "Select at least two states to combine." }
 		return
 	end
+	-- Determine the maximum dirs across selected states to filter options
+	local maxDirs = 1
+	for _, st in ipairs(self.selected_states) do
+		if st.dirs > maxDirs then maxDirs = st.dirs end
+	end
+
+	local combineOptions = { COMBINE_TYPES.onedir }
+	local defaultOption = COMBINE_TYPES.onedir
+	if maxDirs <= 4 then
+		table.insert(combineOptions, COMBINE_TYPES.frames_4dir)
+		table.insert(combineOptions, COMBINE_TYPES.dirs4_frames)
+		defaultOption = COMBINE_TYPES.frames_4dir
+	end
+	table.insert(combineOptions, COMBINE_TYPES.frames_8dir)
+	table.insert(combineOptions, COMBINE_TYPES.dirs8_frames)
+	if maxDirs > 4 then
+		defaultOption = COMBINE_TYPES.frames_8dir
+	end
+
 	local dialog = Dialog { title = "Combine States" }
 	dialog:entry {
 		id = "combined_name",
@@ -83,14 +102,8 @@ function Editor:combine_selected_states()
 	dialog:combobox {
 		id = "combine_type",
 		label = "Used Directions:",
-		option = COMBINE_TYPES.frames_4dir,
-		options = {
-			COMBINE_TYPES.onedir,
-			COMBINE_TYPES.frames_4dir,
-			COMBINE_TYPES.frames_8dir,
-			COMBINE_TYPES.dirs4_frames,
-			COMBINE_TYPES.dirs8_frames
-		},
+		option = defaultOption,
+		options = combineOptions,
 	}
 	dialog:combobox {
 		id = "frame_sel_type",
