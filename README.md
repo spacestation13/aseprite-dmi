@@ -1,54 +1,47 @@
 # DMI Editor for Aseprite
 
-This project is a DMI (BYOND's Dream Maker icon files) editor extension for [Aseprite](https://www.aseprite.org), a popular pixel art tool. It is written in Rust and Lua and aims to enhance the Aseprite experience by providing tools for editing and managing DMI files.
+This project is a DMI (BYOND's Dream Maker icon files) editor extension for [Aseprite](https://www.aseprite.org), a popular pixel art tool.
+It aims to enhance the Aseprite experience by providing tools for editing and managing DMI files.
 
 ![demo screenshot](./.github/demo.png)
 
 ## Download
 
 The latest version of this extension is available for download from the [Releases](https://github.com/spacestation13/aseprite-dmi/releases) page.
+
 The plugin will also prompt you to download an update when a new version is released.
 
 **Requires Aseprite v1.3.18-beta3 or later.**
 
 ## Usage
 
-Once the project has been downloaded or built, the extension can be added to Aseprite by dragging and dropping it into the application or by selecting the 'Add Extension' button in the 'Edit > Preferences > Extensions' menu.
+### Quickstart
 
-**DMI files can be opened in Aseprite in the same way as any other file format.**
+1. **Install the extension:**
+	- Download or build the extension, then add it to Aseprite by dragging and dropping the file into the application, or use `Edit > Preferences > Extensions > Add Extension`
+2. **Open or create a DMI file:**
+	- Open DMI files as you would any other file format in Aseprite
+	- To create a new DMI file, go to `File > DMI Editor > New DMI File`
+
+### Features
+
+- Edit and manage BYOND DMI icon files directly in Aseprite
+- Change icon state properties (name, directions, frames, etc.) via right-click or by clicking below the state
+- Copy and paste icon states using the context menu (states are copied as JSON with embedded PNG images)
+- Expand, resize, or crop DMI files from the `File > DMI Editor` menu
+- Split/combine icon states in multiple ways
+- Access plugin preferences under `File > DMI Editor > Preferences`
 
 ### Linux
 
-Unfortunately, due to dynamic library linking issues, **Aseprite running on Linux via Steam is not supported.**
-
-Running a Windows build via Wine works just fine (reportedly), and is what we recommend.
-
-### Creating New Files
-
-New files can be created via: `File > DMI Editor > New DMI File`
-
-### Changing Iconstate Properties
-
-The state properties, including the state name, can be modified by right clicking on the state or by clicking on the text below the state in the editor.
-
-### Copy and Paste
-
-Right-clicking on the state will bring up the context menu. The context menu allows the user to copy the state to the clipboard, which can then be pasted at a later stage. Right click on an empty space within the editor to paste the copied state. The states are copied in the JSON format, with PNG images, which are base64-encoded, included for the frames.
-
-### Expand, Resize, Crop
-
-The DMI file may be expanded, resized, or cropped via the `File > DMI Editor` menu.
-
-### Plugin Preferences
-
-Under the `File > DMI Editor` menu, there is an `Preferences` menu which contains various options.
+Not supported on Steam builds due to dynamic library issues. Running the Windows build via Wine is recommended and reportedly works.
 
 ## Building the Project
 
 ### Requirements
 
--   [Rust](https://www.rust-lang.org/)
--   [Python](https://www.python.org/) (build script)
+-	[Rust](https://www.rust-lang.org/)
+-	[Python](https://www.python.org/)
 
 To build the project, run `tools/build.py` Python script.
 
