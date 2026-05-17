@@ -4,7 +4,7 @@ local BOX_BORDER = 4
 local BOX_PADDING = 5
 
 function Editor:max_preview_size()
-	local preview_size = Preferences.getPreviewSize and Preferences.getPreviewSize() or 128
+	local preview_size = self.zoom_size or (Preferences.getPreviewSize and Preferences.getPreviewSize()) or 128
 	return math.max(1, preview_size)
 end
 
@@ -15,10 +15,10 @@ function Editor:preview_dimensions()
 
 	local max_preview_size = self:max_preview_size()
 	local longest = math.max(self.dmi.width, self.dmi.height)
-	if longest <= max_preview_size then
+	-- Only scale up beyond native size if the user explicitly zoomed
+	if not self.zoom_size and longest <= max_preview_size then
 		return self.dmi.width, self.dmi.height
 	end
-
 	local scale = max_preview_size / longest
 	return math.max(1, math.floor(self.dmi.width * scale + 0.5)), math.max(1, math.floor(self.dmi.height * scale + 0.5))
 end
@@ -364,7 +364,15 @@ end
 --- @param ev MouseEvent The mouse event object.
 function Editor:onmousedown(ev)
 	if self.closed then return end
-	if ev.button == MouseButton.LEFT then
+	if ev.button == MouseButton.MIDDLE then
+		-- Middle click: reset zoom to 1x (native size)
+		if self.zoom_size then
+			self.zoom_size = nil
+			self.scroll = 0
+			self:repaint_states()
+		end
+		return
+	elseif ev.button == MouseButton.LEFT then
 		-- Don't set this until after selection behaivor is handled
 		self.focused_widget = nil
 
@@ -631,19 +639,23 @@ end
 function Editor:onwheel(ev)
 	if self.closed or not self.dmi then return end
 
-	-- Ctrl+wheel: zoom preview size
+	-- Ctrl+wheel: zoom preview size (per-editor)
 	if ev.ctrlKey then
-		local current = Preferences.getPreviewSize()
-		local step = ev.deltaY > 0 and -16 or 16
-		local newSize = math.max(16, math.min(512, current + step))
-		-- Check if the visual preview actually changes at this size
-		local longest = math.max(self.dmi.width, self.dmi.height)
-		if step > 0 and current >= longest then
-			return -- Already showing at native size, no point zooming further
+		-- On first zoom, seed from current visual size
+		if not self.zoom_size then
+			local pw, ph = self:preview_dimensions()
+			self.zoom_size = math.max(pw, ph)
 		end
-		newSize = math.min(newSize, math.max(longest, 16))
+		local current = self.zoom_size
+		local step
+		if current < 64 then step = 8
+		elseif current < 128 then step = 16
+		elseif current < 256 then step = 32
+		else step = 64 end
+		local newSize = current + (ev.deltaY > 0 and -step or step)
+		newSize = math.max(8, math.min(512, newSize))
 		if newSize ~= current then
-			Preferences.plugin.preferences.preview_size = newSize
+			self.zoom_size = newSize
 			self.scroll = 0
 			self:repaint_states()
 		end

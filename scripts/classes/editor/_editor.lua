@@ -110,7 +110,17 @@ end
 function Editor:update_title()
 	local title = self.base_title or self.title
 	if self.dmi then
-		title = string.format("%s (%dx%d)", title, self.dmi.width, self.dmi.height)
+		local name = self.dmi.name
+		if #name > 19 then name = name:sub(1, 16) .. "..." end
+		local longest = math.max(self.dmi.width, self.dmi.height)
+		local pw, ph = self:preview_dimensions()
+		local visual = math.max(pw, ph)
+		local ratio = visual / longest
+		if ratio ~= 1 then
+			title = string.format("%s (%dx%d) - %.2gx", name, self.dmi.width, self.dmi.height, ratio)
+		else
+			title = string.format("%s (%dx%d)", name, self.dmi.width, self.dmi.height)
+		end
 	end
 
 	self.title = title
