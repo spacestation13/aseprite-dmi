@@ -308,6 +308,7 @@ function Editor:state_properties(state)
 			end
 			state.movement = dialog.data.state_movement or false
 			state.rewind = dialog.data.state_rewind or false
+			self:repaint_states()
 			dialog:close()
 		end
 	}
