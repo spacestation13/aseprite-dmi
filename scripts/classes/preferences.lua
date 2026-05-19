@@ -51,6 +51,7 @@ function Preferences.show(plugin)
 		selected = Preferences.plugin.preferences.auto_flatten,
 	}
 
+
 	dialog:button {
 		text = "&OK",
 		focus = true,

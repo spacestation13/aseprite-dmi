@@ -39,20 +39,60 @@ function init(plugin)
 		if ev.name == "OpenFile" then
 			local opening_raw = RawDmi.opening
 			RawDmi.after_open(app.sprite)
-
+			-- Collect all .dmi placeholder sprites first, then close them, then create editors.
+			-- Calling Editor.new() -> app.events:on() inside an event callback can reallocate
+			-- Aseprite's internal callback vector while Events::call is iterating it (use-after-free).
+			local filenames = {}
 			if app.sprite and app.sprite.filename:ends_with(".dmi") and not opening_raw then
 				local filename = app.sprite.filename
 				app.command.CloseFile { ui = false }
 
+				-- Prevent duplicate editor instances for the same file
+				local normalized = string.lower(filename)
+				local found = false
+				for _, editor in ipairs(open_editors) do
+					if not editor.closed and string.lower(editor:path()) == normalized then
+						editor:repaint()
+						found = true
+						break
+					end
+				end
+
+				if not found then
+					table.insert(filenames, filename)
+				end
+			end
+
+			-- Now create editors outside the event callback
+			if #filenames > 0 then
 				loadlib(plugin.path)
-				Editor.new(DIALOG_NAME, filename)
+				for _, filename in ipairs(filenames) do
+					Editor.new(DIALOG_NAME, filename)
+				end
 			end
 		elseif ev.name == "Exit" then
 			exiting = true
 		end
+
+		-- Dispatch to open editors.  We do NOT register per-editor
+		-- listeners because calling app.events:on() from inside an
+		-- event callback can reallocate Aseprite's internal callback
+		-- vector while Events::call is iterating it (use-after-free).
+		for _, editor in ipairs(open_editors) do
+			if not editor.closed then
+				editor:onaftercommand(ev)
+			end
+		end
 	end)
 
 	before_listener = app.events:on("beforecommand", function(ev)
+		-- Dispatch to open editors first (same reason as aftercommand above).
+		for _, editor in ipairs(open_editors) do
+			if not editor.closed then
+				editor:onbeforecommand(ev)
+			end
+		end
+
 		if RawDmi.beforecommand(ev) then
 			return
 		elseif ev.name == "Exit" then
