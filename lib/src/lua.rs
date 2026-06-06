@@ -1,6 +1,5 @@
 use mlua::prelude::*;
 use native_dialog::DialogBuilder;
-use std::cmp::Ordering;
 use std::ffi::OsStr;
 use std::fs::{self, read_dir, remove_dir_all};
 use std::path::Path;
@@ -8,6 +7,8 @@ use std::path::Path;
 use crate::dmi::*;
 use crate::errors::ExternalError;
 use crate::macros::safe;
+
+#[cfg(not(debug_assertions))]
 use crate::utils::check_latest_version;
 
 #[mlua::lua_module(name = "dmi_module")]
@@ -289,13 +290,20 @@ fn instances(_: &Lua, _: ()) -> LuaResult<usize> {
 }
 
 fn check_update(_: &Lua, (): ()) -> LuaResult<bool> {
-    let version = check_latest_version();
-
-    if let Ok(Ordering::Less) = version {
-        return Ok(true);
+    // Skip update checks in debug builds for local development
+    #[cfg(debug_assertions)]
+    {
+        Ok(false)
     }
 
-    Ok(false)
+    #[cfg(not(debug_assertions))]
+    {
+        let version = check_latest_version();
+        if let Ok(std::cmp::Ordering::Less) = version {
+            Ok(true);
+        }
+        Ok(false)
+    }
 }
 
 fn open_repo(_: &Lua, path: Option<String>) -> LuaResult<LuaValue> {
