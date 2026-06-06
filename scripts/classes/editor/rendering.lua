@@ -28,6 +28,12 @@ function Editor:preview_cell_dimensions()
 	return preview_width + BOX_BORDER, preview_height + BOX_BORDER
 end
 
+function Editor:label_cell_width()
+	local cell_width, _ = self:preview_cell_dimensions()
+	local multiplier = Preferences.getIconstatePaddingMultiplier and Preferences.getIconstatePaddingMultiplier() or 1.0
+	return math.floor(cell_width * multiplier)
+end
+
 --- Repaints the editor.
 function Editor:repaint()
 	if self.dialog then
@@ -51,7 +57,8 @@ function Editor:onpaint(ctx)
 
 	local preview_width, preview_height = self:preview_dimensions()
 	local cell_width, cell_height = self:preview_cell_dimensions()
-	local min_width = self.dmi and (cell_width + BOX_PADDING) or 1
+	local label_width = self:label_cell_width()
+	local min_width = self.dmi and (label_width + BOX_PADDING) or 1
 	local min_height = self.dmi and (cell_height + BOX_PADDING * 2 + TEXT_HEIGHT) or 1
 
 	self.canvas_width = math.max(ctx.width, min_width)
@@ -308,9 +315,9 @@ function Editor:repaint_states()
 			table.insert(self.widgets, TextWidget.new(
 				self,
 				Rectangle(
-					bounds.x,
+					bounds.x - math.floor((self:label_cell_width() - bounds.width) / 2),
 					bounds.y + bounds.height + BOX_PADDING,
-					bounds.width,
+					self:label_cell_width(),
 					TEXT_HEIGHT
 				),
 				display_name,
@@ -351,8 +358,10 @@ end
 function Editor:box_bounds(index)
 	local row_index = index - self.max_in_a_row * self.scroll
 	local cell_width, cell_height = self:preview_cell_dimensions()
+	local label_width = self:label_cell_width()
+	local slot_x = (label_width + BOX_PADDING) * ((row_index - 1) % self.max_in_a_row)
 	return Rectangle(
-		(cell_width + BOX_PADDING) * ((row_index - 1) % self.max_in_a_row),
+		slot_x + math.floor((label_width - cell_width) / 2),
 		(cell_height + BOX_PADDING * 2 + TEXT_HEIGHT) *
 		math.floor((row_index - 1) / self.max_in_a_row) + BOX_PADDING,
 		cell_width,
