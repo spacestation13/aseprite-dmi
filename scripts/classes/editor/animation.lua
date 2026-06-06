@@ -29,9 +29,21 @@ function Editor:preview_frame_for_state(state, now)
 	end
 
 	local delays = state.delays or {}
+	local function frame_delay(f)
+		return sanitize_delay(delays[f] or delays[1])
+	end
+
+	-- rewind: play forward (1..N) then backward (N-1..2), ping-pong loop
+	local rewind = state.rewind and frame_count > 2
+
 	local total_delay = 0
-	for frame = 1, frame_count, 1 do
-		total_delay = total_delay + sanitize_delay(delays[frame] or delays[1])
+	for frame = 1, frame_count do
+		total_delay = total_delay + frame_delay(frame)
+	end
+	if rewind then
+		for frame = frame_count - 1, 2, -1 do
+			total_delay = total_delay + frame_delay(frame)
+		end
 	end
 
 	if total_delay <= 0 or total_delay ~= total_delay or total_delay == math.huge then
@@ -40,10 +52,18 @@ function Editor:preview_frame_for_state(state, now)
 
 	local elapsed = (now * 10) % total_delay
 	local cumulative = 0
-	for frame = 1, frame_count, 1 do
-		cumulative = cumulative + sanitize_delay(delays[frame] or delays[1])
+	for frame = 1, frame_count do
+		cumulative = cumulative + frame_delay(frame)
 		if elapsed < cumulative then
 			return frame
+		end
+	end
+	if rewind then
+		for frame = frame_count - 1, 2, -1 do
+			cumulative = cumulative + frame_delay(frame)
+			if elapsed < cumulative then
+				return frame
+			end
 		end
 	end
 
