@@ -28,12 +28,38 @@ elif "--ci" in args:
 working_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 os.chdir(working_dir)
 
+def find_aseprite():
+    win = sys.platform.startswith('win')
+    if win:
+        import winreg
+        # Steam only for now
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam") as key:
+                steam_path = winreg.QueryValueEx(key, "SteamPath")[0]
+                aseprite_exe = os.path.join(steam_path, "steamapps", "common", "Aseprite", "aseprite.exe")
+                if os.path.exists(aseprite_exe):
+                    return aseprite_exe
+        except (OSError, FileNotFoundError):
+            pass
+    return None
+
 if not CI:
     try:
         rust_version_output = subprocess.check_output(["rustc", "--version"]).decode()
     except FileNotFoundError:
         print("Error: Rust is not installed.")
         sys.exit(1)
+
+    # Dev- close any open Aseprite instances to avoid file locks
+    aseprite_exe = find_aseprite()
+    if aseprite_exe:
+        try:
+            subprocess.run(["taskkill", "/IM", "aseprite.exe", "/F"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print("Closed open Aseprite instances.")
+        except Exception:
+            pass
+
     os.chdir(os.path.join(working_dir, "lib"))
     try:
         print("Building main library...")
@@ -125,3 +151,13 @@ if os.path.exists(extension_path):
 shutil.copy(zip_path, extension_path)
 
 print("Build completed successfully.")
+
+# Auto-launch Aseprite for dev
+if not CI:
+    aseprite_exe = find_aseprite()
+    if aseprite_exe:
+        try:
+            subprocess.Popen([aseprite_exe])
+            print("Launched Aseprite.")
+        except Exception as e:
+            print(f"Could not launch Aseprite: {e}")
