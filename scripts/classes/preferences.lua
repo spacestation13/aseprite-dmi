@@ -98,7 +98,7 @@ function Preferences.show(plugin)
 				return
 			end
 
-			Preferences.plugin.preferences.preview_size = preview_size
+			Preferences.plugin.preferences.preview_size = preview_size -- repaint below won't work properly here
 			Preferences.plugin.preferences.auto_overwrite = dialog.data.auto_overwrite
 			Preferences.plugin.preferences.auto_flatten = dialog.data.auto_flatten
 			Preferences.plugin.preferences.direction_layer_colors = dialog.data.direction_layer_colors

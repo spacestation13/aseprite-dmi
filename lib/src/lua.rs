@@ -300,7 +300,7 @@ fn check_update(_: &Lua, (): ()) -> LuaResult<bool> {
     {
         let version = check_latest_version();
         if let Ok(std::cmp::Ordering::Less) = version {
-            Ok(true);
+            return Ok(true);
         }
         Ok(false)
     }
