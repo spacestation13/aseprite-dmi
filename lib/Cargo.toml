@@ -16,10 +16,10 @@ image = { version = "0.25.10", default-features = false, features = ["png"] }
 mlua = { version = "0.11.6", features = ["module", "lua54", "serialize"] }
 native-dialog = "0.9"
 png = "0.18.1"
-reqwest = { version = "0.13.3", default-features = false, features = ["blocking", "json", "native-tls"] }
+reqwest = { version = "0.13.4", default-features = false, features = ["blocking", "json", "native-tls"] }
 sanitize-filename = "0.6"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-sysinfo = { version = "0.39.1", default-features = false, features = ["system"] }
+sysinfo = { version = "0.39.3", default-features = false, features = ["system"] }
 thiserror = "2.0"
 open = "5.3"
