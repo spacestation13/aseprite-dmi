@@ -55,7 +55,7 @@ function Preferences.show(plugin)
 	:check {
 		id = "auto_overwrite",
 		label = "",
-		text = "Auto-save .dmi to disk when saving a state.",
+		text = "Save .dmi to disk when saving a state.",
 		selected = Preferences.plugin.preferences.auto_overwrite,
 	}
 
@@ -69,7 +69,7 @@ function Preferences.show(plugin)
 	:check {
 		id = "direction_layer_colors",
 		label = "",
-		text = "Enable dir-based layer colors for states.",
+		text = "Direction-based layer colors for states.",
 		selected = Preferences.plugin.preferences.direction_layer_colors ~= false,
 	}
 
