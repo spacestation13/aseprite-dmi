@@ -273,7 +273,7 @@ function Editor:repaint_states()
 			local text_color = nil
 
 			if not (#state.name > 0) then
-				text_color = Color { red = 230, green = 223, blue = 69, alpha = 255 }
+				text_color = Color { red = 166, green = 118, blue = 0, alpha = 255 }
 			end
 
 			if duplicates[state.name] then
