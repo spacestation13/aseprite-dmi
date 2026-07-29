@@ -291,8 +291,8 @@ function Editor:state_properties(state)
 		focus = true,
 		onclick = function()
 			local state_name = dialog.data.state_name
-			if #state_name > 0 and state.name ~= state_name then
-				state.name = dialog.data.state_name
+			if type(state_name) == "string" and state.name ~= state_name then
+				state.name = state_name
 				self:repaint_states()
 			end
 			local direction = tonumber(dialog.data.state_directions)

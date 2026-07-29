@@ -102,6 +102,7 @@ function Editor:onpaint(ctx)
 
 		if widget.type == "IconWidget" then
 			local icon = self:preview_image_for_widget(widget, now)
+			ctx.color = app.theme.color[stateStyle.color]
 			ctx:drawThemeRect(stateStyle.part, widget.bounds)
 			if icon and icon_src_rect then
 				ctx:drawImage(
@@ -134,6 +135,7 @@ function Editor:onpaint(ctx)
 		elseif widget.type == "ThemeWidget" then
 			local widget = widget --[[ @as ThemeWidget ]]
 
+			ctx.color = app.theme.color[stateStyle.color]
 			ctx:drawThemeRect(stateStyle.part, widget.bounds)
 
 			if widget.partId then

@@ -11,7 +11,7 @@ COMMON_STATE = {
 	normal = { part = "sunken_normal", color = "button_normal_text" },
 	hot = { part = "sunken_focused", color = "button_hot_text" },
 	focused = { part = "sunken_focused", color = "button_normal_text" },
-	selected = { part = "sunken_mini_focused", color = "button_normal_text" },
+	selected = { part = "button_selected", color = "button_hot_text" },
 } --[[@as WidgetState]]
 
 --- @alias CombineType "1 direction"|"Frames first, 4 directions"|"Frames first, 8 directions"|"4 directions first, then frames"|"8 directions first, then frames"
