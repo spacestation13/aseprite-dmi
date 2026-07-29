@@ -23,6 +23,9 @@
 --- @field loading boolean Whether the editor is currently loading a file.
 --- @field modified boolean Whether a state has been modified.
 --- @field closed boolean Whether the editor has been closed.
+--- @field rename_target_state fun(self: Editor): State|nil Gets selected/open state for rename actions.
+--- @field can_rename_selected_or_open_state fun(self: Editor): boolean Returns true when there is a rename target.
+--- @field rename_selected_or_open_state fun(self: Editor): boolean Opens rename/properties for selected/open state.
 Editor = {}
 Editor.__index = Editor
 
@@ -78,6 +81,37 @@ function Editor.new(title, dmi)
 	return self
 end
 
+--- Gets the selected state, falling back to the state in the active sprite tab.
+--- @return State|nil
+function Editor:rename_target_state()
+	if #self.selected_states > 0 then
+		return self.selected_states[#self.selected_states]
+	end
+
+	self:gc_open_sprites()
+	for _, state_sprite in ipairs(self.open_sprites) do
+		if app.sprite == state_sprite.sprite then
+			return state_sprite.state
+		end
+	end
+end
+
+--- @return boolean
+function Editor:can_rename_selected_or_open_state()
+	return self:rename_target_state() ~= nil
+end
+
+--- @return boolean renamed True when a state properties dialog was opened.
+function Editor:rename_selected_or_open_state()
+	local state = self:rename_target_state()
+	if not state then
+		return false
+	end
+
+	self:state_properties(state)
+	return true
+end
+
 --- Creates a new dialog for the editor with the specified title.
 --- @param title string The title of the dialog.
 function Editor:new_dialog(title)
@@ -90,6 +124,7 @@ function Editor:new_dialog(title)
 		width = self.canvas_width,
 		height = self.canvas_height,
 		onpaint = function(ev) self:onpaint(ev.context) end,
+		onkeydown = function(ev) self:onkeydown(ev) end,
 		onmousedown = function(ev) self:onmousedown(ev) end,
 		onmouseup = function(ev) self:onmouseup(ev) end,
 		onmousemove = function(ev) self:onmousemove(ev) end,
@@ -105,6 +140,14 @@ function Editor:new_dialog(title)
 		text = "Save As",
 		onclick = function() self:save_as() end
 	}
+end
+
+--- Handles key presses while the DMI editor canvas has focus.
+--- @param ev KeyEvent
+function Editor:onkeydown(ev)
+	if ev.code == "F2" and self:rename_selected_or_open_state() then
+		ev:stopPropagation()
+	end
 end
 
 function Editor:update_title()

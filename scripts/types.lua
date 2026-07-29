@@ -568,6 +568,7 @@ Version = nil
 --- @field width? number
 --- @field height? number
 --- @field onpaint? fun(ev: Dialog.CanvasEvent)
+--- @field onkeydown? fun(ev: KeyEvent)
 --- @field onmousedown? function
 --- @field onmouseup? function
 --- @field onmousemove? function
@@ -767,6 +768,17 @@ Version = nil
 --- @field ctrlKey boolean
 --- @field shiftKey boolean
 --- @field spaceKey boolean
+
+--- @class KeyEvent
+--- @field code string
+--- @field key string
+--- @field repeatCount number
+--- @field altKey boolean
+--- @field metaKey boolean
+--- @field ctrlKey boolean
+--- @field shiftKey boolean
+--- @field spaceKey boolean
+--- @field stopPropagation fun(self: KeyEvent)
 
 --- @alias PixelColor number
 

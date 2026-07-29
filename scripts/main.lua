@@ -111,6 +111,36 @@ function init(plugin)
 		end
 	end)
 
+	local function active_state_sprite()
+		for _, editor in ipairs(open_editors) do
+			for _, state_sprite in ipairs(editor.open_sprites) do
+				if app.sprite == state_sprite.sprite then
+					return state_sprite
+				end
+			end
+		end
+		return nil
+	end
+
+	local function active_state_editor()
+		local state_sprite = active_state_sprite()
+		return state_sprite and state_sprite.editor or nil
+	end
+
+	local function find_renamable_editor()
+		local editor = active_state_editor()
+		if editor and editor:can_rename_selected_or_open_state() then
+			return editor
+		end
+
+		for _, editor in ipairs(open_editors) do
+			if not editor.closed and editor:can_rename_selected_or_open_state() then
+				return editor
+			end
+		end
+		return nil
+	end
+
 	before_listener = app.events:on("beforecommand", function(ev)
 		-- Dispatch to open editors first (same reason as aftercommand above).
 		for _, editor in ipairs(open_editors) do
@@ -134,17 +164,6 @@ function init(plugin)
 			end
 		end
 	end)
-
-	local is_state_sprite = function()
-		for _, editor in ipairs(open_editors) do
-			for _, sprite in ipairs(editor.open_sprites) do
-				if app.sprite == sprite.sprite then
-					return sprite
-				end
-			end
-		end
-		return nil
-	end
 
 	plugin:newMenuSeparator {
 		group = "file_import",
@@ -183,13 +202,11 @@ function init(plugin)
 		title = "Expand",
 		group = "dmi_editor",
 		onclick = function()
-			local state_sprite = is_state_sprite()
-			if state_sprite then
-				state_sprite.editor:expand()
-			end
+			local editor = active_state_editor()
+			if editor then editor:expand() end
 		end,
 		onenabled = function()
-			return is_state_sprite() and true or false
+			return active_state_sprite() and true or false
 		end,
 	}
 
@@ -198,13 +215,11 @@ function init(plugin)
 		title = "Resize",
 		group = "dmi_editor",
 		onclick = function()
-			local state_sprite = is_state_sprite()
-			if state_sprite then
-				state_sprite.editor:resize()
-			end
+			local editor = active_state_editor()
+			if editor then editor:resize() end
 		end,
 		onenabled = function()
-			return is_state_sprite() and true or false
+			return active_state_sprite() and true or false
 		end,
 	}
 
@@ -213,13 +228,11 @@ function init(plugin)
 		title = "Crop",
 		group = "dmi_editor",
 		onclick = function()
-			local state_sprite = is_state_sprite()
-			if state_sprite then
-				state_sprite.editor:crop()
-			end
+			local editor = active_state_editor()
+			if editor then editor:crop() end
 		end,
 		onenabled = function()
-			return is_state_sprite() and true or false
+			return active_state_sprite() and true or false
 		end,
 	}
 
@@ -251,6 +264,25 @@ function init(plugin)
 		group = "dmi_editor",
 		onclick = function()
 			libdmi.open_repo("releases")
+		end,
+	}
+
+	plugin:newMenuSeparator {
+		group = "dmi_editor",
+	}
+
+	plugin:newCommand {
+		id = "dmi_rename_state",
+		title = "Rename State",
+		group = "dmi_editor",
+		onclick = function()
+			local editor = find_renamable_editor()
+			if editor then
+				editor:rename_selected_or_open_state()
+			end
+		end,
+		onenabled = function()
+			return find_renamable_editor() and true or false
 		end,
 	}
 end
