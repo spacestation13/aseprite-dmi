@@ -27,10 +27,10 @@ function init(plugin)
 		return
 	end
 
-	local min_version = Version("1.3.18-beta3")
+	local min_version = Version("1.3.18")
 	local v = app.version
-	if v < min_version and not (v.major == 1 and v.minor == 3 and v.patch == 18 and v.prereleaseLabel == "dev") then
-		return app.alert { title = DIALOG_NAME, text = "This extension requires Aseprite v1.3.18-beta3 or later." }
+	if v < min_version then
+		return app.alert { title = DIALOG_NAME, text = "This extension requires Aseprite v1.3.18 or later." }
 	end
 
 	-- Initialize Preferences
