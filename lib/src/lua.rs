@@ -18,8 +18,15 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
     exports.set("new_file", lua.create_function(safe!(new_file))?)?;
     exports.set("open_file", lua.create_function(safe!(open_file))?)?;
     exports.set("save_file", lua.create_function(safe!(save_file))?)?;
-    exports.set("save_rgba_png", lua.create_function(safe!(save_rgba_png))?)?;
+    exports.set(
+        "save_rgba_dmi",
+        lua.create_function(safe!(save_rgba_dmi_lua))?,
+    )?;
     exports.set("read_dmi_png", lua.create_function(safe!(read_dmi_png))?)?;
+    exports.set(
+        "read_dmi_metadata",
+        lua.create_function(safe!(read_dmi_metadata_lua))?,
+    )?;
     exports.set("new_state", lua.create_function(safe!(new_state))?)?;
     exports.set("copy_states", lua.create_function(safe!(copy_states))?)?;
     exports.set("paste_states", lua.create_function(safe!(paste_states))?)?;
@@ -240,18 +247,26 @@ fn read_dmi_png(lua: &Lua, filename: String) -> LuaResult<LuaTable> {
     Ok(table)
 }
 
-fn save_rgba_png(
+fn save_rgba_dmi_lua(
     _: &Lua,
-    (width, height, bytes, filename): (u32, u32, LuaString, String),
+    (width, height, bytes, filename, metadata): (u32, u32, LuaString, String, String),
 ) -> LuaResult<LuaValue> {
-    let image = image::RgbaImage::from_vec(width, height, bytes.as_bytes().to_vec())
-        .ok_or_else(|| LuaError::external("Invalid RGBA buffer size"))?;
-
-    image::DynamicImage::ImageRgba8(image)
-        .save_with_format(&filename, image::ImageFormat::Png)
-        .map_err(crate::dmi::DmiError::from)?;
+    crate::dmi::save_rgba_dmi(width, height, &bytes.as_bytes(), filename, &metadata)?;
 
     Ok(LuaValue::Nil)
+}
+
+fn read_dmi_metadata_lua(lua: &Lua, filename: String) -> LuaResult<LuaTable> {
+    let metadata = crate::dmi::read_dmi_metadata(&filename)?;
+    let mut dmi = Dmi::new(String::new(), 0, 0);
+    dmi.set_metadata(&metadata)?;
+
+    let table = lua.create_table()?;
+    table.set("metadata", metadata)?;
+    table.set("width", dmi.width)?;
+    table.set("height", dmi.height)?;
+
+    Ok(table)
 }
 
 fn exists(_: &Lua, path: String) -> LuaResult<bool> {

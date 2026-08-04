@@ -1,7 +1,8 @@
 use std::fs::{remove_dir_all, remove_file};
 use std::path::Path;
 
-use dmi::Dmi;
+use dmi::{Dmi, read_dmi_metadata, save_rgba_dmi};
+use image::{GenericImageView, ImageReader};
 
 #[test]
 fn open_and_save() {
@@ -47,6 +48,45 @@ fn open_and_save() {
     }
 
     let _ = remove_file(temp_file);
+}
+
+#[test]
+fn raw_pixels_and_metadata_round_trip() {
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source = manifest_dir.join("tests/assets/anomaly.dmi");
+    let metadata = read_dmi_metadata(&source).unwrap();
+
+    let mut reader = ImageReader::open(&source).unwrap();
+    reader.set_format(image::ImageFormat::Png);
+    let image = reader.decode().unwrap();
+    let (width, height) = image.dimensions();
+    let bytes = image.into_rgba8().into_raw();
+
+    let output = Path::new(env!("CARGO_TARGET_TMPDIR")).join("raw-round-trip.dmi");
+    save_rgba_dmi(width, height, &bytes, &output, &metadata).unwrap();
+
+    let reopened = Dmi::open(&output).unwrap();
+    assert_eq!(read_dmi_metadata(&output).unwrap(), metadata);
+    assert_eq!(reopened.width, 32);
+    assert_eq!(reopened.height, 32);
+    assert_eq!(reopened.states.len(), 9);
+
+    let _ = remove_file(output);
+}
+
+#[test]
+fn metadata_reader_rejects_png_without_ztxt() {
+    let output = Path::new(env!("CARGO_TARGET_TMPDIR")).join("no-metadata.png");
+    image::RgbaImage::new(1, 1)
+        .save_with_format(&output, image::ImageFormat::Png)
+        .unwrap();
+
+    assert!(matches!(
+        read_dmi_metadata(&output),
+        Err(dmi::DmiError::MissingZTXTChunk)
+    ));
+
+    let _ = remove_file(output);
 }
 
 #[test]

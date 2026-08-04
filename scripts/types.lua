@@ -801,8 +801,9 @@ Version = nil
 --- @field expand fun(dmi: Dmi, x: number, y: number, width: number, height: number): nil, string? Expands the DMI file size. If fails, returns an error message.
 --- @field overlay_color fun(r: number, g: number, b: number, width: number, height: number, bytes: string): string|nil Overlays the given bytes of an image on a plain color.
 --- @field remove_dir fun(path: string, soft: boolean): nil, string? Removes a directory. If fails, returns an error message.
---- @field save_rgba_png fun(width: number, height: number, bytes: string, filename: string): nil, string? Saves an RGBA byte buffer as a PNG file. If fails, returns an error message.
+--- @field save_rgba_dmi fun(width: number, height: number, bytes: string, filename: string, metadata: string): nil, string? Saves an RGBA byte buffer as a DMI PNG with the supplied zTXt metadata. If fails, returns an error message.
 --- @field read_dmi_png fun(filename: string): {width: number, height: number, bytes: string}, string? Reads a DMI file and returns its dimensions and raw RGBA bytes.
+--- @field read_dmi_metadata fun(filename: string): {metadata: string, width: number, height: number}?, string? Reads validated DMI zTXt metadata and cell dimensions.
 --- @field exists fun(path: string): boolean Returns true if the path points at an existing entity.
 --- @field check_update fun(): boolean Return true if there is an update available.
 --- @field instances fun(): number?, string? Return the number of Aseprite instances running.

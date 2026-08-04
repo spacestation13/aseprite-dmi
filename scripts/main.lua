@@ -52,9 +52,7 @@ function init(plugin)
 		end,
 		onsave = function(ev)
 			if RawDmi.is_sprite(ev.sprite) then
-				local image = Image(ev.sprite)
-				libdmi.save_rgba_png(image.width, image.height, image.bytes, ev.filename)
-				return true
+				return RawDmi.save(ev.sprite, ev.filename)
 			end
 			-- Non-raw .dmi saves shouldn't happen normally (the editor manages its own saves).
 			-- Refuse the save to prevent silent DMI metadata loss.
@@ -188,8 +186,17 @@ function init(plugin)
 	}
 
 	plugin:newCommand {
+		id = "dmi_open",
+		title = "Open DMI",
+		group = "dmi_editor",
+		onclick = function()
+			app.command.OpenFile()
+		end,
+	}
+
+	plugin:newCommand {
 		id = "dmi_raw_open",
-		title = "ADVANCED: Open DMI as Spritesheet (Won't save DMI metadata!)",
+		title = "Open DMI as Spritesheet",
 		group = "dmi_editor",
 		onclick = function()
 			RawDmi.open()
