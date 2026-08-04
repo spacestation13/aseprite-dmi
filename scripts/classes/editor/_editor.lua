@@ -388,11 +388,107 @@ end
 --- @type string|nil
 local save_file_as = nil
 
+-- Aseprite's native timeline paste maps source layers by stack order, which
+-- sends a one-layer frame copy to the target state's bottom layer (West).
+local frame_clipboard = nil
+
+function Editor.clear_frame_clipboard()
+	frame_clipboard = nil
+end
+
 --- This function is called before executing a command in the Aseprite editor. It checks the event name and performs specific actions based on the event type.
 --- @param ev table The event object containing information about the event.
 function Editor:onbeforecommand(ev)
 	if self.closed then return end
-	if ev.name == "SaveFile" then
+	if ev.name == "Copy" then
+		for _, state_sprite in ipairs(self.open_sprites) do
+			if app.sprite == state_sprite.sprite and #app.range.frames > 1 then
+				local source_layer = app.layer
+				if table.index_of(DIRECTION_NAMES, source_layer.name) > 0 then
+					-- Keep an independent copy so the native clipboard can still serve
+					-- normal image and non-DMI paste operations.
+					frame_clipboard = {}
+					for _, source_frame in ipairs(app.range.frames) do
+						local cel = source_layer:cel(source_frame)
+						table.insert(frame_clipboard, {
+							duration = source_frame.duration,
+							image = cel and cel.image:clone() or nil,
+							position = cel and Point(cel.position.x, cel.position.y) or nil,
+						})
+					end
+				end
+				break
+			end
+		end
+	elseif ev.name == "Paste" then
+		for _, state_sprite in ipairs(self.open_sprites) do
+			if app.sprite == state_sprite.sprite then
+				-- A cel range can retain an unrelated active cel. Pick the direction
+				-- owning the most selected cels, then fall back to the selected layer.
+				local layer_counts = {}
+				local selected_layer = nil
+				local selected_count = 0
+				for _, cel in ipairs(app.range.cels) do
+					local layer = cel.layer
+					if table.index_of(DIRECTION_NAMES, layer.name) > 0 then
+						layer_counts[layer] = (layer_counts[layer] or 0) + 1
+						if layer_counts[layer] > selected_count then
+							selected_layer = layer
+							selected_count = layer_counts[layer]
+						end
+					end
+				end
+				selected_layer = selected_layer or app.range.layers[1]
+				if frame_clipboard and selected_layer and table.index_of(DIRECTION_NAMES, selected_layer.name) > 0 then
+					-- Bypass native Paste so copied frames land only in the selected
+					-- direction (layer) rather than being mapped across directions.
+					ev.stopPropagation()
+					app.transaction("Paste Frames Into Direction", function()
+						local frame_number = app.frame.frameNumber
+						for index, copied_frame in ipairs(frame_clipboard) do
+							local destination_frame = state_sprite.sprite.frames[frame_number]
+							if index > 1 then
+								-- Insert an empty frame, then explicitly copy its predecessor.
+								-- Sprite:newFrame's implicit copy is unreliable at this insertion point.
+								local previous_frame = state_sprite.sprite.frames[frame_number - 1]
+								destination_frame = state_sprite.sprite:newEmptyFrame(frame_number)
+								for _, layer in ipairs(state_sprite.sprite.layers) do
+									local previous_cel = layer ~= selected_layer
+										and layer.isImage
+										and layer:cel(previous_frame.frameNumber)
+									if previous_cel then
+										local new_cel = state_sprite.sprite:newCel(
+											layer,
+											destination_frame,
+											previous_cel.image:clone(),
+											previous_cel.position
+										)
+										new_cel.opacity = previous_cel.opacity
+									end
+								end
+							end
+							destination_frame.duration = copied_frame.duration
+							local destination_cel = selected_layer:cel(destination_frame)
+							if destination_cel then
+								state_sprite.sprite:deleteCel(destination_cel)
+							end
+							if copied_frame.image then
+								state_sprite.sprite:newCel(
+									selected_layer,
+									destination_frame,
+									copied_frame.image,
+									copied_frame.position
+								)
+							end
+							frame_number = frame_number + 1
+						end
+						app.layer = selected_layer
+					end)
+				end
+				break
+			end
+		end
+	elseif ev.name == "SaveFile" then
 		for _, state_sprite in ipairs(self.open_sprites) do
 			if app.sprite == state_sprite.sprite then
 				if not state_sprite:save() then

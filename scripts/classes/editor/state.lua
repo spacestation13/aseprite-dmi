@@ -117,6 +117,7 @@ function Editor:open_state(state)
 		end
 
 		app.frame = 1
+		app.layer = sprite.layers[#sprite.layers]
 
 		local is_empty = true
 		for _, cel in ipairs(sprite.cels) do

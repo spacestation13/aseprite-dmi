@@ -143,6 +143,9 @@ function init(plugin)
 
 	before_listener = app.events:on("beforecommand", function(ev)
 		-- Dispatch to open editors first (same reason as aftercommand above).
+		if ev.name == "Copy" then
+			Editor.clear_frame_clipboard()
+		end
 		for _, editor in ipairs(open_editors) do
 			if not editor.closed then
 				editor:onbeforecommand(ev)
