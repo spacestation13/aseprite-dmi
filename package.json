@@ -1,8 +1,8 @@
 {
-	"name": "asprite-dmi",
-	"displayName": "DMI Editor v2.0.0-beta.1",
+	"name": "aseprite-dmi",
+	"displayName": "DMI Editor v2.0.0-beta.2",
 	"description": "DMI Editor Extension for Aseprite",
-	"version": "2.0.0-beta.1",
+	"version": "2.0.0-beta.2",
 	"contributors": [
 		{
 			"name": "Seefaaa",

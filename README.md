@@ -11,7 +11,7 @@ The latest version of this extension is available for download from the [Release
 
 The plugin will also prompt you to download an update when a new version is released.
 
-**Requires Aseprite v1.3.18-beta3 or later.**
+### Requires Aseprite v1.3.18 or later.
 
 ## Usage
 
