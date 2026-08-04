@@ -16,6 +16,46 @@ mod png;
 
 pub use png::{read_dmi_metadata, save_rgba_dmi};
 
+// This leaves memory for Aseprite while bounding the decoded atlas plus two frame buffers.
+const MAX_STREAMING_IMPORT_BYTES: u64 = 256 * 1024 * 1024;
+
+type DmiResult<T> = Result<T, DmiError>;
+
+#[derive(Error, Debug)]
+#[error(transparent)]
+pub enum DmiError {
+    Anyhow(#[from] anyhow::Error),
+    Io(#[from] std::io::Error),
+    Image(#[from] image::ImageError),
+    PngDecoding(#[from] ::png::DecodingError),
+    PngEncoding(#[from] ::png::EncodingError),
+    ParseInt(#[from] std::num::ParseIntError),
+    ParseFloat(#[from] std::num::ParseFloatError),
+    DecodeError(#[from] base64::DecodeError),
+    #[error("Missing data")]
+    MissingData,
+    #[error("Missing ZTXT chunk")]
+    MissingZTXTChunk,
+    #[error("Missing metadata header")]
+    MissingMetadataHeader,
+    #[error("Invalid metadata version")]
+    InvalidMetadataVersion,
+    #[error("Missing metadata value")]
+    MissingMetadataValue,
+    #[error("State info out of order")]
+    OutOfOrderStateInfo,
+    #[error("Unknown metadata key")]
+    UnknownMetadataKey,
+    #[error("DMI metadata does not match the image layout")]
+    ImageSizeMismatch,
+    #[error("DMI image is too large to open safely")]
+    ImageTooLarge,
+    #[error("Failed to find available directory")]
+    FindDirError,
+    #[error("Directory does not exist")]
+    DirDoesNotExist,
+}
+
 #[derive(Debug)]
 pub struct Dmi {
     pub name: String,
@@ -51,40 +91,17 @@ impl Dmi {
 
         dmi.set_metadata(&metadata)?;
 
+        let (image_width, image_height) = Self::image_dimensions(&path)?;
+        let (grid_width, grid_height) = dmi.validate_image_layout(image_width, image_height)?;
+
         let mut reader = ImageReader::open(&path)?;
         reader.set_format(image::ImageFormat::Png);
 
         let mut image = reader.decode()?;
 
-        if dmi.width == 0 || dmi.height == 0 {
-            return Err(DmiError::ImageSizeMismatch);
-        }
-
-        let grid_width = image.width() / dmi.width;
-        if grid_width == 0 {
-            return Err(DmiError::ImageSizeMismatch);
-        }
-        let grid_height = image.height() / dmi.height;
-
         let mut index = 0;
         for state in dmi.states.iter_mut() {
-            let frame_count = state.frame_count as usize;
-            if !state.delays.is_empty() {
-                let delay_count = state.delays.len();
-                match delay_count.cmp(&frame_count) {
-                    Ordering::Less => {
-                        let last_delay = *state.delays.last().ok_or(DmiError::MissingData)?;
-                        let additional_delays = vec![last_delay; frame_count - delay_count];
-                        state.delays.extend(additional_delays);
-                    }
-                    Ordering::Greater => {
-                        state.delays.truncate(frame_count);
-                    }
-                    _ => {}
-                }
-            } else if state.frame_count > 1 {
-                state.delays = vec![1.; frame_count];
-            }
+            normalize_state_delays(state)?;
 
             for _ in 0..state.frame_count {
                 for _ in 0..state.dirs {
@@ -187,6 +204,92 @@ impl Dmi {
             states,
         })
     }
+    /// Streams each frame to the temporary cache instead of retaining every cropped frame.
+    /// This avoids the allocation spike that can crash Aseprite when opening large DMIs.
+    pub fn open_serialized<P, Q>(source: P, temp: Q) -> DmiResult<SerializedDmi>
+    where
+        P: AsRef<Path>,
+        Q: AsRef<Path>,
+    {
+        let source = source.as_ref();
+        let metadata = read_dmi_metadata(source)?;
+        let mut dmi = Self::new(
+            source
+                .file_stem()
+                .and_then(|stem| stem.to_str())
+                .unwrap_or("unnamed")
+                .into(),
+            32,
+            32,
+        );
+        dmi.set_metadata(&metadata)?;
+
+        let (image_width, image_height) = Self::image_dimensions(source)?;
+        let (grid_width, _) = dmi.validate_image_layout(image_width, image_height)?;
+        dmi.validate_streaming_import_memory(image_width, image_height)?;
+
+        let temp = find_directory(temp.as_ref().join(&dmi.name));
+        create_dir_all(&temp)?;
+
+        let result = (|| {
+            let mut reader = ImageReader::open(source)?;
+            reader.set_format(image::ImageFormat::Png);
+            let image = reader.decode()?;
+            let mut states = Vec::new();
+            let mut tile_index = 0_u64;
+
+            for state in dmi.states.iter_mut() {
+                normalize_state_delays(state)?;
+                let frame_key = frame_key(&temp, &state.name)?;
+                let mut frame_index = 0_u32;
+
+                for _ in 0..state.frame_count {
+                    for _ in 0..state.dirs {
+                        let x = u32::try_from(tile_index % u64::from(grid_width))
+                            .map_err(|_| DmiError::ImageSizeMismatch)?;
+                        let y = u32::try_from(tile_index / u64::from(grid_width))
+                            .map_err(|_| DmiError::ImageSizeMismatch)?;
+                        let frame_image =
+                            image.crop_imm(dmi.width * x, dmi.height * y, dmi.width, dmi.height);
+                        let path = temp.join(format!("{frame_key}.{frame_index}.bytes"));
+                        save_image_as_bytes(&frame_image, path)?;
+                        tile_index = tile_index
+                            .checked_add(1)
+                            .ok_or(DmiError::ImageSizeMismatch)?;
+                        frame_index = frame_index
+                            .checked_add(1)
+                            .ok_or(DmiError::ImageSizeMismatch)?;
+                    }
+                }
+
+                states.push(SerializedState {
+                    name: state.name.clone(),
+                    dirs: state.dirs,
+                    frame_key,
+                    frame_count: state.frame_count,
+                    delays: state.delays.clone(),
+                    loop_: state.loop_,
+                    rewind: state.rewind,
+                    movement: state.movement,
+                    hotspots: state.hotspots.clone(),
+                });
+            }
+
+            Ok(SerializedDmi {
+                name: dmi.name.clone(),
+                width: dmi.width,
+                height: dmi.height,
+                states,
+                temp: temp.to_str().unwrap_or_default().to_string(),
+            })
+        })();
+
+        if result.is_err() {
+            let _ = remove_dir_all(&temp);
+        }
+
+        result
+    }
     pub fn resize(&mut self, width: u32, height: u32, method: image::imageops::FilterType) {
         self.width = width;
         self.height = height;
@@ -207,6 +310,63 @@ impl Dmi {
         for state in self.states.iter_mut() {
             state.expand(x, y, width, height);
         }
+    }
+
+    fn image_dimensions<P>(path: P) -> DmiResult<(u32, u32)>
+    where
+        P: AsRef<Path>,
+    {
+        let mut reader = ImageReader::open(path)?;
+        reader.set_format(image::ImageFormat::Png);
+        Ok(reader.into_dimensions()?)
+    }
+
+    fn validate_streaming_import_memory(
+        &self,
+        image_width: u32,
+        image_height: u32,
+    ) -> DmiResult<()> {
+        let atlas_bytes = rgba_bytes(image_width, image_height)?;
+        let frame_bytes = rgba_bytes(self.width, self.height)?;
+        let working_set = atlas_bytes
+            .checked_add(frame_bytes.checked_mul(2).ok_or(DmiError::ImageTooLarge)?)
+            .ok_or(DmiError::ImageTooLarge)?;
+
+        if working_set > MAX_STREAMING_IMPORT_BYTES {
+            return Err(DmiError::ImageTooLarge);
+        }
+
+        Ok(())
+    }
+
+    fn validate_image_layout(&self, image_width: u32, image_height: u32) -> DmiResult<(u32, u32)> {
+        if self.width == 0 || self.height == 0 {
+            return Err(DmiError::ImageSizeMismatch);
+        }
+
+        let grid_width = image_width / self.width;
+        let grid_height = image_height / self.height;
+        if grid_width == 0 || grid_height == 0 {
+            return Err(DmiError::ImageSizeMismatch);
+        }
+
+        let available_tiles = u64::from(grid_width)
+            .checked_mul(u64::from(grid_height))
+            .ok_or(DmiError::ImageSizeMismatch)?;
+        let required_tiles = self.states.iter().try_fold(0_u64, |total, state| {
+            let state_tiles = u64::from(state.frame_count)
+                .checked_mul(u64::from(state.dirs))
+                .ok_or(DmiError::ImageSizeMismatch)?;
+            total
+                .checked_add(state_tiles)
+                .ok_or(DmiError::ImageSizeMismatch)
+        })?;
+
+        if required_tiles > available_tiles {
+            return Err(DmiError::ImageSizeMismatch);
+        }
+
+        Ok((grid_width, grid_height))
     }
 }
 
@@ -253,27 +413,7 @@ impl State {
             create_dir_all(path)?;
         }
 
-        // Generate a unique frame key for storing the state's image frames
-        let frame_key = {
-            let safe_name = sanitize_filename(&self.name);
-            let safe_name = if safe_name.is_empty() {
-                "state".to_string()
-            } else {
-                safe_name
-            };
-            let mut index = 1u32;
-            loop {
-                let candidate_key = format!("{}.{}", safe_name, index);
-                let test_path = path.join(format!("{candidate_key}.0.bytes"));
-
-                // If the file doesn't exist, we can use this key
-                if !test_path.exists() {
-                    break candidate_key;
-                }
-
-                index += 1;
-            }
-        };
+        let frame_key = frame_key(path, &self.name)?;
 
         let mut index: u32 = 0;
         for frame in 0..self.frame_count {
@@ -425,63 +565,59 @@ pub struct ClipboardState {
     pub hotspots: Vec<String>,
 }
 
-type DmiResult<T> = Result<T, DmiError>;
+fn normalize_state_delays(state: &mut State) -> DmiResult<()> {
+    let frame_count = state.frame_count as usize;
+    if !state.delays.is_empty() {
+        let delay_count = state.delays.len();
+        match delay_count.cmp(&frame_count) {
+            Ordering::Less => {
+                let last_delay = *state.delays.last().ok_or(DmiError::MissingData)?;
+                let additional_delays = vec![last_delay; frame_count - delay_count];
+                state.delays.extend(additional_delays);
+            }
+            Ordering::Greater => state.delays.truncate(frame_count),
+            Ordering::Equal => {}
+        }
+    } else if state.frame_count > 1 {
+        state.delays = vec![1.; frame_count];
+    }
 
-#[derive(Error, Debug)]
-#[error(transparent)]
-pub enum DmiError {
-    Anyhow(#[from] anyhow::Error),
-    Io(#[from] std::io::Error),
-    Image(#[from] image::ImageError),
-    PngDecoding(#[from] ::png::DecodingError),
-    PngEncoding(#[from] ::png::EncodingError),
-    ParseInt(#[from] std::num::ParseIntError),
-    ParseFloat(#[from] std::num::ParseFloatError),
-    DecodeError(#[from] base64::DecodeError),
-    #[error("Missing data")]
-    MissingData,
-    #[error("Missing ZTXT chunk")]
-    MissingZTXTChunk,
-    #[error("Missing metadata header")]
-    MissingMetadataHeader,
-    #[error("Invalid metadata version")]
-    InvalidMetadataVersion,
-    #[error("Missing metadata value")]
-    MissingMetadataValue,
-    #[error("State info out of order")]
-    OutOfOrderStateInfo,
-    #[error("Unknown metadata key")]
-    UnknownMetadataKey,
-    #[error("Failed to find available directory")]
-    ImageSizeMismatch,
-    #[error("Failed to find available directory")]
-    FindDirError,
-    #[error("Directory does not exist")]
-    DirDoesNotExist,
+    Ok(())
+}
+
+fn frame_key(path: &Path, name: &str) -> DmiResult<String> {
+    let safe_name = sanitize_filename(name);
+    let safe_name = if safe_name.is_empty() {
+        "state".to_string()
+    } else {
+        safe_name
+    };
+    let mut index = 1_u32;
+
+    loop {
+        let candidate_key = format!("{safe_name}.{index}");
+        let test_path = path.join(format!("{candidate_key}.0.bytes"));
+        if !test_path.exists() {
+            return Ok(candidate_key);
+        }
+
+        index = index.checked_add(1).ok_or(DmiError::FindDirError)?;
+    }
+}
+
+fn rgba_bytes(width: u32, height: u32) -> DmiResult<u64> {
+    u64::from(width)
+        .checked_mul(u64::from(height))
+        .and_then(|pixels| pixels.checked_mul(4))
+        .ok_or(DmiError::ImageTooLarge)
 }
 
 fn save_image_as_bytes<P: AsRef<Path>>(image: &DynamicImage, path: P) -> DmiResult<()> {
-    let mut bytes = Vec::new();
-
-    let width = image.width().to_string();
-    let height = image.height().to_string();
-    let width_bytes = width.as_bytes();
-    let height_bytes = height.as_bytes();
-
-    bytes.extend_from_slice(width_bytes);
-    bytes.push(0x0A);
-    bytes.extend_from_slice(height_bytes);
-    bytes.push(0x0A);
-
-    for pixel in image.to_rgba8().pixels() {
-        bytes.push(pixel[0]);
-        bytes.push(pixel[1]);
-        bytes.push(pixel[2]);
-        bytes.push(pixel[3]);
-    }
+    let pixels = image.to_rgba8();
 
     let mut writer = BufWriter::new(File::create(path)?);
-    writer.write_all(&bytes)?;
+    write!(writer, "{}\n{}\n", image.width(), image.height())?;
+    writer.write_all(pixels.as_raw())?;
 
     Ok(())
 }

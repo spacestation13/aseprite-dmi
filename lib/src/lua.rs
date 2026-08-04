@@ -60,7 +60,7 @@ fn open_file(lua: &Lua, (filename, temp): (String, String)) -> LuaResult<LuaTabl
         Err("File does not exist".to_string()).into_lua_err()?
     }
 
-    let dmi = Dmi::open(filename)?.to_serialized(temp, false)?;
+    let dmi = Dmi::open_serialized(filename, temp)?;
     let table: LuaTable = dmi.into_lua_table(lua)?;
 
     Ok(table)
