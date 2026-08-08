@@ -296,7 +296,10 @@ fn save_dialog(
     Ok(String::new())
 }
 
-fn open_dialog(_: &Lua, (title, location, extension): (String, String, String)) -> LuaResult<String> {
+fn open_dialog(
+    _: &Lua,
+    (title, location, extension): (String, String, String),
+) -> LuaResult<String> {
     let filter_name = format!("{} files", extension);
     let dialog = DialogBuilder::file()
         .set_title(&title)

@@ -1,6 +1,6 @@
 [package]
 name = "aseprite-dmi"
-version = "2.0.0-beta.2"
+version = "2.0.0"
 edition = "2024"
 repository = "https://github.com/spacestation13/aseprite-dmi"
 

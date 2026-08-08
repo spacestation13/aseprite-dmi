@@ -71,7 +71,7 @@ function Editor:mass_rename_states()
 	if not self.dmi or #self.selected_states == 0 then return end
 
 	local dialog = Dialog { title = "Mass Rename States" }
-	dialog:label { text = "Use {name} for the current name and {index} for the number." }
+	dialog:label { text = "Special: {name}, {index}" }
 	dialog:entry {
 		id = "pattern",
 		label = "Pattern:",
