@@ -121,8 +121,17 @@ function Editor:onpaint(ctx)
 			local text = self.fit_text(widget.text, ctx, widget.bounds.width)
 			local size = ctx:measureText(text)
 
-			-- fallback text color
-			ctx.color = widget.text_color or app.theme.color.text
+			-- Apply selection color dynamically because selection only repaints the canvas.
+			local text_color = widget.text_color
+			if widget.state and table.index_of(self.selected_states, widget.state) > 0 and not text_color then
+				local theme_text = app.theme.color.text
+				if theme_text.red + theme_text.green + theme_text.blue > 384 then
+					text_color = Color { red = 255, green = 220, blue = 80, alpha = 255 }
+				else
+					text_color = Color { red = 150, green = 90, blue = 0, alpha = 255 }
+				end
+			end
+			ctx.color = text_color or app.theme.color.text
 			ctx:fillText(
 				text,
 				widget.bounds.x + (widget.bounds.width - size.width) / 2,
@@ -165,7 +174,7 @@ function Editor:onpaint(ctx)
 				Rectangle(drag_bounds.x + (drag_bounds.width - preview_width) / 2,
 					drag_bounds.y + (drag_bounds.height - preview_height) / 2,
 					preview_width,
-				preview_height)
+					preview_height)
 			)
 		end
 		ctx.opacity = 255
@@ -245,7 +254,6 @@ function Editor:onpaint(ctx)
 		ctx:drawThemeRect("sunken_normal", Rectangle(x, self.mouse.position.y - size.height, size.width, size.height))
 		ctx:fillText(text, x + BOX_PADDING, self.mouse.position.y - (text_size.height + size.height) / 2)
 	end
-
 end
 
 --- Repaints the states in the editor.
@@ -275,7 +283,7 @@ function Editor:repaint_states()
 			local text_color = nil
 
 			if not (#state.name > 0) then
-				text_color = Color { red = 166, green = 118, blue = 0, alpha = 255 }
+				text_color = Color { red = 205, green = 55, blue = 55, alpha = 255 }
 			end
 
 			if duplicates[state.name] then
@@ -326,7 +334,8 @@ function Editor:repaint_states()
 				text_color,
 				state.name,
 				function() self:state_properties(state) end,
-				function(ev) self:state_context(state, ev) end
+				function(ev) self:state_context(state, ev) end,
+				state
 			))
 		end
 	end
@@ -481,9 +490,14 @@ function Editor:onmouseup(ev)
 						table.insert(buttonsToAdd,
 							{ text = "Combine", onclick = function() self:combine_selected_states() end })
 						table.insert(buttonsToAdd,
-							{ text = "Deselect", onclick = function()
-								self.selected_states = {}; self:repaint()
-							end })
+							{ text = "Mass Rename", onclick = function() self:mass_rename_states() end })
+						table.insert(buttonsToAdd,
+							{
+								text = "Deselect",
+								onclick = function()
+									self.selected_states = {}; self:repaint()
+								end
+							})
 					end
 					self.context_widget = ContextWidget.new(
 						Rectangle(ev.x, ev.y, 0, 0),
@@ -659,10 +673,15 @@ function Editor:onwheel(ev)
 		end
 		local current = self.zoom_size
 		local step
-		if current < 64 then step = 8
-		elseif current < 128 then step = 16
-		elseif current < 256 then step = 32
-		else step = 64 end
+		if current < 64 then
+			step = 8
+		elseif current < 128 then
+			step = 16
+		elseif current < 256 then
+			step = 32
+		else
+			step = 64
+		end
 		local newSize = current + (ev.deltaY > 0 and -step or step)
 		newSize = math.max(8, math.min(512, newSize))
 		if newSize ~= current then

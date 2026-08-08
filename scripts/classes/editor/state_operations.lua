@@ -1,3 +1,131 @@
+--- Duplicates states and inserts each copy immediately after its source state.
+--- @param states State[] The states to duplicate.
+function Editor:duplicate_states(states)
+	if not self.dmi or #states == 0 then return end
+
+	for _, state in ipairs(states) do
+		for _, state_sprite in ipairs(self.open_sprites) do
+			if state_sprite.state == state and state_sprite.sprite.isModified then
+				app.alert { title = self.title, text = "Save the open iconstate(s) first" }
+				return
+			end
+		end
+	end
+
+	local selected = {}
+	for _, state in ipairs(states) do
+		selected[state] = true
+	end
+
+	local original_states = table.clone(self.dmi.states)
+	local duplicates = {}
+	for _, state in ipairs(original_states) do
+		if selected[state] then
+			local duplicate, error = libdmi.new_state(
+				self.dmi.width,
+				self.dmi.height,
+				self.dmi.temp,
+				state.name
+			)
+			if error or not duplicate then
+				app.alert { title = "Error", text = { "Failed to duplicate state", error } }
+				return
+			end
+
+			State.copy_properties(duplicate, state)
+
+			for frame = 0, state.frame_count * state.dirs - 1 do
+				local source_path = app.fs.joinPath(self.dmi.temp, state.frame_key .. "." .. frame .. ".bytes")
+				local destination_path = app.fs.joinPath(self.dmi.temp, duplicate.frame_key .. "." .. frame .. ".bytes")
+				self:copyImageBytes(source_path, destination_path)
+			end
+
+			duplicates[state] = duplicate
+		end
+	end
+
+	local states_with_duplicates = {}
+	for _, state in ipairs(original_states) do
+		table.insert(states_with_duplicates, state)
+		local duplicate = duplicates[state]
+		if duplicate then
+			table.insert(states_with_duplicates, duplicate)
+			self.image_cache:load_state(self.dmi, duplicate)
+		end
+	end
+
+	self.dmi.states = states_with_duplicates
+	self.modified = true
+	self.selected_states = {}
+	self:repaint_states()
+	self:gc_open_sprites()
+end
+
+--- Duplicates all selected states.
+function Editor:duplicate_selected_states()
+	self:duplicate_states(self.selected_states)
+end
+
+--- Renames selected states using {name} and {index} replacement tokens.
+function Editor:mass_rename_states()
+	if not self.dmi or #self.selected_states == 0 then return end
+
+	local dialog = Dialog { title = "Mass Rename States" }
+	dialog:label { text = "Use {name} for the current name and {index} for the number." }
+	dialog:entry {
+		id = "pattern",
+		label = "Pattern:",
+		text = "{name}_{index}",
+		focus = true,
+	}
+	dialog:number {
+		id = "start_index",
+		label = "Start index:",
+		text = "1",
+		decimals = 0,
+	}
+	dialog:button {
+		text = "&Rename",
+		focus = true,
+		onclick = function()
+			local pattern = dialog.data.pattern or ""
+			local start_index = math.floor(tonumber(dialog.data.start_index) or 1)
+			if #pattern == 0 then
+				app.alert { title = "Mass Rename States", text = "Enter a rename pattern." }
+				return
+			end
+
+			local selected = {}
+			local selected_set = {}
+			for _, state in ipairs(self.selected_states) do
+				selected_set[state] = true
+			end
+
+			for _, state in ipairs(self.dmi.states) do
+				if selected_set[state] then
+					table.insert(selected, state)
+				end
+			end
+
+			for index, state in ipairs(selected) do
+				local name = pattern
+				name = name:gsub("{name}", function() return state.name end)
+				name = name:gsub("{index}", function() return tostring(start_index + index - 1) end)
+				state.name = name
+			end
+
+			self.modified = true
+			self:repaint_states()
+			dialog:close()
+		end
+	}
+	dialog:button {
+		text = "&Cancel",
+		onclick = function() dialog:close() end,
+	}
+	dialog:show()
+end
+
 --- Splits a multi-directional state into individual states, one for each direction.
 --- @param state State The state to be split.
 function Editor:split_state(state)

@@ -7,44 +7,14 @@
 function Editor:import_png()
 	if not self.dmi then return end
 
-	local dialog = Dialog {
-		title = "Import PNG"
-	}
-
-	dialog:file {
-		id = "file",
-		title = "Select PNG to Import",
-		open = true,
-		filetypes = { "png" },
-		focus = true
-	}
-
-	dialog:button {
-		text = "OK",
-		focus = true,
-		onclick = function()
-			local filename = dialog.data.file
-			if #filename > 0 then
-				if app.fs.isFile(filename) then
-					self:process_png_import(filename)
-				else
-					app.alert { title = "Error", text = "Selected file does not exist" }
-				end
-			end
-			dialog:close()
+	local filename = libdmi.open_dialog("Import PNG", app.fs.userDocsPath, "png")
+	if filename and #filename > 0 then
+		if app.fs.isFile(filename) then
+			self:process_png_import(filename)
+		else
+			app.alert { title = "Error", text = "Selected file does not exist" }
 		end
-	}
-
-	dialog:button {
-		text = "&Cancel",
-		onclick = function()
-			dialog:close()
-		end
-	}
-
-	dialog:show {
-		wait = false
-	}
+	end
 end
 
 --- Processes a PNG file import by splitting it into tiles (delegated to Rust)

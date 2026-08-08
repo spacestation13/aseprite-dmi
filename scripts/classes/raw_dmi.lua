@@ -150,7 +150,7 @@ end
 --- file using Aseprite's native PNG loader (bypasses our format handler to
 --- avoid OOM on large files), and marks the sprite as raw.
 function RawDmi.open()
-	local dmi_path = libdmi.open_dialog("Open DMI", app.fs.userDocsPath)
+	local dmi_path = libdmi.open_dialog("Open DMI", app.fs.userDocsPath, "dmi")
 	if not dmi_path or #dmi_path == 0 or not app.fs.isFile(dmi_path) then
 		return
 	end

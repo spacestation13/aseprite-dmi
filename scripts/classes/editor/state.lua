@@ -162,25 +162,34 @@ end
 --- @param state State The state to be opened.
 --- @param ev MouseEvent The mouse event object.
 function Editor:state_context(state, ev)
+	local state_is_selected = table.index_of(self.selected_states, state) ~= 0
+	local use_selection = #self.selected_states > 1 and state_is_selected
 	local buttons = {
 		{ text = "Properties", onclick = function() self:state_properties(state) end },
 		{ text = "Open",       onclick = function() self:open_state(state) end },
+		{ text = "Duplicate",  onclick = function()
+			if use_selection then
+				self:duplicate_selected_states()
+			else
+				self:duplicate_states({ state })
+			end
+		end },
 		{ text = "Copy",       onclick = function()
-			if #self.selected_states > 1 and table.index_of(self.selected_states, state) ~= 0 then
+			if use_selection then
 				self:clipboard_copy_selected_states()
 			else
 				self:clipboard_copy_state(state)
 			end
 		end },
 		{ text = "Remove",     onclick = function()
-			if #self.selected_states > 1 and table.index_of(self.selected_states, state) ~= 0 then
+			if use_selection then
 				self:remove_selected_states()
 			else
 				self:remove_state(state)
 			end
 		end },
 		{ text = "Split",      onclick = function()
-			if #self.selected_states > 1 and table.index_of(self.selected_states, state) ~= 0 then
+			if use_selection then
 				self:split_selected_states()
 			else
 				self:split_state(state)
@@ -188,9 +197,7 @@ function Editor:state_context(state, ev)
 		end },
 	}
 
-	local isSelected = table.index_of(self.selected_states, state) ~= 0
-
-	if isSelected then
+	if state_is_selected then
 		table.insert(buttons, {
 			text = "Deselect",
 			onclick = function()
@@ -208,6 +215,13 @@ function Editor:state_context(state, ev)
 				table.insert(self.selected_states, state)
 				self:repaint()
 			end
+		})
+	end
+
+	if #self.selected_states > 0 then
+		table.insert(buttons, {
+			text = "Mass Rename",
+			onclick = function() self:mass_rename_states() end
 		})
 	end
 
@@ -410,6 +424,21 @@ function Editor:set_state_dirs(state, directions)
 			state_sprite:save()
 		end)
 	end
+end
+
+State = {}
+
+--- Copies the editable properties of one state to another.
+--- @param destination State
+--- @param source State
+function State.copy_properties(destination, source)
+	destination.dirs = source.dirs
+	destination.frame_count = source.frame_count
+	destination.delays = table.clone(source.delays)
+	destination.loop = source.loop
+	destination.rewind = source.rewind
+	destination.movement = source.movement
+	destination.hotspots = table.clone(source.hotspots or {})
 end
 
 -- Creates a new state for the editor.

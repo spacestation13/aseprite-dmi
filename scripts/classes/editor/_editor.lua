@@ -346,6 +346,9 @@ end
 --- @return boolean success Whether the DMI file has been saved. May still return true even if the file has not been saved successfully.
 function Editor:save()
 	if not self.dmi then return false end
+	if not self.save_path and not self.open_path then
+		return self:save_as()
+	end
 
 	local filename = self:path()
 	self.save_path = filename

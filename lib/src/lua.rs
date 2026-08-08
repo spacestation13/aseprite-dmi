@@ -296,11 +296,12 @@ fn save_dialog(
     Ok(String::new())
 }
 
-fn open_dialog(_: &Lua, (title, location): (String, String)) -> LuaResult<String> {
+fn open_dialog(_: &Lua, (title, location, extension): (String, String, String)) -> LuaResult<String> {
+    let filter_name = format!("{} files", extension);
     let dialog = DialogBuilder::file()
         .set_title(&title)
         .set_location(&location)
-        .add_filter("dmi files", ["dmi"])
+        .add_filter(filter_name, [extension.as_str()])
         .open_single_file();
 
     if let Ok(Some(file)) = dialog.show()

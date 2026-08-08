@@ -67,14 +67,16 @@ TextWidget.__index = TextWidget
 --- @param hover_text string|nil The hover text of the widget (optional).
 --- @param onleftclick MouseFunction|nil The function to be called when the widget is clicked (optional).
 --- @param onrightclick MouseFunction|nil The function to be called when the widget is right clicked (optional).
+--- @param state State|nil The state represented by the widget (optional).
 --- @return TextWidget widget The newly created TextWidget.
-function TextWidget.new(editor, bounds, text, text_color, hover_text, onleftclick, onrightclick)
+function TextWidget.new(editor, bounds, text, text_color, hover_text, onleftclick, onrightclick, state)
 	local self = setmetatable({}, TextWidget)
 
 	self.editor = editor
 	self.bounds = bounds
 	self.text = text or ""
 	self.text_color = text_color
+	self.state = state
 	self.hover_text = hover_text
 	self.onleftclick = onleftclick or nil
 	self.onrightclick = onrightclick or nil
