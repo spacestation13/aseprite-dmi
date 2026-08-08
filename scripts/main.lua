@@ -196,7 +196,7 @@ function init(plugin)
 
 	plugin:newCommand {
 		id = "dmi_raw_open",
-		title = "Open DMI as Spritesheet",
+		title = "Open DMI as Spritesheet (Advanced)",
 		group = "dmi_editor",
 		onclick = function()
 			RawDmi.open()

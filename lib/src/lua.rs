@@ -40,6 +40,7 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
     exports.set("open_repo", lua.create_function(safe!(open_repo))?)?;
     exports.set("instances", lua.create_function(safe!(instances))?)?;
     exports.set("save_dialog", lua.create_function(safe!(save_dialog))?)?;
+    exports.set("open_dialog", lua.create_function(safe!(open_dialog))?)?;
     exports.set("import_png", lua.create_function(safe!(import_png))?)?;
 
     Ok(exports)
@@ -285,6 +286,22 @@ fn save_dialog(
         .set_location(&location)
         .add_filter("dmi files", ["dmi"])
         .save_single_file();
+
+    if let Ok(Some(file)) = dialog.show()
+        && let Some(file) = file.to_str()
+    {
+        return Ok(file.to_string());
+    }
+
+    Ok(String::new())
+}
+
+fn open_dialog(_: &Lua, (title, location): (String, String)) -> LuaResult<String> {
+    let dialog = DialogBuilder::file()
+        .set_title(&title)
+        .set_location(&location)
+        .add_filter("dmi files", ["dmi"])
+        .open_single_file();
 
     if let Ok(Some(file)) = dialog.show()
         && let Some(file) = file.to_str()

@@ -150,23 +150,7 @@ end
 --- file using Aseprite's native PNG loader (bypasses our format handler to
 --- avoid OOM on large files), and marks the sprite as raw.
 function RawDmi.open()
-	local dlg = Dialog("Open DMI")
-	dlg:file {
-		id = "path",
-		title = "Select DMI File",
-		open = true,
-		filetypes = { "dmi" },
-		focus = true,
-	}
-	dlg:button { id = "ok", text = "OK", focus = true }
-	dlg:button { id = "cancel", text = "Cancel" }
-	dlg:show()
-
-	if not dlg.data.ok then
-		return
-	end
-
-	local dmi_path = dlg.data.path
+	local dmi_path = libdmi.open_dialog("Open DMI", app.fs.userDocsPath)
 	if not dmi_path or #dmi_path == 0 or not app.fs.isFile(dmi_path) then
 		return
 	end
