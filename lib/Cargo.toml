@@ -23,3 +23,6 @@ serde_json = "1.0"
 sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }
 thiserror = "2.0"
 open = "5.4"
+
+[target.'cfg(not(windows))'.build-dependencies]
+pkg-config = "0.3"
