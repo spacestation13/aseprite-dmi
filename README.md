@@ -38,7 +38,7 @@ Not supported on Steam builds due to dynamic library issues. It might work, thou
 
 Running the Windows build via Wine/Lutris is recommended. You probably have Lutris installed already for Byond.
 
-#### Setting up Aseprite with Lutirs
+#### Setting up Aseprite with Lutris
 1. [Download](https://www.aseprite.org/buy/) or [compile](https://github.com/aseprite/aseprite) the **latest** aseprite installer for windows.
 2. Open Lutris, click the plus icon in the top left, and select "Install a windows game from an executable".
 3. Set the name to Aseprite and then click through the installer.
