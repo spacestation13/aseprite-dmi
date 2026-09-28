@@ -60,6 +60,7 @@ dependencies = [
  "mlua",
  "native-dialog",
  "open",
+ "pkg-config",
  "png",
  "reqwest",
  "sanitize-filename",

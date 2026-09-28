@@ -33,6 +33,8 @@ function init(plugin)
 		return app.alert { title = DIALOG_NAME, text = "This extension requires Aseprite v1.3.18 or later." }
 	end
 
+	app.fs.makeDirectory(TEMP_DIR)
+
 	-- Initialize Preferences
 	Preferences.initialize(plugin)
 	RawDmi.initialize(plugin.path)
