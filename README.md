@@ -34,7 +34,17 @@ The plugin will also prompt you to download an update when a new version is rele
 
 ### Linux
 
-Not supported on Steam builds due to dynamic library issues. Running the Windows build via Wine is recommended and reportedly works.
+Not supported on Steam builds due to dynamic library issues. It might work, though. Your call.
+
+Running the Windows build via Wine/Lutris is recommended. You probably have Lutris installed already for Byond.
+
+#### Setting up Aseprite with Lutirs
+1. [Download](https://www.aseprite.org/buy/) or [compile](https://github.com/aseprite/aseprite) the **latest** aseprite installer for windows.
+2. Open Lutris, click the plus icon in the top left, and select "Install a windows game from an executable".
+3. Set the name to Aseprite and then click through the installer.
+4. For "Select the setup file",  choose the compiled or downloaded aseprite windows installer 'Aseprite-*.exe'
+5. Finish the installation
+6. To get the extension working, open Aseprite and then follow the steps in Quickstart above.
 
 ## Building the Project
 
