@@ -1,7 +1,7 @@
 use flate2::{Compression as ZlibCompression, write::ZlibEncoder};
 use png::{Compression, Decoder, Encoder};
-use std::fs::{File, create_dir_all};
-use std::io::{BufReader, Write as _};
+use std::fs::{File, OpenOptions, create_dir_all};
+use std::io::{BufReader, BufWriter, Write};
 use std::path::Path;
 
 use super::{DmiError, DmiResult};
@@ -63,36 +63,26 @@ where
         return Err(DmiError::MissingData);
     }
 
-    write_dmi_png(width, height, bytes, path, metadata)
+    write_dmi_png(width, height, path, metadata, |out| {
+        Ok(out.write_all(bytes)?)
+    })
 }
 
-/// Encodes the PNG in memory and replaces `path` through a temporary file in the same directory,
-/// so a failed encode or write never truncates or corrupts an existing file.
-pub(super) fn write_dmi_png<P>(
+/// Streams the PNG to a temporary file next to `path`, then replaces `path` with it, so a failed
+/// encode never touches the existing file. `write_pixels` writes the RGBA rows top to bottom.
+pub(super) fn write_dmi_png<P, F>(
     width: u32,
     height: u32,
-    bytes: &[u8],
     path: P,
     metadata: &str,
+    write_pixels: F,
 ) -> DmiResult<()>
 where
     P: AsRef<Path>,
+    F: FnOnce(&mut dyn Write) -> DmiResult<()>,
 {
     let path = path.as_ref();
     let metadata = metadata_chunk(metadata)?;
-    let mut encoded = Vec::new();
-    {
-        let mut encoder = Encoder::new(&mut encoded, width, height);
-        encoder.set_compression(Compression::High);
-        encoder.set_color(png::ColorType::Rgba);
-        encoder.set_depth(png::BitDepth::Eight);
-        let mut writer = encoder.write_header()?;
-        // Right after IHDR, where the png crate puts text chunks added to the encoder.
-        writer.write_chunk(png::chunk::zTXt, &metadata)?;
-        writer.write_image_data(bytes)?;
-        writer.finish()?;
-    }
-
     if let Some(parent) = path.parent()
         && !parent.as_os_str().is_empty()
         && !parent.exists()
@@ -102,19 +92,41 @@ where
     let mut temp = path.as_os_str().to_owned();
     temp.push(format!(".{}.tmp", std::process::id()));
     let temp = Path::new(&temp);
-    let replaced = std::fs::write(temp, &encoded).and_then(|()| {
-        // Keep the original file's permission bits (e.g. read-only stays read-only).
-        if let Ok(meta) = std::fs::metadata(path) {
-            let _ = std::fs::set_permissions(temp, meta.permissions());
-        }
-        std::fs::rename(temp, path)
-    });
-    if replaced.is_ok() {
-        return Ok(());
+
+    let encoded = (|| -> DmiResult<()> {
+        let mut file = BufWriter::new(File::create(temp)?);
+        let mut encoder = Encoder::new(&mut file, width, height);
+        encoder.set_compression(Compression::High);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header()?;
+        // Right after IHDR, where the png crate puts text chunks added to the encoder.
+        writer.write_chunk(png::chunk::zTXt, &metadata)?;
+        let mut stream = writer.stream_writer()?;
+        write_pixels(&mut stream)?;
+        stream.finish()?;
+        writer.finish()?;
+        file.flush()?;
+        Ok(())
+    })();
+    if let Err(err) = encoded {
+        let _ = std::fs::remove_file(temp);
+        return Err(err);
     }
-    let _ = std::fs::remove_file(temp);
-    // Replacing fails when another program holds the file open without delete sharing
-    // (common on Windows). The bytes are already encoded, so overwrite in place instead.
-    std::fs::write(path, &encoded)?;
+
+    // Keep the original file's permission bits (e.g. read-only stays read-only).
+    if let Ok(meta) = std::fs::metadata(path) {
+        let _ = std::fs::set_permissions(temp, meta.permissions());
+    }
+    if std::fs::rename(temp, path).is_err() {
+        // Replacing fails when another program holds the file open without delete sharing
+        // (common on Windows), so overwrite in place from the finished temp file instead.
+        let copied = File::open(temp).and_then(|mut src| {
+            let mut dst = OpenOptions::new().write(true).truncate(true).open(path)?;
+            std::io::copy(&mut src, &mut dst)
+        });
+        let _ = std::fs::remove_file(temp);
+        copied?;
+    }
     Ok(())
 }

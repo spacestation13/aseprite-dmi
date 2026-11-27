@@ -47,7 +47,16 @@ fn open_and_save() {
         panic!("{e:?}");
     }
 
-    let _ = remove_file(temp_file);
+    // 85 frames: a ragged last row of tiles, written one tile row at a time.
+    let saved = Dmi::open(&temp_file).unwrap();
+    let _ = remove_file(&temp_file);
+    assert_eq!(saved.states.len(), dmi.states.len());
+    for (a, b) in dmi.states.iter().zip(&saved.states) {
+        assert_eq!(a.name, b.name);
+        for (fa, fb) in a.frames.iter().zip(&b.frames) {
+            assert_eq!(fa.to_rgba8().as_raw(), fb.to_rgba8().as_raw(), "{}", a.name);
+        }
+    }
 }
 
 #[test]
@@ -182,4 +191,24 @@ fn save_works_while_another_program_has_the_file_open() {
     }
     assert_eq!(Dmi::open(&target).unwrap().states[0].name, "renamed");
     remove_file(&target).unwrap();
+}
+
+#[test]
+fn save_from_frame_cache_matches_in_memory_save() {
+    let dmi = Dmi::open("tests/assets/anomaly.dmi").unwrap();
+    let temp_dir = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    let serialized = dmi.to_serialized(temp_dir, false).unwrap();
+    let streamed = temp_dir.join("streamed.dmi");
+    let in_memory = temp_dir.join("in_memory.dmi");
+
+    let result = Dmi::save_serialized(&serialized, &streamed).and_then(|()| dmi.save(&in_memory));
+    let _ = remove_dir_all(&serialized.temp);
+    result.unwrap();
+
+    assert_eq!(
+        std::fs::read(&streamed).unwrap(),
+        std::fs::read(&in_memory).unwrap()
+    );
+    let _ = remove_file(streamed);
+    let _ = remove_file(in_memory);
 }

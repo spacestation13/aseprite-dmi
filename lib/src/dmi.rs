@@ -138,34 +138,54 @@ impl Dmi {
     where
         P: AsRef<Path>,
     {
-        let total_frames = self
+        let frames = self.states.iter().flat_map(|state| &state.frames);
+        let total = self.states.iter().map(|state| state.frames.len()).sum();
+        write_atlas(
+            path,
+            self.width,
+            self.height,
+            &self.get_metadata(),
+            total,
+            frames.map(|frame| Ok(frame.to_rgba8())),
+        )
+    }
+    /// Saves straight from the frame cache, reading one frame at a time instead of the whole DMI.
+    pub fn save_serialized<P>(serialized: &SerializedDmi, path: P) -> DmiResult<()>
+    where
+        P: AsRef<Path>,
+    {
+        let temp = Path::new(&serialized.temp);
+        if !temp.exists() {
+            return Err(DmiError::DirDoesNotExist);
+        }
+        let metadata = Dmi {
+            name: serialized.name.clone(),
+            width: serialized.width,
+            height: serialized.height,
+            states: serialized
+                .states
+                .iter()
+                .map(State::without_frames)
+                .collect(),
+        }
+        .get_metadata();
+        let frames = serialized.states.iter().flat_map(|state| {
+            (0..state.frame_count * state.dirs).map(move |index| {
+                Ok(load_image_from_bytes(frame_path(temp, &state.frame_key, index))?.to_rgba8())
+            })
+        });
+        let total = serialized
             .states
             .iter()
-            .map(|state| state.frames.len() as u32)
-            .sum::<u32>() as usize;
-
-        let (sqrt, width, height) = optimal_size(total_frames, self.width, self.height);
-
-        let mut image_buffer = ImageBuffer::new(width, height);
-
-        let mut index: u32 = 0;
-        for state in self.states.iter() {
-            for frame in state.frames.iter() {
-                let (x, y) = (
-                    (index as f32 % sqrt) as u32 * self.width,
-                    (index as f32 / sqrt) as u32 * self.height,
-                );
-                imageops::replace(&mut image_buffer, frame, x as i64, y as i64);
-                index += 1;
-            }
-        }
-
-        png::write_dmi_png(
-            width,
-            height,
-            image_buffer.as_raw(),
+            .map(|state| (state.frame_count * state.dirs) as usize)
+            .sum();
+        write_atlas(
             path,
-            &self.get_metadata(),
+            serialized.width,
+            serialized.height,
+            &metadata,
+            total,
+            frames,
         )
     }
     pub fn to_serialized<P>(&self, path: P, exact_path: bool) -> DmiResult<SerializedDmi>
@@ -453,25 +473,26 @@ impl State {
     where
         P: AsRef<OsStr>,
     {
-        let mut frames = Vec::new();
-
+        let mut state = Self::without_frames(&serialized);
         for frame in 0..(serialized.frame_count * serialized.dirs) {
             let path = frame_path(Path::new(&path), &serialized.frame_key, frame);
-            let image = load_image_from_bytes(path)?;
-            frames.push(image);
+            state.frames.push(load_image_from_bytes(path)?);
         }
-
-        Ok(Self {
-            name: serialized.name,
+        Ok(state)
+    }
+    /// The state's metadata, with no frames loaded.
+    fn without_frames(serialized: &SerializedState) -> Self {
+        Self {
+            name: serialized.name.clone(),
             dirs: serialized.dirs,
-            frames,
+            frames: Vec::new(),
             frame_count: serialized.frame_count,
-            delays: serialized.delays,
+            delays: serialized.delays.clone(),
             loop_: serialized.loop_,
             rewind: serialized.rewind,
             movement: serialized.movement,
-            hotspots: serialized.hotspots,
-        })
+            hotspots: serialized.hotspots.clone(),
+        }
     }
     pub fn into_clipboard(self) -> DmiResult<ClipboardState> {
         let frames = self
@@ -622,6 +643,44 @@ fn rgba_bytes(width: u32, height: u32) -> DmiResult<u64> {
         .checked_mul(u64::from(height))
         .and_then(|pixels| pixels.checked_mul(4))
         .ok_or(DmiError::ImageTooLarge)
+}
+
+/// Writes `total` frames into the DMI's square-ish grid, one row of tiles at a time, so only a
+/// band of the atlas is ever in memory.
+fn write_atlas<P, I>(
+    path: P,
+    tile_width: u32,
+    tile_height: u32,
+    metadata: &str,
+    total: usize,
+    mut frames: I,
+) -> DmiResult<()>
+where
+    P: AsRef<Path>,
+    I: Iterator<Item = DmiResult<image::RgbaImage>>,
+{
+    let (sqrt, width, height) = optimal_size(total, tile_width, tile_height);
+    let columns = sqrt as usize;
+    let (tile_w, tile_h) = (tile_width as usize, tile_height as usize);
+    let row_stride = width as usize * 4;
+    png::write_dmi_png(width, height, path, metadata, |out| {
+        let mut band = vec![0u8; row_stride * tile_h];
+        for _ in 0..height as usize / tile_h {
+            band.fill(0);
+            for (column, frame) in frames.by_ref().take(columns).enumerate() {
+                let frame = frame?;
+                let frame_stride = frame.width() as usize * 4;
+                let copy_w = frame_stride.min(tile_w * 4);
+                let rows = frame.as_raw().chunks_exact(frame_stride).take(tile_h);
+                for (y, src) in rows.enumerate() {
+                    let start = y * row_stride + column * tile_w * 4;
+                    band[start..start + copy_w].copy_from_slice(&src[..copy_w]);
+                }
+            }
+            out.write_all(&band)?;
+        }
+        Ok(())
+    })
 }
 
 /// The cache file of a state's frame image: `index` = frame * dirs + dir.

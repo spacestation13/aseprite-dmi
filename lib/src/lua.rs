@@ -91,9 +91,7 @@ fn open_file(lua: &Lua, (filename, temp): (String, String)) -> LuaResult<LuaTabl
 }
 
 fn save_file(_: &Lua, (dmi, filename): (LuaTable, String)) -> LuaResult<LuaValue> {
-    let dmi = SerializedDmi::from_lua_table(dmi)?;
-    let dmi = Dmi::from_serialized(dmi)?;
-    dmi.save(filename)?;
+    Dmi::save_serialized(&SerializedDmi::from_lua_table(dmi)?, filename)?;
 
     Ok(LuaValue::Nil)
 }
