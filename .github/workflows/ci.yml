@@ -54,7 +54,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         working-directory: lib
         run: |
-          cargo test --locked --test version
+          cargo test --locked --test version -- --ignored
   build:
     needs: lint
     strategy:
