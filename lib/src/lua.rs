@@ -225,7 +225,6 @@ fn resize(
 ) -> LuaResult<LuaValue> {
     let dmi = SerializedDmi::from_lua_table(dmi)?;
 
-    let temp = dmi.temp.clone();
     let method = match method.as_str() {
         "nearest" => image::imageops::FilterType::Nearest,
         "triangle" => image::imageops::FilterType::Triangle,
@@ -240,9 +239,7 @@ fn resize(
         }
     };
 
-    let mut dmi = Dmi::from_serialized(dmi)?;
-    dmi.resize(width, height, method);
-    dmi.to_serialized(temp, true)?;
+    Dmi::resize_serialized(&dmi, width, height, method)?;
 
     Ok(LuaValue::Nil)
 }
@@ -252,11 +249,7 @@ fn crop(
     (dmi, x, y, width, height): (LuaTable, u32, u32, u32, u32),
 ) -> LuaResult<LuaValue> {
     let dmi = SerializedDmi::from_lua_table(dmi)?;
-    let temp = dmi.temp.clone();
-
-    let mut dmi = Dmi::from_serialized(dmi)?;
-    dmi.crop(x, y, width, height);
-    dmi.to_serialized(temp, true)?;
+    Dmi::crop_serialized(&dmi, x, y, width, height)?;
 
     Ok(LuaValue::Nil)
 }
@@ -266,11 +259,7 @@ fn expand(
     (dmi, x, y, width, height): (LuaTable, u32, u32, u32, u32),
 ) -> LuaResult<LuaValue> {
     let dmi = SerializedDmi::from_lua_table(dmi)?;
-    let temp = dmi.temp.clone();
-
-    let mut dmi = Dmi::from_serialized(dmi)?;
-    dmi.expand(x, y, width, height);
-    dmi.to_serialized(temp, true)?;
+    Dmi::expand_serialized(&dmi, x, y, width, height)?;
 
     Ok(LuaValue::Nil)
 }

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::ffi::OsStr;
 use std::fs::{File, create_dir_all, remove_dir_all};
-use std::io::{BufWriter, Cursor, Read as _, Write as _};
+use std::io::{BufRead as _, BufReader, BufWriter, Cursor, Read as _, Write as _};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -266,7 +266,7 @@ impl Dmi {
         let result = (|| {
             let mut reader = ImageReader::open(source)?;
             reader.set_format(image::ImageFormat::Png);
-            let image = reader.decode()?;
+            let image = reader.decode()?.into_rgba8();
             let mut states = Vec::new();
             let mut tile_index = 0_u64;
 
@@ -281,10 +281,14 @@ impl Dmi {
                             .map_err(|_| DmiError::ImageSizeMismatch)?;
                         let y = u32::try_from(tile_index / u64::from(grid_width))
                             .map_err(|_| DmiError::ImageSizeMismatch)?;
-                        let frame_image =
-                            image.crop_imm(dmi.width * x, dmi.height * y, dmi.width, dmi.height);
-                        let path = frame_path(&temp, &frame_key, frame_index);
-                        save_image_as_bytes(&frame_image, path)?;
+                        write_tile_bytes(
+                            &image,
+                            dmi.width * x,
+                            dmi.height * y,
+                            dmi.width,
+                            dmi.height,
+                            frame_path(&temp, &frame_key, frame_index),
+                        )?;
                         tile_index = tile_index
                             .checked_add(1)
                             .ok_or(DmiError::ImageSizeMismatch)?;
@@ -322,26 +326,41 @@ impl Dmi {
 
         result
     }
-    pub fn resize(&mut self, width: u32, height: u32, method: image::imageops::FilterType) {
-        self.width = width;
-        self.height = height;
-        for state in self.states.iter_mut() {
-            state.resize(width, height, method);
-        }
+    /// Scales every frame in the frame cache to `width` x `height`.
+    pub fn resize_serialized(
+        serialized: &SerializedDmi,
+        width: u32,
+        height: u32,
+        method: imageops::FilterType,
+    ) -> DmiResult<()> {
+        edit_cached_frames(serialized, |frame| {
+            frame.resize_exact(width, height, method)
+        })
     }
-    pub fn crop(&mut self, x: u32, y: u32, width: u32, height: u32) {
-        self.width = width;
-        self.height = height;
-        for state in self.states.iter_mut() {
-            state.crop(x, y, width, height);
-        }
+    /// Crops every frame in the frame cache to the given rectangle.
+    pub fn crop_serialized(
+        serialized: &SerializedDmi,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    ) -> DmiResult<()> {
+        edit_cached_frames(serialized, |frame| frame.crop_imm(x, y, width, height))
     }
-    pub fn expand(&mut self, x: u32, y: u32, width: u32, height: u32) {
-        self.width = width;
-        self.height = height;
-        for state in self.states.iter_mut() {
-            state.expand(x, y, width, height);
-        }
+    /// Pastes every frame in the frame cache at (`x`, `y`) of a new transparent
+    /// `width` x `height` canvas.
+    pub fn expand_serialized(
+        serialized: &SerializedDmi,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    ) -> DmiResult<()> {
+        edit_cached_frames(serialized, |frame| {
+            let mut canvas = DynamicImage::new_rgba8(width, height);
+            imageops::replace(&mut canvas, frame, i64::from(x), i64::from(y));
+            canvas
+        })
     }
 
     fn image_dimensions<P>(path: P) -> DmiResult<(u32, u32)>
@@ -545,23 +564,6 @@ impl State {
             hotspots: state.hotspots,
         })
     }
-    pub fn resize(&mut self, width: u32, height: u32, method: imageops::FilterType) {
-        for frame in self.frames.iter_mut() {
-            *frame = frame.resize_exact(width, height, method);
-        }
-    }
-    pub fn crop(&mut self, x: u32, y: u32, width: u32, height: u32) {
-        for frame in self.frames.iter_mut() {
-            *frame = frame.crop(x, y, width, height);
-        }
-    }
-    pub fn expand(&mut self, x: u32, y: u32, width: u32, height: u32) {
-        for frame in self.frames.iter_mut() {
-            let mut bottom = DynamicImage::new_rgba8(width, height);
-            imageops::replace(&mut bottom, frame, x as i64, y as i64);
-            *frame = bottom;
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -689,12 +691,16 @@ fn frame_path(dir: &Path, frame_key: &str, index: u32) -> PathBuf {
 }
 
 fn save_image_as_bytes<P: AsRef<Path>>(image: &DynamicImage, path: P) -> DmiResult<()> {
-    write_frame_bytes(
-        path,
-        image.width(),
-        image.height(),
-        image.to_rgba8().as_raw(),
-    )
+    // Frames are normally RGBA8 already; only convert (and copy) when they aren't.
+    let converted;
+    let rgba = match image.as_rgba8() {
+        Some(rgba) => rgba,
+        None => {
+            converted = image.to_rgba8();
+            &converted
+        }
+    };
+    write_frame_bytes(path, rgba.width(), rgba.height(), rgba.as_raw())
 }
 
 /// Writes a frame cache file: the width and height as text lines, then the RGBA pixels.
@@ -716,48 +722,77 @@ pub fn write_frame_bytes<P: AsRef<Path>>(
     Ok(())
 }
 
+/// Writes the `width` x `height` tile at pixel (`left`, `top`) of `atlas` as a frame cache file,
+/// straight from the atlas rows without an intermediate copy of the tile.
+fn write_tile_bytes<P: AsRef<Path>>(
+    atlas: &image::RgbaImage,
+    left: u32,
+    top: u32,
+    width: u32,
+    height: u32,
+    path: P,
+) -> DmiResult<()> {
+    let stride = atlas.width() as usize * 4;
+    let tile_stride = width as usize * 4;
+    let mut writer = BufWriter::new(File::create(path)?);
+    write!(writer, "{width}\n{height}\n")?;
+    for y in top..top + height {
+        let start = y as usize * stride + left as usize * 4;
+        writer.write_all(&atlas.as_raw()[start..start + tile_stride])?;
+    }
+    writer.flush()?;
+
+    Ok(())
+}
+
 fn load_image_from_bytes<P: AsRef<Path>>(path: P) -> DmiResult<DynamicImage> {
-    let mut bytes = Vec::new();
+    let file = File::open(path)?;
+    let file_len = file.metadata()?.len();
+    let mut reader = BufReader::new(file);
 
-    let mut file = File::open(path)?;
-    file.read_to_end(&mut bytes)?;
+    let mut line = String::new();
+    let mut header_len = 0_u64;
+    let mut dimensions = [0_u32; 2];
+    for dimension in &mut dimensions {
+        line.clear();
+        let read = reader.read_line(&mut line)?;
+        if read == 0 || !line.ends_with('\n') {
+            return Err(DmiError::MissingData);
+        }
+        header_len += read as u64;
+        *dimension = line.trim().parse()?;
+    }
+    let [width, height] = dimensions;
 
-    let width_nl = bytes
-        .iter()
-        .position(|&b| b == 0x0A)
-        .ok_or(DmiError::MissingData)?;
-    let height_nl = bytes[width_nl + 1..]
-        .iter()
-        .position(|&b| b == 0x0A)
-        .map(|p| p + width_nl + 1)
-        .ok_or(DmiError::MissingData)?;
-
-    let width: u32 = std::str::from_utf8(&bytes[..width_nl])
-        .map_err(|_| DmiError::MissingData)?
-        .trim()
-        .parse()?;
-    let height: u32 = std::str::from_utf8(&bytes[width_nl + 1..height_nl])
-        .map_err(|_| DmiError::MissingData)?
-        .trim()
-        .parse()?;
-
-    let pixel_data = &bytes[height_nl + 1..];
-    let expected_len = (width as usize)
-        .saturating_mul(height as usize)
-        .saturating_mul(4);
-    if pixel_data.len() < expected_len {
+    let expected_len = rgba_bytes(width, height)?;
+    if file_len.saturating_sub(header_len) < expected_len {
         return Err(DmiError::MissingData);
     }
 
-    let mut image_buffer: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(width, height);
-    let mut index = 0;
-    for pixel in image_buffer.pixels_mut() {
-        pixel[0] = pixel_data[index];
-        pixel[1] = pixel_data[index + 1];
-        pixel[2] = pixel_data[index + 2];
-        pixel[3] = pixel_data[index + 3];
-        index += 4;
-    }
+    // Read the pixels straight into the image buffer.
+    let mut pixels = vec![0u8; expected_len as usize];
+    reader.read_exact(&mut pixels)?;
+    let image =
+        ImageBuffer::<Rgba<u8>, _>::from_raw(width, height, pixels).ok_or(DmiError::MissingData)?;
 
-    Ok(DynamicImage::ImageRgba8(image_buffer))
+    Ok(DynamicImage::ImageRgba8(image))
+}
+
+/// Rewrites every frame of a DMI in the frame cache through `edit`, one frame at a time instead
+/// of loading the whole DMI.
+fn edit_cached_frames(
+    serialized: &SerializedDmi,
+    edit: impl Fn(&DynamicImage) -> DynamicImage,
+) -> DmiResult<()> {
+    let temp = Path::new(&serialized.temp);
+    if !temp.exists() {
+        return Err(DmiError::DirDoesNotExist);
+    }
+    for state in &serialized.states {
+        for index in 0..state.frame_count * state.dirs {
+            let path = frame_path(temp, &state.frame_key, index);
+            save_image_as_bytes(&edit(&load_image_from_bytes(&path)?), path)?;
+        }
+    }
+    Ok(())
 }

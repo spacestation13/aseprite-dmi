@@ -1,7 +1,7 @@
 use std::fs::{remove_dir_all, remove_file};
 use std::path::Path;
 
-use dmi::{Dmi, read_dmi_metadata, save_rgba_dmi};
+use dmi::{Dmi, SerializedDmi, read_dmi_metadata, save_rgba_dmi};
 use image::{GenericImageView, ImageReader};
 
 #[test]
@@ -211,4 +211,39 @@ fn save_from_frame_cache_matches_in_memory_save() {
     );
     let _ = remove_file(streamed);
     let _ = remove_file(in_memory);
+}
+
+#[test]
+fn resize_crop_expand_rewrite_the_frame_cache() {
+    let dmi = Dmi::open("tests/assets/anomaly.dmi").unwrap();
+    let temp_dir = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    let serialized = dmi.to_serialized(temp_dir, false).unwrap();
+    let frame_dims = |w: u32, h: u32| {
+        let saved = Dmi::from_serialized(SerializedDmi {
+            name: serialized.name.clone(),
+            width: w,
+            height: h,
+            states: serialized.states.clone(),
+            temp: serialized.temp.clone(),
+        })
+        .unwrap();
+        saved.states[0].frames[0].to_rgba8()
+    };
+
+    let result = std::panic::catch_unwind(|| {
+        Dmi::expand_serialized(&serialized, 2, 3, 40, 50).unwrap();
+        let expanded = frame_dims(40, 50);
+        assert_eq!(expanded.dimensions(), (40, 50));
+        let original = dmi.states[0].frames[0].to_rgba8();
+        assert_eq!(expanded.get_pixel(2, 3), original.get_pixel(0, 0));
+        assert_eq!(expanded.get_pixel(0, 0)[3], 0);
+
+        Dmi::crop_serialized(&serialized, 2, 3, 32, 32).unwrap();
+        assert_eq!(frame_dims(32, 32), original);
+
+        Dmi::resize_serialized(&serialized, 16, 16, image::imageops::FilterType::Nearest).unwrap();
+        assert_eq!(frame_dims(16, 16).dimensions(), (16, 16));
+    });
+    let _ = remove_dir_all(&serialized.temp);
+    result.unwrap();
 }
