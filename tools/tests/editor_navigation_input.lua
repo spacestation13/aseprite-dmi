@@ -246,6 +246,57 @@ T.steps {
 		T.eq(app.sprite, sprite, "test sprite still active")
 		T.screenshot("final", next)
 	end,
+
+	-- Ctrl+C on a modified open state shows "Save all open sprites first"; after the alert the
+	-- keys must stay on the grid.
+	function(next)
+		editor:open_state(editor.dmi.states[1])
+		T.wait_until(function() return editor.open_sprites[1] end, next, { what = "state sprite" })
+	end,
+	function(next, state_sprite)
+		app.transaction("modify state", function()
+			state_sprite.sprite.cels[1].image:drawPixel(0, 0, Color(0, 255, 0))
+		end)
+		T.ok(state_sprite.sprite.isModified, "state sprite modified")
+		app.sprite = sprite
+		app.frame = sprite.frames[1]
+		editor:refocus_grid()
+		T.input({ { wait = 0.2 }, { key = "Home" }, { key = "Ctrl+C" }, { wait = 0.6 } }, next)
+	end,
+	function(next) T.screenshot("copy_alert", next) end,
+	function(next)
+		T.input({ { key = "Enter" }, { wait = 0.4 }, { key = "Right" }, { key = "Backspace" }, { wait = 0.3 } }, next)
+	end,
+	function(next)
+		T.eq(cursor_name(), editor.dmi.states[2].name, "Right after the Ctrl+C alert moves on the grid")
+		T.eq(app.sprite, sprite, "test sprite active after the Ctrl+C alert")
+		sprite_untouched("after the Ctrl+C alert")
+		-- Ctrl+C / Ctrl+V copy and paste states (states[2] isn't open, so no alert).
+		T.input({ { key = "Ctrl+C" }, { wait = 0.3 }, { key = "Ctrl+V" }, { wait = 0.5 }, { key = "Backspace" }, { key = "Left" },
+			{ wait = 0.3 } }, next)
+	end,
+	function(next)
+		T.eq(#editor.dmi.states, 9, "Ctrl+V pasted the copied state")
+		T.eq(editor.dmi.states[9].name, editor.dmi.states[2].name, "pasted copy of the selected state")
+		T.eq(cursor_name(), editor.dmi.states[1].name, "keys after Ctrl+V stay on the grid")
+		T.eq(app.sprite, sprite, "test sprite active after Ctrl+V")
+		sprite_untouched("after Ctrl+C/Ctrl+V")
+		T.screenshot("pasted", next)
+	end,
+	-- F2 opens the (modal) State Properties; after Esc closes it the keys stay on the grid.
+	function(next)
+		T.input({ { key = "F2" }, { wait = 0.5 } }, next)
+	end,
+	function(next) T.screenshot("f2_properties", next) end,
+	function(next)
+		T.input({ { key = "Escape" }, { wait = 0.4 }, { key = "Right" }, { key = "Backspace" }, { wait = 0.3 } }, next)
+	end,
+	function(next)
+		T.eq(cursor_name(), editor.dmi.states[2].name, "Right after the F2 dialog moves on the grid")
+		T.eq(app.sprite, sprite, "test sprite active after F2")
+		sprite_untouched("after the F2 dialog")
+		next()
+	end,
 	function()
 		editor:close(false, true)
 		sprite:close()

@@ -291,7 +291,7 @@ function Editor:open_find_dialog()
 	end
 	local function close()
 		dialog:close()
-		if self.dialog then self.dialog:modify { id = "canvas", focus = true } end
+		self:refocus_grid()
 	end
 	dialog:canvas {
 		id = "query",
@@ -371,9 +371,11 @@ function Editor:handle_navigation_key(ev)
 			end
 			self:repaint()
 		elseif code == "KeyC" then
-			self:clipboard_copy_selected_states()
+			self:clipboard_copy_selected_states() -- may alert ("Save all open sprites first")
+			self:refocus_grid()
 		elseif code == "KeyV" then
 			self:clipboard_paste_state()
+			self:refocus_grid()
 		end
 	end
 	if modified then
@@ -398,9 +400,7 @@ function Editor:handle_navigation_key(ev)
 		if app.alert { title = self.title, text = text, buttons = { "&Remove", "&Cancel" } } == 1 then
 			self:remove_selected_states()
 		end
-		-- The alert hands keyboard focus back to the sprite editor; keep it on the grid so the
-		-- next key doesn't hit the active sprite.
-		if self.dialog then self.dialog:modify { id = "canvas", focus = true } end
+		self:refocus_grid()
 	elseif code == "Escape" then
 		self.selected_states = {}
 		self.nav_anchor = nil
@@ -428,6 +428,14 @@ end
 function Editor:reset_typeahead()
 	self.typeahead_buffer = ""
 	if self.typeahead_timer then self.typeahead_timer:stop() end
+end
+
+--- Gives keyboard focus back to the grid. Call after a grid key action that may show an alert or
+--- dialog: closing one hands focus to the sprite editor, so the next key would hit the active sprite.
+function Editor:refocus_grid()
+	if self.dialog and not self.closed then
+		self.dialog:modify { id = "canvas", focus = true }
+	end
 end
 
 --- (Re)starts the one-shot timer that empties the type-ahead buffer after a pause.

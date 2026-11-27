@@ -147,6 +147,7 @@ end
 --- @param ev KeyEvent
 function Editor:onkeydown(ev)
 	if ev.code == "F2" and self:rename_selected_or_open_state() then
+		self:refocus_grid() -- the properties dialog hands focus to the sprite editor
 		ev:stopPropagation()
 	elseif self:handle_navigation_key(ev) then
 		ev:stopPropagation()
