@@ -337,9 +337,6 @@ end
 --- @param plugin_path string Path where the extension is installed.
 function loadlib(plugin_path)
 	if not libdmi then
-		if IS_POSIX then
-			package.cpath = package.cpath .. (IS_DARWIN and ";?.dylib" or ";?.so")
-		end
 		local loader, err = package.loadlib(app.fs.joinPath(plugin_path, DMI_LIB), "luaopen_dmi_module")
 		if not loader then
 			app.alert { title = DIALOG_NAME, text = { "Failed to load DMI library", err or "Unknown error" } }

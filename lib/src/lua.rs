@@ -3,6 +3,7 @@ use native_dialog::DialogBuilder;
 use std::ffi::OsStr;
 use std::fs::{self, read_dir, remove_dir_all};
 use std::path::Path;
+use std::sync::Mutex;
 
 use crate::dmi::*;
 use crate::errors::ExternalError;
@@ -103,8 +104,7 @@ fn copy_states(_: &Lua, (states, temp): (Vec<LuaTable>, String)) -> LuaResult<Lu
     }
 
     let json = serde_json::to_string(&clipboard_states).map_err(ExternalError::Serde)?;
-    let mut clipboard = arboard::Clipboard::new().map_err(ExternalError::Arboard)?;
-    clipboard.set_text(json).map_err(ExternalError::Arboard)?;
+    with_clipboard(|clipboard| clipboard.set_text(json))?;
 
     Ok(LuaValue::Nil)
 }
@@ -114,8 +114,7 @@ fn paste_states(lua: &Lua, (width, height, temp): (u32, u32, String)) -> LuaResu
         Err("Temp directory does not exist".to_string()).into_lua_err()?
     }
 
-    let mut clipboard = arboard::Clipboard::new().map_err(ExternalError::Arboard)?;
-    let text = clipboard.get_text().map_err(ExternalError::Arboard)?;
+    let text = with_clipboard(|clipboard| clipboard.get_text())?;
 
     // Try multi-state format first, fall back to single state
     let clipboard_states: Vec<ClipboardState> =
@@ -134,6 +133,23 @@ fn paste_states(lua: &Lua, (width, height, temp): (u32, u32, String)) -> LuaResu
     }
 
     Ok(tables)
+}
+
+/// Uses one clipboard for the whole session: on Linux, copied data disappears when
+/// the `Clipboard` that set it is dropped.
+fn with_clipboard<T>(
+    f: impl FnOnce(&mut arboard::Clipboard) -> Result<T, arboard::Error>,
+) -> LuaResult<T> {
+    static CLIPBOARD: Mutex<Option<arboard::Clipboard>> = Mutex::new(None);
+
+    let mut guard = CLIPBOARD
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let clipboard = match guard.as_mut() {
+        Some(clipboard) => clipboard,
+        None => guard.insert(arboard::Clipboard::new().map_err(ExternalError::Arboard)?),
+    };
+    Ok(f(clipboard).map_err(ExternalError::Arboard)?)
 }
 
 fn resize(

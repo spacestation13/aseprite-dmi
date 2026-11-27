@@ -280,6 +280,7 @@ WebSocketMessageType = {
 --- @field theme app.theme
 --- @field uiScale number
 --- @field fs app.fs
+--- @field os app.os
 --- @field open fun(filename: string): Sprite|nil Opens a new sprite loading it from the given filename.
 
 --- @class app.pixelColor
@@ -291,6 +292,17 @@ WebSocketMessageType = {
 
 --- @class app.theme
 --- @field color table<string, Color>
+
+--- @class app.os
+--- @field name "Windows"|"macOS"|"Linux"
+--- @field version Version Windows or macOS version; `0.0.0` on Linux.
+--- @field fullName string
+--- @field windows boolean
+--- @field macos boolean
+--- @field linux boolean
+--- @field x64 boolean
+--- @field x86 boolean
+--- @field arm64 boolean
 
 --- @class app.fs
 --- @field pathSeparator string

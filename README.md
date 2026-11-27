@@ -32,19 +32,27 @@ The plugin will also prompt you to download an update when a new version is rele
 - Split/combine icon states in multiple ways
 - Access plugin preferences under `File > DMI Editor > Preferences`
 
-### Linux
+### Platforms
 
-Not supported on Steam builds due to dynamic library issues. It might work, though. Your call.
+Download the extension for your platform from the release:
 
-Running the Windows build via Wine/Lutris is recommended. You probably have Lutris installed already for Byond.
+- **Windows:** `aseprite-dmi-windows`
+- **macOS:** `aseprite-dmi-macos`
+- **Linux:** `aseprite-dmi-linux` (Steam or standalone)
 
-#### Setting up Aseprite with Lutris
-1. [Download](https://www.aseprite.org/buy/) or [compile](https://github.com/aseprite/aseprite) the **latest** aseprite installer for windows.
+<details>
+<summary>Linux alternative: Windows Aseprite via Wine/Lutris</summary>
+
+On older distros, you can run the Windows version of Aseprite and the extension through Lutris instead.
+
+1. [Download](https://www.aseprite.org/buy/) or [compile](https://github.com/aseprite/aseprite) the **latest** Aseprite installer for Windows.
 2. Open Lutris, click the plus icon in the top left, and select "Install a windows game from an executable".
 3. Set the name to Aseprite and then click through the installer.
-4. For "Select the setup file",  choose the compiled or downloaded aseprite windows installer 'Aseprite-*.exe'
-5. Finish the installation
-6. To get the extension working, open Aseprite and then follow the steps in Quickstart above.
+4. For "Select the setup file", choose the compiled or downloaded Aseprite Windows installer `Aseprite-*.exe`.
+5. Finish the installation.
+6. Open Aseprite and follow the Quickstart above, using `aseprite-dmi-windows`.
+
+</details>
 
 ## Building the Project
 

@@ -4,14 +4,11 @@ DIRECTION_NAMES = { "South", "North", "East", "West", "Southeast", "Southwest", 
 DIALOG_NAME = "DMI Editor"
 TEMP_NAME = "aseprite-dmi"
 
-IS_POSIX = app.fs.pathSeparator == "/"
-IS_DARWIN = IS_POSIX and package.cpath:find("%.dylib") ~= nil
+DMI_LIB = app.os.windows and "dmi.dll"
+	or app.os.macos and "libdmi.dylib"
+	or "libdmi.so"
 
-DMI_LIB = not IS_POSIX and "dmi.dll"
-	 or IS_DARWIN and "libdmi.dylib"
-	 or "libdmi.so"
-
-TEMP_ROOT = IS_DARWIN and (os.getenv("TMPDIR") or app.fs.tempPath) or app.fs.tempPath
+TEMP_ROOT = app.os.macos and (os.getenv("TMPDIR") or app.fs.tempPath) or app.fs.tempPath
 TEMP_DIR = app.fs.joinPath(TEMP_ROOT, TEMP_NAME)
 
 COMMON_STATE = {
