@@ -24,11 +24,33 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
         lua.create_function(safe!(save_rgba_dmi_lua))?,
     )?;
     exports.set("read_dmi_png", lua.create_function(safe!(read_dmi_png))?)?;
+    exports.set("raw_open", lua.create_function(safe!(raw_open))?)?;
     exports.set(
-        "read_dmi_metadata",
-        lua.create_function(safe!(read_dmi_metadata_lua))?,
+        "encode_raw_session",
+        lua.create_function(safe!(encode_raw_session))?,
+    )?;
+    exports.set(
+        "decode_raw_session",
+        lua.create_function(safe!(decode_raw_session))?,
+    )?;
+    exports.set(
+        "has_raw_session",
+        lua.create_function(safe!(has_raw_session))?,
+    )?;
+    exports.set(
+        "save_frame_bytes",
+        lua.create_function(safe!(save_frame_bytes))?,
     )?;
     exports.set("new_state", lua.create_function(safe!(new_state))?)?;
+    exports.set(
+        "duplicate_state",
+        lua.create_function(safe!(duplicate_state))?,
+    )?;
+    exports.set("split_state", lua.create_function(safe!(split_state))?)?;
+    exports.set(
+        "combine_states",
+        lua.create_function(safe!(combine_states))?,
+    )?;
     exports.set("copy_states", lua.create_function(safe!(copy_states))?)?;
     exports.set("paste_states", lua.create_function(safe!(paste_states))?)?;
     exports.set("resize", lua.create_function(safe!(resize))?)?;
@@ -68,10 +90,14 @@ fn open_file(lua: &Lua, (filename, temp): (String, String)) -> LuaResult<LuaTabl
     Ok(table)
 }
 
-fn save_file(_: &Lua, (dmi, filename): (LuaTable, String)) -> LuaResult<LuaValue> {
-    let dmi = SerializedDmi::from_lua_table(dmi)?;
-    let dmi = Dmi::from_serialized(dmi)?;
-    dmi.save(filename)?;
+fn save_file(
+    _: &Lua,
+    (dmi, filename, black_near_transparent): (LuaTable, String, bool),
+) -> LuaResult<LuaValue> {
+    let options = SaveOptions {
+        black_near_transparent,
+    };
+    Dmi::save_serialized(&SerializedDmi::from_lua_table(dmi)?, filename, options)?;
 
     Ok(LuaValue::Nil)
 }
@@ -89,6 +115,53 @@ fn new_state(
     let table = state.into_lua_table(lua)?;
 
     Ok(table)
+}
+
+fn duplicate_state(lua: &Lua, (state, temp): (LuaTable, String)) -> LuaResult<LuaTable> {
+    SerializedState::from_lua_table(state)?
+        .duplicate(Path::new(&temp))?
+        .into_lua_table(lua)
+}
+
+fn split_state(lua: &Lua, (state, temp): (LuaTable, String)) -> LuaResult<Vec<LuaTable>> {
+    SerializedState::from_lua_table(state)?
+        .split(Path::new(&temp))?
+        .into_iter()
+        .map(|state| state.into_lua_table(lua))
+        .collect()
+}
+
+/// `layout` is "frames_first" or "directions_first".
+fn combine_states(
+    lua: &Lua,
+    (states, temp, name, layout, dirs, first_frame_only): (
+        Vec<LuaTable>,
+        String,
+        String,
+        String,
+        u32,
+        bool,
+    ),
+) -> LuaResult<LuaTable> {
+    let layout = match layout.as_str() {
+        "frames_first" => CombineLayout::FramesFirst,
+        "directions_first" => CombineLayout::DirectionsFirst,
+        _ => return Err(LuaError::external(format!("Unknown layout: {layout}"))),
+    };
+    let states = states
+        .into_iter()
+        .map(SerializedState::from_lua_table)
+        .collect::<LuaResult<Vec<_>>>()?;
+
+    SerializedState::combine(
+        &states,
+        Path::new(&temp),
+        name,
+        layout,
+        dirs,
+        first_frame_only,
+    )?
+    .into_lua_table(lua)
 }
 
 fn copy_states(_: &Lua, (states, temp): (Vec<LuaTable>, String)) -> LuaResult<LuaValue> {
@@ -158,7 +231,6 @@ fn resize(
 ) -> LuaResult<LuaValue> {
     let dmi = SerializedDmi::from_lua_table(dmi)?;
 
-    let temp = dmi.temp.clone();
     let method = match method.as_str() {
         "nearest" => image::imageops::FilterType::Nearest,
         "triangle" => image::imageops::FilterType::Triangle,
@@ -173,9 +245,7 @@ fn resize(
         }
     };
 
-    let mut dmi = Dmi::from_serialized(dmi)?;
-    dmi.resize(width, height, method);
-    dmi.to_serialized(temp, true)?;
+    Dmi::resize_serialized(&dmi, width, height, method)?;
 
     Ok(LuaValue::Nil)
 }
@@ -185,11 +255,7 @@ fn crop(
     (dmi, x, y, width, height): (LuaTable, u32, u32, u32, u32),
 ) -> LuaResult<LuaValue> {
     let dmi = SerializedDmi::from_lua_table(dmi)?;
-    let temp = dmi.temp.clone();
-
-    let mut dmi = Dmi::from_serialized(dmi)?;
-    dmi.crop(x, y, width, height);
-    dmi.to_serialized(temp, true)?;
+    Dmi::crop_serialized(&dmi, x, y, width, height)?;
 
     Ok(LuaValue::Nil)
 }
@@ -199,11 +265,7 @@ fn expand(
     (dmi, x, y, width, height): (LuaTable, u32, u32, u32, u32),
 ) -> LuaResult<LuaValue> {
     let dmi = SerializedDmi::from_lua_table(dmi)?;
-    let temp = dmi.temp.clone();
-
-    let mut dmi = Dmi::from_serialized(dmi)?;
-    dmi.expand(x, y, width, height);
-    dmi.to_serialized(temp, true)?;
+    Dmi::expand_serialized(&dmi, x, y, width, height)?;
 
     Ok(LuaValue::Nil)
 }
@@ -266,24 +328,61 @@ fn read_dmi_png(lua: &Lua, filename: String) -> LuaResult<LuaTable> {
 
 fn save_rgba_dmi_lua(
     _: &Lua,
-    (width, height, bytes, filename, metadata): (u32, u32, LuaString, String, String),
+    (width, height, bytes, filename, metadata, black_near_transparent): (
+        u32,
+        u32,
+        LuaString,
+        String,
+        String,
+        bool,
+    ),
 ) -> LuaResult<LuaValue> {
-    crate::dmi::save_rgba_dmi(width, height, &bytes.as_bytes(), filename, &metadata)?;
+    let options = SaveOptions {
+        black_near_transparent,
+    };
+    crate::dmi::save_rgba_dmi(
+        width,
+        height,
+        &bytes.as_bytes(),
+        filename,
+        &metadata,
+        options,
+    )?;
 
     Ok(LuaValue::Nil)
 }
 
-fn read_dmi_metadata_lua(lua: &Lua, filename: String) -> LuaResult<LuaTable> {
-    let metadata = crate::dmi::read_dmi_metadata(&filename)?;
-    let mut dmi = Dmi::new(String::new(), 0, 0);
-    dmi.set_metadata(&metadata)?;
+fn raw_open(lua: &Lua, (filename, temp): (String, String)) -> LuaResult<LuaTable> {
+    let (session, png) = RawSession::open(filename, temp)?;
 
     let table = lua.create_table()?;
-    table.set("metadata", metadata)?;
-    table.set("width", dmi.width)?;
-    table.set("height", dmi.height)?;
+    table.set("png", png.to_string_lossy().into_owned())?;
+    table.set("session", session.into_lua_table(lua)?)?;
 
     Ok(table)
+}
+
+fn encode_raw_session(_: &Lua, session: LuaTable) -> LuaResult<String> {
+    Ok(RawSession::from_lua_table(session)?.encode())
+}
+
+fn decode_raw_session(lua: &Lua, data: LuaString) -> LuaResult<Option<LuaTable>> {
+    RawSession::decode(&data.as_bytes())
+        .map(|session| session.into_lua_table(lua))
+        .transpose()
+}
+
+fn has_raw_session(_: &Lua, data: LuaString) -> LuaResult<bool> {
+    Ok(RawSession::is_marked(&data.as_bytes()))
+}
+
+fn save_frame_bytes(
+    _: &Lua,
+    (filename, width, height, bytes): (String, u32, u32, LuaString),
+) -> LuaResult<LuaValue> {
+    write_frame_bytes(filename, width, height, &bytes.as_bytes())?;
+
+    Ok(LuaValue::Nil)
 }
 
 fn exists(_: &Lua, path: String) -> LuaResult<bool> {
@@ -532,6 +631,33 @@ impl FromLuaTable for SerializedDmi {
             height,
             states,
             temp,
+        })
+    }
+}
+
+impl IntoLuaTable for RawSession {
+    fn into_lua_table(self, lua: &Lua) -> LuaResult<LuaTable> {
+        let table = lua.create_table()?;
+
+        table.set("original_width", self.original_width)?;
+        table.set("original_height", self.original_height)?;
+        table.set("cell_width", self.cell_width)?;
+        table.set("cell_height", self.cell_height)?;
+        table.set("metadata", self.metadata)?;
+
+        Ok(table)
+    }
+}
+
+impl FromLuaTable for RawSession {
+    type Result = RawSession;
+    fn from_lua_table(table: LuaTable) -> LuaResult<Self::Result> {
+        Ok(RawSession {
+            original_width: table.get("original_width")?,
+            original_height: table.get("original_height")?,
+            cell_width: table.get("cell_width")?,
+            cell_height: table.get("cell_height")?,
+            metadata: table.get("metadata")?,
         })
     }
 }

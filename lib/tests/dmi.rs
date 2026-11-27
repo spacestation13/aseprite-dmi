@@ -1,7 +1,7 @@
 use std::fs::{remove_dir_all, remove_file};
 use std::path::Path;
 
-use dmi::{Dmi, read_dmi_metadata, save_rgba_dmi};
+use dmi::{Dmi, SaveOptions, SerializedDmi, read_dmi_metadata, save_rgba_dmi};
 use image::{GenericImageView, ImageReader};
 
 #[test]
@@ -42,12 +42,21 @@ fn open_and_save() {
     let temp_dir = Path::new(env!("CARGO_TARGET_TMPDIR"));
     let temp_file = temp_dir.join("anomaly.dmi");
 
-    if let Err(e) = dmi.save(&temp_file) {
+    if let Err(e) = dmi.save(&temp_file, SaveOptions::default()) {
         let _ = remove_file(temp_file);
         panic!("{e:?}");
     }
 
-    let _ = remove_file(temp_file);
+    // 85 frames: a ragged last row of tiles, written one tile row at a time.
+    let saved = Dmi::open(&temp_file).unwrap();
+    let _ = remove_file(&temp_file);
+    assert_eq!(saved.states.len(), dmi.states.len());
+    for (a, b) in dmi.states.iter().zip(&saved.states) {
+        assert_eq!(a.name, b.name);
+        for (fa, fb) in a.frames.iter().zip(&b.frames) {
+            assert_eq!(fa.to_rgba8().as_raw(), fb.to_rgba8().as_raw(), "{}", a.name);
+        }
+    }
 }
 
 #[test]
@@ -63,7 +72,15 @@ fn raw_pixels_and_metadata_round_trip() {
     let bytes = image.into_rgba8().into_raw();
 
     let output = Path::new(env!("CARGO_TARGET_TMPDIR")).join("raw-round-trip.dmi");
-    save_rgba_dmi(width, height, &bytes, &output, &metadata).unwrap();
+    save_rgba_dmi(
+        width,
+        height,
+        &bytes,
+        &output,
+        &metadata,
+        SaveOptions::default(),
+    )
+    .unwrap();
 
     let reopened = Dmi::open(&output).unwrap();
     assert_eq!(read_dmi_metadata(&output).unwrap(), metadata);
@@ -136,4 +153,111 @@ fn serialize_and_deserialize() {
     let deserialized_delay = &deserialized_state.delays[0];
 
     assert_eq!(delay, deserialized_delay);
+}
+
+#[test]
+fn failed_save_keeps_existing_file() {
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let sample_file = manifest_dir.join("tests/assets/anomaly.dmi");
+    let target = std::env::temp_dir().join(format!("dmi-atomic-{}.dmi", std::process::id()));
+    std::fs::copy(&sample_file, &target).unwrap();
+    let before = std::fs::read(&target).unwrap();
+
+    let mut dmi = Dmi::open(&target).unwrap();
+    // The PNG encoder rejects a zero-width image.
+    dmi.width = 0;
+    assert!(dmi.save(&target, SaveOptions::default()).is_err());
+
+    assert_eq!(std::fs::read(&target).unwrap(), before);
+    assert!(Dmi::open(&target).is_ok());
+    remove_file(&target).unwrap();
+}
+
+#[cfg(windows)]
+#[test]
+fn save_works_while_another_program_has_the_file_open() {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_SHARE_READ: u32 = 1;
+    const FILE_SHARE_WRITE: u32 = 2;
+
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let sample_file = manifest_dir.join("tests/assets/anomaly.dmi");
+    let target = std::env::temp_dir().join(format!("dmi-locked-{}.dmi", std::process::id()));
+    std::fs::copy(&sample_file, &target).unwrap();
+
+    let mut dmi = Dmi::open(&target).unwrap();
+    dmi.states[0].name = "renamed".to_string();
+    {
+        // Like most Windows programs (and Python's open()), share read/write but not delete,
+        // so the file can't be replaced by a rename while this handle is open.
+        let _held = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+            .open(&target)
+            .unwrap();
+        dmi.save(&target, SaveOptions::default()).unwrap();
+    }
+    assert_eq!(Dmi::open(&target).unwrap().states[0].name, "renamed");
+    remove_file(&target).unwrap();
+}
+
+#[test]
+fn save_from_frame_cache_matches_in_memory_save() {
+    let dmi = Dmi::open("tests/assets/anomaly.dmi").unwrap();
+    let temp_dir = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    let serialized = dmi
+        .to_serialized(temp_dir.join("save-cache"), false)
+        .unwrap();
+    let streamed = temp_dir.join("streamed.dmi");
+    let in_memory = temp_dir.join("in_memory.dmi");
+
+    let result = Dmi::save_serialized(&serialized, &streamed, SaveOptions::default())
+        .and_then(|()| dmi.save(&in_memory, SaveOptions::default()));
+    let _ = remove_dir_all(&serialized.temp);
+    result.unwrap();
+
+    assert_eq!(
+        std::fs::read(&streamed).unwrap(),
+        std::fs::read(&in_memory).unwrap()
+    );
+    let _ = remove_file(streamed);
+    let _ = remove_file(in_memory);
+}
+
+#[test]
+fn resize_crop_expand_rewrite_the_frame_cache() {
+    let dmi = Dmi::open("tests/assets/anomaly.dmi").unwrap();
+    let temp_dir = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    // Its own directory: tests sharing one would race over the same cache folder.
+    let serialized = dmi
+        .to_serialized(temp_dir.join("edit-cache"), false)
+        .unwrap();
+    let frame_dims = |w: u32, h: u32| {
+        let saved = Dmi::from_serialized(SerializedDmi {
+            name: serialized.name.clone(),
+            width: w,
+            height: h,
+            states: serialized.states.clone(),
+            temp: serialized.temp.clone(),
+        })
+        .unwrap();
+        saved.states[0].frames[0].to_rgba8()
+    };
+
+    let result = std::panic::catch_unwind(|| {
+        Dmi::expand_serialized(&serialized, 2, 3, 40, 50).unwrap();
+        let expanded = frame_dims(40, 50);
+        assert_eq!(expanded.dimensions(), (40, 50));
+        let original = dmi.states[0].frames[0].to_rgba8();
+        assert_eq!(expanded.get_pixel(2, 3), original.get_pixel(0, 0));
+        assert_eq!(expanded.get_pixel(0, 0)[3], 0);
+
+        Dmi::crop_serialized(&serialized, 2, 3, 32, 32).unwrap();
+        assert_eq!(frame_dims(32, 32), original);
+
+        Dmi::resize_serialized(&serialized, 16, 16, image::imageops::FilterType::Nearest).unwrap();
+        assert_eq!(frame_dims(16, 16).dimensions(), (16, 16));
+    });
+    let _ = remove_dir_all(&serialized.temp);
+    result.unwrap();
 }

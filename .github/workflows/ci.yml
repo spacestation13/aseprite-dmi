@@ -89,7 +89,7 @@ jobs:
       - name: Run cargo tests
         working-directory: lib
         run: |
-          cargo test --target ${{ matrix.rust-target }} --locked --test dmi
+          cargo test --target ${{ matrix.rust-target }} --locked
 
       - name: Run cargo build
         working-directory: lib

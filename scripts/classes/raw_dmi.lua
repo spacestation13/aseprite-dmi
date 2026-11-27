@@ -4,67 +4,28 @@ RawDmi = {
 	plugin_path = nil,
 }
 
-local RAW_DMI_MARKER = "\n__aseprite_dmi_raw__\n"
-local RAW_DMI_SESSION_PREFIX = RAW_DMI_MARKER .. "v1\n"
-
---- @param session table
---- @return string
-local function serialize_session(session)
-	return RAW_DMI_SESSION_PREFIX
-		.. session.original_width .. "\n"
-		.. session.original_height .. "\n"
-		.. session.cell_width .. "\n"
-		.. session.cell_height .. "\n"
-		.. #session.metadata .. "\n"
-		.. session.metadata
-end
-
 --- @param sprite Sprite|nil
---- @return table|nil
+--- @return RawDmiSession|nil
 local function read_session(sprite)
-	if sprite == nil or type(sprite.data) ~= "string" then
+	if libdmi == nil or sprite == nil or type(sprite.data) ~= "string" then
 		return nil
 	end
 
-	local prefix_start = sprite.data:find(RAW_DMI_SESSION_PREFIX, 1, true)
-	if prefix_start == nil then
-		return nil
-	end
-
-	local record = sprite.data:sub(prefix_start + #RAW_DMI_SESSION_PREFIX)
-	local original_width, original_height, cell_width, cell_height, metadata_length, metadata_start = record:match(
-		"^(%d+)\n(%d+)\n(%d+)\n(%d+)\n(%d+)\n()"
-	)
-	if metadata_start == nil then
-		return nil
-	end
-
-	metadata_length = tonumber(metadata_length)
-	local metadata_end = metadata_start + metadata_length - 1
-	if #record < metadata_end then
-		return nil
-	end
-
-	return {
-		original_width = tonumber(original_width),
-		original_height = tonumber(original_height),
-		cell_width = tonumber(cell_width),
-		cell_height = tonumber(cell_height),
-		metadata = record:sub(metadata_start, metadata_end),
-	}
+	return libdmi.decode_raw_session(sprite.data)
 end
 
 --- @param sprite Sprite|nil
 --- @return boolean
 local function has_raw_marker(sprite)
-	return sprite ~= nil
+	return libdmi ~= nil
+		and sprite ~= nil
 		and type(sprite.data) == "string"
-		and sprite.data:find(RAW_DMI_MARKER, 1, true) ~= nil
+		and libdmi.has_raw_session(sprite.data) == true
 end
 
 --- Marks a sprite as a raw DMI spritesheet for later saves.
 --- @param sprite Sprite|nil
---- @param session table
+--- @param session RawDmiSession
 local function mark_raw_sprite(sprite, session)
 	if not sprite or not session then
 		return
@@ -73,8 +34,10 @@ local function mark_raw_sprite(sprite, session)
 	RawDmi.sprites[sprite] = true
 	RawDmi.sessions[sprite] = session
 
-	local data = sprite.data or ""
-	sprite.data = data .. serialize_session(session)
+	local record = libdmi.encode_raw_session(session)
+	if record then
+		sprite.data = (sprite.data or "") .. record
+	end
 end
 
 --- Stores plugin path so raw DMI helpers can load the native library on demand.
@@ -136,7 +99,8 @@ function RawDmi.save(sprite, filename)
 		image.height,
 		image.bytes,
 		filename,
-		session.metadata
+		session.metadata,
+		Preferences.getBlackNearTransparent()
 	)
 	if save_error then
 		app.alert { title = DIALOG_NAME, text = "Failed to save DMI: " .. save_error }
@@ -146,52 +110,38 @@ function RawDmi.save(sprite, filename)
 	return true
 end
 
---- Starts raw DMI open flow. Opens a file dialog, loads the selected .dmi
---- file using Aseprite's native PNG loader (bypasses our format handler to
---- avoid OOM on large files), and marks the sprite as raw.
+--- Starts raw DMI open flow: picks a .dmi file and opens it with `RawDmi.open_file`.
 function RawDmi.open()
 	local dmi_path = libdmi.open_dialog("Open DMI", app.fs.userDocsPath, "dmi")
 	if not dmi_path or #dmi_path == 0 or not app.fs.isFile(dmi_path) then
 		return
 	end
 
-	local dmi_metadata, metadata_error = libdmi.read_dmi_metadata(dmi_path)
-	if not dmi_metadata then
+	RawDmi.open_file(dmi_path)
+end
+
+--- Opens a .dmi file as a spritesheet using Aseprite's native PNG loader (bypasses our
+--- format handler to avoid OOM on large files), and marks the sprite as raw.
+--- @param dmi_path string
+--- @return Sprite|nil sprite
+function RawDmi.open_file(dmi_path)
+	-- DMI files are PNG files. libdmi copies it to a .png temp path so Aseprite's
+	-- native PNG loader handles decompression (streaming, memory-efficient).
+	local opened, open_error = libdmi.raw_open(dmi_path, TEMP_DIR)
+	if not opened then
 		app.alert {
 			title = DIALOG_NAME,
-			text = "Failed to read DMI metadata: " .. (metadata_error or "unknown error"),
+			text = "Failed to open DMI: " .. (open_error or "unknown error"),
 		}
-		return
+		return nil
 	end
 
-	-- DMI files are PNG files. Copy to a .png temp path so Aseprite's
-	-- native PNG loader handles decompression (streaming, memory-efficient).
-	local temp_path = app.fs.joinPath(TEMP_DIR, "raw_open.png")
-	app.fs.makeDirectory(TEMP_DIR)
-
-	local fin = io.open(dmi_path, "rb")
-	if not fin then
-		app.alert { title = DIALOG_NAME, text = "Failed to open file: " .. dmi_path }
-		return
-	end
-	local data = fin:read("*a")
-	fin:close()
-
-	local fout = io.open(temp_path, "wb")
-	if not fout then
-		app.alert { title = DIALOG_NAME, text = "Failed to create temp file" }
-		return
-	end
-	fout:write(data)
-	fout:close()
-
-	-- Open as .png (uses native PNG loader, no Lua byte buffer overhead)
-	local sprite = app.open(temp_path)
-	os.remove(temp_path)
+	local sprite = app.open(opened.png)
+	os.remove(opened.png)
 
 	if not sprite then
 		app.alert { title = DIALOG_NAME, text = "Failed to open DMI spritesheet" }
-		return
+		return nil
 	end
 
 	if sprite.colorMode ~= ColorMode.RGB then
@@ -200,19 +150,15 @@ function RawDmi.open()
 
 	-- Restore the original .dmi filename so saves go through our onsave handler
 	sprite.filename = dmi_path
-	mark_raw_sprite(sprite, {
-		original_width = sprite.width,
-		original_height = sprite.height,
-		cell_width = dmi_metadata.width,
-		cell_height = dmi_metadata.height,
-		metadata = dmi_metadata.metadata,
-	})
+	local session = opened.session
+	mark_raw_sprite(sprite, session)
 	sprite.gridBounds = Rectangle {
 		x = 0,
 		y = 0,
-		width = dmi_metadata.width,
-		height = dmi_metadata.height,
+		width = session.cell_width,
+		height = session.cell_height,
 	}
+	return sprite
 end
 
 --- Clears raw DMI state for sprite being closed.

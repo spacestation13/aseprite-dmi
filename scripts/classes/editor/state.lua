@@ -426,21 +426,6 @@ function Editor:set_state_dirs(state, directions)
 	end
 end
 
-State = {}
-
---- Copies the editable properties of one state to another.
---- @param destination State
---- @param source State
-function State.copy_properties(destination, source)
-	destination.dirs = source.dirs
-	destination.frame_count = source.frame_count
-	destination.delays = table.clone(source.delays)
-	destination.loop = source.loop
-	destination.rewind = source.rewind
-	destination.movement = source.movement
-	destination.hotspots = table.clone(source.hotspots or {})
-end
-
 -- Creates a new state for the editor.
 function Editor:new_state()
 	if not self.dmi then return end

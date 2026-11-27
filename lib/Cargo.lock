@@ -57,6 +57,7 @@ dependencies = [
  "arboard",
  "base64",
  "cc",
+ "flate2",
  "image",
  "mlua",
  "native-dialog",

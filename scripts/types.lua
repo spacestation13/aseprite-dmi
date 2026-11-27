@@ -803,9 +803,13 @@ Version = nil
 --- @class LibDmi: table
 --- @field new_file fun(name: string, width: number, height: number, temp: string): Dmi?, string? Creates a new DMI file. If fails, returns nil and an error message.
 --- @field open_file fun(path: string, temp: string): Dmi?, string? Opens a DMI file. If fails, returns nil and an error message.
---- @field save_file fun(dmi: Dmi, filename: string): nil, string? Saves the DMI file. If fails, returns an error message.
+--- @field save_file fun(dmi: Dmi, filename: string, black_near_transparent: boolean): nil, string? Saves the DMI file, optionally writing alpha 0 and 1 pixels as black. If fails, returns an error message.
 --- @field import_png fun(dmi: Dmi, filename: string): Dmi?, string? Imports a PNG file into the DMI editor. If fails, returns nil and an error message.
 --- @field new_state fun(width: number, height: number, temp: string, name?: string): State?, string? Creates a new state. If fails, returns nil and an error message.
+--- @field duplicate_state fun(state: State, temp: string): State?, string? Copies a state and its frame images. If fails, returns nil and an error message.
+--- @field split_state fun(state: State, temp: string): State[]?, string? Makes one single-direction state per direction of the state. If fails, returns nil and an error message.
+--- @field combine_states fun(states: State[], temp: string, name: string, layout: "frames_first"|"directions_first", dirs: number, first_frame_only: boolean): State?, string? Combines states into a new one (see `COMBINE_LAYOUTS`). If fails, returns nil and an error message.
+--- @field save_frame_bytes fun(filename: string, width: number, height: number, bytes: string): nil, string? Writes a state frame image (RGBA bytes) to the temp directory. If fails, returns an error message.
 --- @field copy_states fun(states: State[], temp: string): nil, string? Copies one or more states to the clipboard. If fails, returns an error message.
 --- @field paste_states fun(width: number, height: number, temp: string): State[]?, string? Pastes states from the clipboard. If fails, returns nil and an error message.
 --- @field resize fun(dmi: Dmi, width: number, height: number, medhod: string): nil, string? Resizes the DMI file. If fails, returns an error message.
@@ -813,9 +817,12 @@ Version = nil
 --- @field expand fun(dmi: Dmi, x: number, y: number, width: number, height: number): nil, string? Expands the DMI file size. If fails, returns an error message.
 --- @field overlay_color fun(r: number, g: number, b: number, width: number, height: number, bytes: string): string|nil Overlays the given bytes of an image on a plain color.
 --- @field remove_dir fun(path: string, soft: boolean): nil, string? Removes a directory. If fails, returns an error message.
---- @field save_rgba_dmi fun(width: number, height: number, bytes: string, filename: string, metadata: string): nil, string? Saves an RGBA byte buffer as a DMI PNG with the supplied zTXt metadata. If fails, returns an error message.
+--- @field save_rgba_dmi fun(width: number, height: number, bytes: string, filename: string, metadata: string, black_near_transparent: boolean): nil, string? Saves an RGBA byte buffer as a DMI PNG with the supplied zTXt metadata, optionally writing alpha 0 and 1 pixels as black. If fails, returns an error message.
 --- @field read_dmi_png fun(filename: string): {width: number, height: number, bytes: string}, string? Reads a DMI file and returns its dimensions and raw RGBA bytes.
---- @field read_dmi_metadata fun(filename: string): {metadata: string, width: number, height: number}?, string? Reads validated DMI zTXt metadata and cell dimensions.
+--- @field raw_open fun(filename: string, temp: string): {png: string, session: RawDmiSession}?, string? Reads a DMI's raw session and copies it to a temporary .png. If fails, returns nil and an error message.
+--- @field encode_raw_session fun(session: RawDmiSession): string?, string? The record that stores a raw DMI session in sprite data.
+--- @field decode_raw_session fun(data: string): RawDmiSession?, string? The raw DMI session stored in sprite data, or nil.
+--- @field has_raw_session fun(data: string): boolean?, string? Whether sprite data marks a raw DMI sprite, even with an unreadable session.
 --- @field exists fun(path: string): boolean Returns true if the path points at an existing entity.
 --- @field check_update fun(): boolean? Starts a background update check; returns nil until it finishes, then true if an update is available.
 --- @field instances fun(): number?, string? Return the number of Aseprite instances running.
@@ -829,6 +836,13 @@ Version = nil
 --- @field height number The height of the DMI file.
 --- @field states (State)[] The states of the DMI file.
 --- @field temp string The temporary directory where images of states are stored.
+
+--- @class RawDmiSession: table
+--- @field original_width number The width of the DMI image.
+--- @field original_height number The height of the DMI image.
+--- @field cell_width number The icon width from the metadata.
+--- @field cell_height number The icon height from the metadata.
+--- @field metadata string The DMI metadata, saved back unchanged.
 
 --- @class Timer
 --- @field interval number Seconds between ticks.
