@@ -147,8 +147,8 @@ fn failed_save_keeps_existing_file() {
     let before = std::fs::read(&target).unwrap();
 
     let mut dmi = Dmi::open(&target).unwrap();
-    // zTXt metadata must be Latin-1; this name makes the encoder fail.
-    dmi.states[0].name = "ok\u{2014}dash".to_string();
+    // The PNG encoder rejects a zero-width image.
+    dmi.width = 0;
     assert!(dmi.save(&target).is_err());
 
     assert_eq!(std::fs::read(&target).unwrap(), before);

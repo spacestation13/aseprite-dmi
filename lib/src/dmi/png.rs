@@ -1,10 +1,15 @@
+use flate2::{Compression as ZlibCompression, write::ZlibEncoder};
 use png::{Compression, Decoder, Encoder};
 use std::fs::{File, create_dir_all};
-use std::io::BufReader;
+use std::io::{BufReader, Write as _};
 use std::path::Path;
 
 use super::{DmiError, DmiResult};
 
+const METADATA_KEYWORD: &[u8] = b"Description";
+
+/// Reads the zTXt metadata. BYOND 516 writes it as UTF-8; files whose text isn't valid UTF-8
+/// are legacy Latin-1.
 pub fn read_dmi_metadata<P>(path: P) -> DmiResult<String>
 where
     P: AsRef<Path>,
@@ -17,7 +22,27 @@ where
         .first()
         .ok_or(DmiError::MissingZTXTChunk)?;
 
-    Ok(chunk.get_text()?)
+    // The png crate decodes every byte as Latin-1, one char per byte, so this recovers the bytes.
+    let latin1 = chunk.get_text()?;
+    let utf8 = latin1
+        .chars()
+        .map(u8::try_from)
+        .collect::<Result<Vec<_>, _>>()
+        .ok()
+        .and_then(|bytes| String::from_utf8(bytes).ok());
+    Ok(utf8.unwrap_or(latin1))
+}
+
+/// The zTXt "Description" chunk with UTF-8 text, as BYOND 516 writes it. The png crate only
+/// writes Latin-1. ASCII text gives the same bytes as the png crate.
+fn metadata_chunk(metadata: &str) -> DmiResult<Vec<u8>> {
+    let mut data = Vec::with_capacity(METADATA_KEYWORD.len() + 2 + metadata.len() / 2);
+    data.extend_from_slice(METADATA_KEYWORD);
+    // Keyword terminator, then compression method 0 (zlib).
+    data.extend_from_slice(&[0, 0]);
+    let mut encoder = ZlibEncoder::new(data, ZlibCompression::fast());
+    encoder.write_all(metadata.as_bytes())?;
+    Ok(encoder.finish()?)
 }
 
 pub fn save_rgba_dmi<P>(
@@ -54,14 +79,16 @@ where
     P: AsRef<Path>,
 {
     let path = path.as_ref();
+    let metadata = metadata_chunk(metadata)?;
     let mut encoded = Vec::new();
     {
         let mut encoder = Encoder::new(&mut encoded, width, height);
         encoder.set_compression(Compression::High);
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
-        encoder.add_ztxt_chunk("Description".to_string(), metadata.to_string())?;
         let mut writer = encoder.write_header()?;
+        // Right after IHDR, where the png crate puts text chunks added to the encoder.
+        writer.write_chunk(png::chunk::zTXt, &metadata)?;
         writer.write_image_data(bytes)?;
         writer.finish()?;
     }
