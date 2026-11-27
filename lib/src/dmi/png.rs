@@ -1,6 +1,6 @@
 use png::{Compression, Decoder, Encoder};
 use std::fs::{File, create_dir_all};
-use std::io::{BufReader, BufWriter};
+use std::io::BufReader;
 use std::path::Path;
 
 use super::{DmiError, DmiResult};
@@ -41,6 +41,8 @@ where
     write_dmi_png(width, height, bytes, path, metadata)
 }
 
+/// Encodes the PNG in memory and replaces `path` through a temporary file in the same directory,
+/// so a failed encode or write never truncates or corrupts an existing file.
 pub(super) fn write_dmi_png<P>(
     width: u32,
     height: u32,
@@ -51,21 +53,31 @@ pub(super) fn write_dmi_png<P>(
 where
     P: AsRef<Path>,
 {
-    if let Some(parent) = path.as_ref().parent()
+    let path = path.as_ref();
+    let mut encoded = Vec::new();
+    {
+        let mut encoder = Encoder::new(&mut encoded, width, height);
+        encoder.set_compression(Compression::High);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder.add_ztxt_chunk("Description".to_string(), metadata.to_string())?;
+        let mut writer = encoder.write_header()?;
+        writer.write_image_data(bytes)?;
+        writer.finish()?;
+    }
+
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
         && !parent.exists()
     {
         create_dir_all(parent)?;
     }
-
-    let mut file = BufWriter::new(File::create(path)?);
-    let mut encoder = Encoder::new(&mut file, width, height);
-    encoder.set_compression(Compression::High);
-    encoder.set_color(png::ColorType::Rgba);
-    encoder.set_depth(png::BitDepth::Eight);
-    encoder.add_ztxt_chunk("Description".to_string(), metadata.to_string())?;
-
-    let mut writer = encoder.write_header()?;
-    writer.write_image_data(bytes)?;
-
-    Ok(())
+    let mut temp = path.as_os_str().to_owned();
+    temp.push(format!(".{}.tmp", std::process::id()));
+    let temp = Path::new(&temp);
+    let result = std::fs::write(temp, &encoded).and_then(|()| std::fs::rename(temp, path));
+    if result.is_err() {
+        let _ = std::fs::remove_file(temp);
+    }
+    Ok(result?)
 }
