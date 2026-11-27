@@ -289,6 +289,8 @@ function Editor:close(event, force)
 	self.open_sprites = nil
 	self.animation_timer = nil
 	self.animation_running = false
+	self:reset_typeahead()
+	if self.find_dialog then self.find_dialog:close() end
 
 	return true
 end

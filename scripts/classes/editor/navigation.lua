@@ -113,20 +113,16 @@ function EditorNav.find_all(names, query)
 	return result
 end
 
---- Type-ahead step: appends `char` to the buffer (reset after the timeout) and finds the match.
+--- Type-ahead step: appends `char` to the buffer and finds the match.
+--- The caller empties the buffer once the user pauses for EditorNav.TYPEAHEAD_TIMEOUT.
 --- Repeating one character ("t", "t", "t") cycles through the states starting with it.
---- @param buffer string Current buffer.
---- @param last_time number|nil Time of the previous keystroke.
---- @param now number Current time (seconds).
+--- @param buffer string Current buffer ("" after a pause).
 --- @param char string Typed character.
 --- @param names string[] State names.
 --- @param current number|nil Currently selected index.
 --- @return string buffer New buffer.
 --- @return number|nil index Matching index.
-function EditorNav.typeahead(buffer, last_time, now, char, names, current)
-	if not last_time or now - last_time > EditorNav.TYPEAHEAD_TIMEOUT then
-		buffer = ""
-	end
+function EditorNav.typeahead(buffer, char, names, current)
 	buffer = buffer .. char
 	current = current or 0
 	local lower = buffer:lower()
@@ -245,7 +241,7 @@ function Editor:handle_navigation_key(ev)
 	if not self.dmi or self.loading or self.context_widget then return false end
 	local code = ev.code
 
-	if ev.ctrlKey and code == "KeyF" then
+	if (ev.ctrlKey and code == "KeyF") or (ev.key == "/" and not ev.ctrlKey) then
 		self:open_find_dialog()
 		return true
 	end
@@ -259,19 +255,22 @@ function Editor:handle_navigation_key(ev)
 	end
 	if ev.ctrlKey or ev.altKey or ev.metaKey then return false end
 
+	-- Keys the grid owns are always consumed while the canvas has focus, so Aseprite's own
+	-- shortcuts (Delete = clear, arrows = move selection/frames, Enter...) never hit the active sprite.
 	local index = EditorNav.move(self:cursor_index(), #self.dmi.states, self.max_in_a_row, self.max_in_a_column, code)
 	if index then
 		self:select_index(index, ev.shiftKey)
 		return true
 	end
+	if EditorNav.move(1, 1, 1, 1, code) then return true end -- navigation key on an empty grid
 
 	if code == "Enter" or code == "NumpadEnter" then
 		local state = self.dmi.states[self:cursor_index() or 0]
 		if state then self:open_state(state) end
-		return state ~= nil
+		return true
 	elseif code == "Delete" then
 		local count = #self.selected_states
-		if count == 0 then return false end
+		if count == 0 then return true end
 		local text = count == 1
 			and ("Remove state \"" .. self.selected_states[1].name .. "\"?")
 			or ("Remove " .. count .. " selected states?")
@@ -280,21 +279,37 @@ function Editor:handle_navigation_key(ev)
 		end
 		return true
 	elseif code == "Escape" then
-		if #self.selected_states == 0 then return false end
+		if #self.selected_states == 0 then return false end -- keep Esc's default (close the dialog)
 		self.selected_states = {}
-		self.typeahead_buffer = ""
+		self:reset_typeahead()
 		self:repaint()
 		return true
 	end
 
 	local char = ev.key
 	if char and #char == 1 and char:match("[%w_%-%. ]") and not (char == " " and (self.typeahead_buffer or "") == "") then
-		local buffer, found = EditorNav.typeahead(self.typeahead_buffer or "", self.typeahead_time, os.clock(), char,
-			self:state_names(), self:cursor_index())
+		local buffer, found = EditorNav.typeahead(self.typeahead_buffer or "", char, self:state_names(), self:cursor_index())
 		self.typeahead_buffer = buffer
-		self.typeahead_time = os.clock()
+		self:restart_typeahead_timer()
 		if found then self:select_index(found) end
 		return true
 	end
 	return false
+end
+
+function Editor:reset_typeahead()
+	self.typeahead_buffer = ""
+	if self.typeahead_timer then self.typeahead_timer:stop() end
+end
+
+--- (Re)starts the one-shot timer that empties the type-ahead buffer after a pause.
+function Editor:restart_typeahead_timer()
+	if not self.typeahead_timer then
+		self.typeahead_timer = Timer {
+			interval = EditorNav.TYPEAHEAD_TIMEOUT,
+			ontick = function() self:reset_typeahead() end
+		}
+	end
+	self.typeahead_timer:stop()
+	self.typeahead_timer:start()
 end

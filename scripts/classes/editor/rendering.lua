@@ -485,6 +485,7 @@ function Editor:onmouseup(ev)
 					local buttonsToAdd = {
 						{ text = "Paste",  onclick = function() self:clipboard_paste_state() end },
 						{ text = "Import", onclick = function() self:import_png() end },
+						{ text = "Find...", onclick = function() self:open_find_dialog() end },
 					}
 					if #self.selected_states > 1 then
 						table.insert(buttonsToAdd,
