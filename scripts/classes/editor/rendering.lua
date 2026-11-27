@@ -257,8 +257,8 @@ function Editor:onpaint(ctx)
 end
 
 --- Repaints the states in the editor.
---- Creates state widgets for each state in the DMI file and positions them accordingly.
---- Only creates state widgets for states that are currently visible based on the scroll position.
+--- Creates state widgets for the visible states (see Editor:visible_states) and positions them by slot.
+--- Only creates state widgets for slots that are currently visible based on the scroll position.
 --- Calls the repaint function to update the editor display.
 function Editor:repaint_states()
 	self:update_title()
@@ -270,10 +270,15 @@ function Editor:repaint_states()
 	end
 
 	local preview_width, preview_height = self:preview_dimensions()
-	local duplicates = {}
+	-- A name is a duplicate on every state after the first one using it, hidden or not.
+	local first_named = {}
+	for _, state in ipairs(self.dmi.states) do
+		first_named[state.name] = first_named[state.name] or state
+	end
+	local states = self:visible_states()
 	local min_index = (self.max_in_a_row * self.scroll)
 	local max_index = min_index + self.max_in_a_row * (self.max_in_a_column + 1)
-	for index, state in ipairs(self.dmi.states) do
+	for index, state in ipairs(states) do
 		-- TODO: fix bug here and in box_bounds below where you can have
 		-- index = 7, min_index = 9, max_index = 10, max_in_a_row = 9
 		-- and we don't render anything despite there being no more
@@ -286,15 +291,8 @@ function Editor:repaint_states()
 				text_color = Color { red = 205, green = 55, blue = 55, alpha = 255 }
 			end
 
-			if duplicates[state.name] then
+			if first_named[state.name] ~= state then
 				text_color = Color { red = 230, green = 69, blue = 69, alpha = 255 }
-			else
-				for _, state_ in ipairs(self.dmi.states) do
-					if state.name == state_.name then
-						duplicates[state.name] = true
-						break
-					end
-				end
 			end
 
 			self.image_cache:ensure_state(self.dmi, state)
@@ -340,8 +338,8 @@ function Editor:repaint_states()
 		end
 	end
 
-	if #self.dmi.states < max_index then
-		local index = #self.dmi.states + 1
+	if #states < max_index then
+		local index = #states + 1
 		local bounds = self:box_bounds(index)
 
 		table.insert(self.widgets, ThemeWidget.new(
@@ -514,24 +512,14 @@ function Editor:onmouseup(ev)
 		end
 		-- Add logic to finalize drag-and-drop or click actions
 		if ev.button == MouseButton.LEFT then
+			-- Drag-reorder only starts unfiltered (see onmousemove), where slots are DMI indices.
 			if self.dragging and self.drag_widget and self.drop_index and self.dmi then
-				-- Find source state index using widget index and scroll offset
-				local source_index = nil
-				local min_index = self.max_in_a_row * self.scroll
-
-				for i, widget in ipairs(self.widgets) do
-					if widget == self.drag_widget then
-						-- Calculate actual state index from widget position
-						local widget_pos = math.floor((i - 1) / 2) + 1 -- Account for text widgets
-						source_index = widget_pos + min_index
-						break
-					end
-				end
+				local source_index = table.index_of(self.dmi.states, self.drag_widget.iconstate)
 
 				-- Ensure we don't drop past the last valid position
 				local target_index = math.min(self.drop_index or #self.dmi.states, #self.dmi.states)
 
-				if source_index and source_index <= #self.dmi.states then
+				if source_index > 0 then
 					-- Only move if target is different and valid
 					if source_index ~= target_index then
 						local state = table.remove(self.dmi.states, source_index)
@@ -585,8 +573,8 @@ function Editor:onmousemove(ev)
 		end
 	end
 
-	-- Handle dragging
-	if (ev.button == MouseButton.LEFT) and self.drag_widget and not self.dragging then
+	-- Handle dragging. Not while the Find filter is on: reordering a subset of the states is ambiguous.
+	if (ev.button == MouseButton.LEFT) and self.drag_widget and not self.dragging and self.filter_query == "" then
 		-- Start drag after small delay/movement
 		if os.clock() - self.drag_start_time > 0.1 then
 			self.dragging = true
@@ -693,7 +681,7 @@ function Editor:onwheel(ev)
 	end
 
 	-- Normal wheel: scroll
-	local max_scroll = EditorNav.max_scroll(#self.dmi.states, self.max_in_a_row, self.max_in_a_column)
+	local max_scroll = EditorNav.max_scroll(#self:visible_states(), self.max_in_a_row, self.max_in_a_column)
 	if max_scroll <= 0 then return end
 
 	local new_scroll = math.min(math.max(self.scroll + (ev.deltaY > 0 and 1 or -1), 0), max_scroll)

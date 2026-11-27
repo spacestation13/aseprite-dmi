@@ -15,6 +15,8 @@
 --- @field open_sprites (StateSprite)[] A table containing all open sprites.
 --- @field widgets (AnyWidget)[] A table containing all state widgets.
 --- @field selected_states State[] Selected icon widgets to possibly combine.
+--- @field filter_query string Find filter: the grid shows only states whose name contains it ("" shows all).
+--- @field filter_keep table<State, true> States created or renamed while filtered, shown whatever their name.
 --- @field context_widget ContextWidget|nil The state that is currently being right clicked
 --- @field dialog Dialog The dialog object.
 --- @field save_path string|nil The path of the file to be saved.
@@ -51,6 +53,8 @@ function Editor.new(title, dmi)
 	self.open_sprites     = {}
 	self.widgets          = {}
 	self.selected_states  = {}
+	self.filter_query     = ""
+	self.filter_keep      = {}
 	self.context_widget   = nil
 	self.save_path        = nil
 	self.open_path        = is_filename and dmi --[[@as string]] or nil
@@ -168,6 +172,8 @@ function Editor:update_title()
 		else
 			title = string.format("%s (%dx%d)", name, self.dmi.width, self.dmi.height)
 		end
+		local status = self:filter_status()
+		if status ~= "" then title = title .. " - " .. status end
 	end
 
 	self.title = title

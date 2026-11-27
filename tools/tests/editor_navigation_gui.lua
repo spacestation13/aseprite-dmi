@@ -14,12 +14,6 @@ local function key(editor, code, char, mods)
 	return ev.stopped
 end
 
-local function selected_names(editor)
-	local names = {}
-	for _, s in ipairs(editor.selected_states) do table.insert(names, s.name) end
-	return names
-end
-
 T.wait_until(function() return libdmi and open_editors end, function()
 	app.command.OpenFile { filename = path }
 	T.wait_until(function()
@@ -67,10 +61,15 @@ T.wait_until(function() return libdmi and open_editors end, function()
 			local fb = editor.find_dialog.bounds
 			T.detail("find_bounds", tostring(fb))
 			T.ok(fb.x >= 0 and fb.x + fb.width <= eb.x, "Find left of an editor at the right edge")
-			local count = editor:find_states("a")
-			T.eq(count, #EditorNav.find_all(names, "a"), "find selects matches")
-			T.eq(#editor.selected_states, count, "matches selected")
-			T.detail("selected", table.concat(selected_names(editor), ","))
+			editor:set_filter("a")
+			local expected = {}
+			for _, name in ipairs(names) do
+				if name:lower():find("a", 1, true) then table.insert(expected, name) end
+			end
+			T.eq(editor:state_names(), expected, "find filters the grid")
+			T.detail("shown", table.concat(editor:state_names(), ","))
+			editor.find_dialog:close()
+			T.eq(#editor:visible_states(), #names, "closing Find restores the grid")
 			T.after(1, T.done)
 		end)
 	end, { what = "DMI Editor to open" })

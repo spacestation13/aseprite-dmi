@@ -308,6 +308,7 @@ function Editor:state_properties(state)
 			local state_name = dialog.data.state_name
 			if type(state_name) == "string" and state.name ~= state_name then
 				state.name = state_name
+				self:keep_visible(state)
 				self:repaint_states()
 			end
 			local direction = tonumber(dialog.data.state_directions)
@@ -434,6 +435,7 @@ function Editor:new_state()
 	if not error then
 		self.modified = true
 		table.insert(self.dmi.states, state)
+		self:keep_visible(state)
 		self.image_cache:load_state(self.dmi, state --[[@as State]])
 		self:repaint_states()
 		self:gc_open_sprites()
@@ -516,6 +518,7 @@ function Editor:clipboard_paste_state()
 		self.modified = true
 		for _, state in ipairs(states) do
 			table.insert(self.dmi.states, state)
+			self:keep_visible(state)
 			self.image_cache:load_state(self.dmi, state)
 		end
 		self:repaint_states()

@@ -99,18 +99,22 @@ function EditorNav.find_next(names, query, from)
 	return nil
 end
 
---- All indices whose name contains `query` (case-insensitive).
---- @return number[]
-function EditorNav.find_all(names, query)
-	local result = {}
-	if query == "" then return result end
+--- The grid's slots: the states whose name contains `query` (case-insensitive) or that are in
+--- `keep`, in DMI order. An empty query shows every state (`states` itself, not a copy).
+--- @param states State[]
+--- @param query string
+--- @param keep table<State, true>|nil States shown whatever their name.
+--- @return State[]
+function EditorNav.filter(states, query, keep)
+	if query == "" then return states end
 	query = query:lower()
-	for i, name in ipairs(names) do
-		if name:lower():find(query, 1, true) then
-			table.insert(result, i)
+	local visible = {}
+	for _, state in ipairs(states) do
+		if (keep and keep[state]) or state.name:lower():find(query, 1, true) then
+			visible[#visible + 1] = state
 		end
 	end
-	return result
+	return visible
 end
 
 --- Type-ahead step: appends `char` to the buffer and finds the match.
@@ -185,35 +189,44 @@ function EditorNav.place_beside(anchor, size, area)
 	return x, y
 end
 
+--- The states in the grid's slots (slot i is drawn at box_bounds(i)): every state, or only the Find
+--- filter's matches. Layout, scrolling and keyboard navigation index this, never `dmi.states`.
+--- @return State[]
+function Editor:visible_states()
+	return EditorNav.filter(self.dmi.states, self.filter_query, self.filter_keep)
+end
+
+--- Names of the visible states, by slot.
 --- @return string[]
 function Editor:state_names()
 	local names = {}
-	for i, state in ipairs(self.dmi.states) do
+	for i, state in ipairs(self:visible_states()) do
 		names[i] = state.name
 	end
 	return names
 end
 
---- Index of the keyboard cursor: the last selected state.
+--- Slot of the keyboard cursor: the last selected state.
 --- @return number|nil
 function Editor:cursor_index()
 	local state = self.selected_states[#self.selected_states]
-	local index = state and table.index_of(self.dmi.states, state) or 0
+	local index = state and table.index_of(self:visible_states(), state) or 0
 	return index > 0 and index or nil
 end
 
---- Moves the cursor to `index`, selecting it alone (or extending from the anchor), and scrolls it into view.
+--- Moves the cursor to slot `index`, selecting it alone (or extending from the anchor), and scrolls it into view.
 --- @param index number
 --- @param extend boolean|nil Select the range from the anchor to `index`.
 function Editor:select_index(index, extend)
-	local state = self.dmi.states[index]
+	local states = self:visible_states()
+	local state = states[index]
 	if not state then return end
-	local anchor = extend and self.nav_anchor and table.index_of(self.dmi.states, self.nav_anchor) or 0
+	local anchor = extend and self.nav_anchor and table.index_of(states, self.nav_anchor) or 0
 	self.selected_states = {}
 	if anchor > 0 then
 		local step = index >= anchor and 1 or -1
 		for i = anchor, index, step do
-			table.insert(self.selected_states, self.dmi.states[i])
+			table.insert(self.selected_states, states[i])
 		end
 	else
 		self.nav_anchor = state
@@ -222,9 +235,9 @@ function Editor:select_index(index, extend)
 	self:scroll_into_view(index)
 end
 
---- @param index number
+--- @param index number Slot.
 function Editor:scroll_into_view(index)
-	local max_scroll = EditorNav.max_scroll(#self.dmi.states, self.max_in_a_row, self.max_in_a_column)
+	local max_scroll = EditorNav.max_scroll(#self:visible_states(), self.max_in_a_row, self.max_in_a_column)
 	local scroll = EditorNav.scroll_to_show(index, self.scroll, self.max_in_a_row, self.max_in_a_column, max_scroll)
 	if scroll ~= self.scroll then
 		self.scroll = scroll
@@ -234,23 +247,45 @@ function Editor:scroll_into_view(index)
 	end
 end
 
---- Selects every state whose name contains `query` and scrolls to the first; empty clears.
+--- Filters the grid to the states whose name contains `query` (case-insensitive; "" shows them all).
+--- The selection keeps only the states still shown, so actions on it never touch hidden states,
+--- and the cursor stays in view. Updates the title ("12 of 143 states") and the Find box.
 --- @param query string
---- @return number matches
-function Editor:find_states(query)
-	if not self.dmi then return 0 end
-	local indices = EditorNav.find_all(self:state_names(), query or "")
-	self.selected_states = {}
-	for _, i in ipairs(indices) do
-		table.insert(self.selected_states, self.dmi.states[i])
+function Editor:set_filter(query)
+	if query == self.filter_query then return end
+	self.filter_query = query
+	self.filter_keep = {}
+	if not self.dmi or self.closed then return end
+	local visible = self:visible_states()
+	local shown = {}
+	for _, state in ipairs(visible) do shown[state] = true end
+	local selected = {}
+	for _, state in ipairs(self.selected_states) do
+		if shown[state] then table.insert(selected, state) end
 	end
-	self.nav_anchor = self.selected_states[1]
-	if #indices > 0 then
-		self:scroll_into_view(indices[1])
-	else
-		self:repaint()
+	self.selected_states = selected
+	if self.nav_anchor and not shown[self.nav_anchor] then self.nav_anchor = nil end
+	local cursor = self:cursor_index()
+	self.scroll = cursor and EditorNav.scroll_to_show(cursor, self.scroll, self.max_in_a_row, self.max_in_a_column,
+		EditorNav.max_scroll(#visible, self.max_in_a_row, self.max_in_a_column)) or 0
+	self:repaint_states()
+	if self.find_dialog then
+		self.find_dialog:modify { id = "result", text = self:filter_status() }
+		self.find_dialog:repaint()
 	end
-	return #indices
+end
+
+--- Keeps a state just created or renamed in the filtered grid, whatever its name, until the query changes.
+--- @param state State
+function Editor:keep_visible(state)
+	if self.filter_query ~= "" then self.filter_keep[state] = true end
+end
+
+--- "12 of 143 states" while the grid is filtered, else "".
+--- @return string
+function Editor:filter_status()
+	if not self.dmi or self.filter_query == "" then return "" end
+	return #self:visible_states() .. " of " .. #self.dmi.states .. " states"
 end
 
 --- Find box text editing: the new query for a key, or nil if the key doesn't edit text.
@@ -269,27 +304,29 @@ function EditorNav.edit_query(query, code, char)
 	return nil
 end
 
---- Opens the non-modal Find States dialog (Ctrl+F or /): selects states containing the text as you type.
+--- Opens the non-modal Find States dialog (Ctrl+F or /), or focuses it if open: as you type, the grid
+--- shows only the states whose name contains the text (see Editor:set_filter). Enter closes it and
+--- keeps the filter, with the grid's cursor on the first match; Esc, Close or closing the window
+--- clear the filter. Reopening it shows the current filter's text.
 --- The text box is a canvas so Esc/Enter/Delete are handled here and never reach Aseprite's
 --- shortcuts (an entry in a non-modal dialog lets Esc run Cancel, deselecting the active sprite).
 function Editor:open_find_dialog()
 	if self.find_dialog then
-		self.find_dialog:close()
+		self.find_dialog:modify { id = "query", focus = true }
+		return
 	end
 	local dialog
-	local query = ""
+	local keep_filter = false
 	dialog = Dialog {
 		title = "Find States",
 		onclose = function()
-			if self.find_dialog == dialog then self.find_dialog = nil end
+			if self.find_dialog ~= dialog then return end
+			self.find_dialog = nil
+			if not keep_filter then self:set_filter("") end
 		end
 	}
-	local function update()
-		local count = self:find_states(query)
-		dialog:repaint()
-		dialog:modify { id = "result", text = query == "" and "" or (count .. " match" .. (count == 1 and "" or "es")) }
-	end
-	local function close()
+	local function close(keep)
+		keep_filter = keep
 		dialog:close()
 		self:refocus_grid()
 	end
@@ -302,35 +339,31 @@ function Editor:open_find_dialog()
 		onpaint = function(ev)
 			local ctx = ev.context
 			ctx:drawThemeRect("sunken_focused", Rectangle(0, 0, ctx.width, ctx.height))
-			local text = query .. "|"
+			local text = self.filter_query .. "|"
 			local size = ctx:measureText(text)
 			ctx.color = app.theme.color.text
 			ctx:fillText(text, 4, (ctx.height - size.height) / 2)
 		end,
 		onkeydown = function(ev)
 			if ev.code == "Escape" then
-				query = ""
-				update()
-				close()
+				close(false)
 			elseif ev.code == "Enter" or ev.code == "NumpadEnter" then
-				close()
+				-- Arrows and Enter on the grid go on from the first match.
+				if self.filter_query ~= "" and #self.selected_states == 0 then self:select_index(1) end
+				close(true)
 			elseif not (ev.ctrlKey or ev.altKey or ev.metaKey) then
-				local new_query = EditorNav.edit_query(query, ev.code, ev.key)
-				if new_query then
-					query = new_query
-					update()
-				end
+				local query = EditorNav.edit_query(self.filter_query, ev.code, ev.key)
+				if query then self:set_filter(query) end
 			end
 			ev:stopPropagation()
 		end
 	}
-	dialog:label { id = "result", text = "" }
+	dialog:label { id = "result", text = self:filter_status() }
 	dialog:button { text = "Clear", onclick = function()
-		query = ""
-		update()
+		self:set_filter("")
 		dialog:modify { id = "query", focus = true } -- keep typing in the box, not on the button
 	end }
-	dialog:button { text = "Close", onclick = close }
+	dialog:button { text = "Close", onclick = function() close(false) end }
 	self.find_dialog = dialog
 	dialog:show { wait = false }
 	-- Beside the editor (right, else left, else overlapping) so it doesn't cover the grid.
@@ -366,7 +399,7 @@ function Editor:handle_navigation_key(ev)
 	if (ev.ctrlKey or ev.metaKey) and not ev.altKey then
 		if code == "KeyA" then
 			self.selected_states = {}
-			for _, state in ipairs(self.dmi.states) do
+			for _, state in ipairs(self:visible_states()) do
 				table.insert(self.selected_states, state)
 			end
 			self:repaint()
@@ -382,14 +415,15 @@ function Editor:handle_navigation_key(ev)
 		return not EditorNav.key_passes_through(ev)
 	end
 
-	local index = EditorNav.move(self:cursor_index(), #self.dmi.states, self.max_in_a_row, self.max_in_a_column, code)
+	local index = EditorNav.move(self:cursor_index(), #self:visible_states(), self.max_in_a_row, self.max_in_a_column,
+		code)
 	if index then
 		self:select_index(index, ev.shiftKey)
 		return true
 	end
 
 	if code == "Enter" or code == "NumpadEnter" then
-		local state = self.dmi.states[self:cursor_index() or 0]
+		local state = self:visible_states()[self:cursor_index() or 0]
 		if state then self:open_state(state) end
 	elseif code == "Delete" then
 		local count = #self.selected_states
@@ -402,6 +436,10 @@ function Editor:handle_navigation_key(ev)
 		end
 		self:refocus_grid()
 	elseif code == "Escape" then
+		-- Esc deselects; with nothing selected, it drops the Find filter.
+		if #self.selected_states == 0 then
+			self:set_filter("")
+		end
 		self.selected_states = {}
 		self.nav_anchor = nil
 		self:reset_typeahead()
