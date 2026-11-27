@@ -75,9 +75,19 @@ where
     let mut temp = path.as_os_str().to_owned();
     temp.push(format!(".{}.tmp", std::process::id()));
     let temp = Path::new(&temp);
-    let result = std::fs::write(temp, &encoded).and_then(|()| std::fs::rename(temp, path));
-    if result.is_err() {
-        let _ = std::fs::remove_file(temp);
+    let replaced = std::fs::write(temp, &encoded).and_then(|()| {
+        // Keep the original file's permission bits (e.g. read-only stays read-only).
+        if let Ok(meta) = std::fs::metadata(path) {
+            let _ = std::fs::set_permissions(temp, meta.permissions());
+        }
+        std::fs::rename(temp, path)
+    });
+    if replaced.is_ok() {
+        return Ok(());
     }
-    Ok(result?)
+    let _ = std::fs::remove_file(temp);
+    // Replacing fails when another program holds the file open without delete sharing
+    // (common on Windows). The bytes are already encoded, so overwrite in place instead.
+    std::fs::write(path, &encoded)?;
+    Ok(())
 }

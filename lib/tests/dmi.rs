@@ -155,3 +155,31 @@ fn failed_save_keeps_existing_file() {
     assert!(Dmi::open(&target).is_ok());
     remove_file(&target).unwrap();
 }
+
+#[cfg(windows)]
+#[test]
+fn save_works_while_another_program_has_the_file_open() {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_SHARE_READ: u32 = 1;
+    const FILE_SHARE_WRITE: u32 = 2;
+
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let sample_file = manifest_dir.join("tests/assets/anomaly.dmi");
+    let target = std::env::temp_dir().join(format!("dmi-locked-{}.dmi", std::process::id()));
+    std::fs::copy(&sample_file, &target).unwrap();
+
+    let mut dmi = Dmi::open(&target).unwrap();
+    dmi.states[0].name = "renamed".to_string();
+    {
+        // Like most Windows programs (and Python's open()), share read/write but not delete,
+        // so the file can't be replaced by a rename while this handle is open.
+        let _held = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+            .open(&target)
+            .unwrap();
+        dmi.save(&target).unwrap();
+    }
+    assert_eq!(Dmi::open(&target).unwrap().states[0].name, "renamed");
+    remove_file(&target).unwrap();
+}

@@ -341,22 +341,30 @@ function Editor:open_file(dmi)
 	end
 end
 
+--- Writes the DMI to `filename`, telling the user when it fails.
+--- @param filename string
+--- @return boolean success Whether the DMI file has been saved.
+function Editor:write_to(filename)
+	local _, err = libdmi.save_file(self.dmi, filename)
+	if err then
+		app.alert { title = self.title, text = { "Failed to save " .. app.fs.fileName(filename), err } }
+		return false
+	end
+	self.save_path = filename
+	self.modified = false
+	return true
+end
+
 --- Saves the current DMI file to the current path.
 --- If the DMI file is not set, the function returns without doing anything.
---- @return boolean success Whether the DMI file has been saved. May still return true even if the file has not been saved successfully.
+--- @return boolean success Whether the DMI file has been saved.
 function Editor:save()
 	if not self.dmi then return false end
 	if not self.save_path and not self.open_path then
 		return self:save_as()
 	end
 
-	local filename = self:path()
-	self.save_path = filename
-	local _, err = libdmi.save_file(self.dmi, filename --[[@as string]])
-	if not err then
-		self.modified = false
-	end
-	return true
+	return self:write_to(self:path())
 end
 
 --- Saves the current DMI file by prompting for a destination.
@@ -366,17 +374,11 @@ function Editor:save_as()
 	if not self.dmi then return false end
 
 	local path = self:path()
-	local result = libdmi.save_dialog("Save File", app.fs.fileTitle(path), app.fs.filePath(path))
-	local filename = result or ""
-	if #filename > 0 then
-		self.save_path = filename
-		local _, err = libdmi.save_file(self.dmi, filename --[[@as string]])
-		if not err then
-			self.modified = false
-		end
-		return true
+	local filename = libdmi.save_dialog("Save File", app.fs.fileTitle(path), app.fs.filePath(path)) or ""
+	if #filename == 0 then
+		return false
 	end
-	return false
+	return self:write_to(filename)
 end
 
 --- Returns the path of the file to be saved.
