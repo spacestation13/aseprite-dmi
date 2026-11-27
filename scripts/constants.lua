@@ -27,6 +27,16 @@ COMBINE_TYPES = {
 	dirs8_frames = "8 directions first, then frames",
 }
 
+--- The `libdmi.combine_states` layout and directions of each combine type.
+--- @type table<CombineType, {layout: "frames_first"|"directions_first", dirs: number}>
+COMBINE_LAYOUTS = {
+	[COMBINE_TYPES.onedir] = { layout = "frames_first", dirs = 1 },
+	[COMBINE_TYPES.frames_4dir] = { layout = "frames_first", dirs = 4 },
+	[COMBINE_TYPES.frames_8dir] = { layout = "frames_first", dirs = 8 },
+	[COMBINE_TYPES.dirs4_frames] = { layout = "directions_first", dirs = 4 },
+	[COMBINE_TYPES.dirs8_frames] = { layout = "directions_first", dirs = 8 },
+}
+
 --- @alias FrameSelType "First frame only"|"All frames"
 FRAME_SEL_TYPES = {
 	first_only = "First frame only",

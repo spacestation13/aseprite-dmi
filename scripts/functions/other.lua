@@ -42,18 +42,3 @@ function load_image_bytes(file)
 
 	return image
 end
-
---- Function to save image to bytes file.
---- @param image Image The image to save.
---- @param file string The path to the file.
-function save_image_bytes(image, file)
-	local file = io.open(file, "wb")
-
-	if not file then return end
-
-	file:write(image.width .. "\n")
-	file:write(image.height .. "\n")
-	file:write(image.bytes)
-
-	file:close()
-end

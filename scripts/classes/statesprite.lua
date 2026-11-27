@@ -147,6 +147,7 @@ function StateSprite:save()
 	-- Clear the old cache entry so stale frames from a prior frame count don't linger.
 	self.editor.image_cache:remove(self.state.frame_key)
 
+	local save_error = nil
 	local index = 0
 	for frame_index, frame in ipairs(self.sprite.frames) do
 		if #self.sprite.frames > 1 then
@@ -167,7 +168,9 @@ function StateSprite:save()
 					image:drawImage(cel.image, cel.position)
 				end
 
-				save_image_bytes(image, app.fs.joinPath(self.editor.dmi.temp, self.state.frame_key .. "." .. index .. ".bytes"))
+				local path = app.fs.joinPath(self.editor.dmi.temp, self.state.frame_key .. "." .. index .. ".bytes")
+				local _, frame_error = libdmi.save_frame_bytes(path, image.width, image.height, image.bytes)
+				save_error = save_error or frame_error
 
 				-- Update the preview cache for the south (top-layer) direction of each frame
 				-- so animated previews reflect the saved content immediately.
@@ -184,6 +187,11 @@ function StateSprite:save()
 	-- Restore original layers if we flattened by undoing the transaction from above
 	if original_layers then
 		app.command.Undo()
+	end
+
+	if save_error then
+		app.alert { title = self.editor.title, text = { "Failed to save the state", save_error } }
+		return false
 	end
 
 	return true

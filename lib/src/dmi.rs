@@ -6,14 +6,16 @@ use std::cmp::Ordering;
 use std::ffi::OsStr;
 use std::fs::{File, create_dir_all, remove_dir_all};
 use std::io::{BufWriter, Cursor, Read as _, Write as _};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use crate::utils::{find_directory, image_to_base64, optimal_size, sanitize_filename};
 
 mod metadata;
+mod operations;
 mod png;
 
+pub use operations::{CombineLayout, CombinePlan, combine_plan};
 pub use png::{read_dmi_metadata, save_rgba_dmi};
 
 // This leaves memory for Aseprite while bounding the decoded atlas plus two frame buffers.
@@ -54,6 +56,14 @@ pub enum DmiError {
     FindDirError,
     #[error("Directory does not exist")]
     DirDoesNotExist,
+    #[error("State has no frames or directions")]
+    EmptyState,
+    #[error("Only states with 2 to 8 directions can be split")]
+    CannotSplit,
+    #[error("Combined states have 1 to 8 directions")]
+    InvalidDirections,
+    #[error("Combining needs at least one state, and two to combine directions first")]
+    NotEnoughStates,
 }
 
 #[derive(Debug)]
@@ -251,7 +261,7 @@ impl Dmi {
                             .map_err(|_| DmiError::ImageSizeMismatch)?;
                         let frame_image =
                             image.crop_imm(dmi.width * x, dmi.height * y, dmi.width, dmi.height);
-                        let path = temp.join(format!("{frame_key}.{frame_index}.bytes"));
+                        let path = frame_path(&temp, &frame_key, frame_index);
                         save_image_as_bytes(&frame_image, path)?;
                         tile_index = tile_index
                             .checked_add(1)
@@ -419,7 +429,7 @@ impl State {
         for frame in 0..self.frame_count {
             for direction in 0..self.dirs {
                 let image = &self.frames[(frame * self.dirs + direction) as usize];
-                let path = Path::new(&path).join(format!("{frame_key}.{index}.bytes"));
+                let path = frame_path(path, &frame_key, index);
                 save_image_as_bytes(image, &path)?;
                 index += 1;
             }
@@ -444,7 +454,7 @@ impl State {
         let mut frames = Vec::new();
 
         for frame in 0..(serialized.frame_count * serialized.dirs) {
-            let path = Path::new(&path).join(format!("{}.{}.bytes", serialized.frame_key, frame));
+            let path = frame_path(Path::new(&path), &serialized.frame_key, frame);
             let image = load_image_from_bytes(path)?;
             frames.push(image);
         }
@@ -540,7 +550,7 @@ pub struct SerializedDmi {
     pub temp: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct SerializedState {
     pub name: String,
     pub dirs: u32,
@@ -596,7 +606,7 @@ fn frame_key(path: &Path, name: &str) -> DmiResult<String> {
 
     loop {
         let candidate_key = format!("{safe_name}.{index}");
-        let test_path = path.join(format!("{candidate_key}.0.bytes"));
+        let test_path = frame_path(path, &candidate_key, 0);
         if !test_path.exists() {
             return Ok(candidate_key);
         }
@@ -612,12 +622,35 @@ fn rgba_bytes(width: u32, height: u32) -> DmiResult<u64> {
         .ok_or(DmiError::ImageTooLarge)
 }
 
+/// The cache file of a state's frame image: `index` = frame * dirs + dir.
+fn frame_path(dir: &Path, frame_key: &str, index: u32) -> PathBuf {
+    dir.join(format!("{frame_key}.{index}.bytes"))
+}
+
 fn save_image_as_bytes<P: AsRef<Path>>(image: &DynamicImage, path: P) -> DmiResult<()> {
-    let pixels = image.to_rgba8();
+    write_frame_bytes(
+        path,
+        image.width(),
+        image.height(),
+        image.to_rgba8().as_raw(),
+    )
+}
+
+/// Writes a frame cache file: the width and height as text lines, then the RGBA pixels.
+pub fn write_frame_bytes<P: AsRef<Path>>(
+    path: P,
+    width: u32,
+    height: u32,
+    rgba: &[u8],
+) -> DmiResult<()> {
+    if u64::try_from(rgba.len()).ok() != Some(rgba_bytes(width, height)?) {
+        return Err(DmiError::MissingData);
+    }
 
     let mut writer = BufWriter::new(File::create(path)?);
-    write!(writer, "{}\n{}\n", image.width(), image.height())?;
-    writer.write_all(pixels.as_raw())?;
+    write!(writer, "{width}\n{height}\n")?;
+    writer.write_all(rgba)?;
+    writer.flush()?;
 
     Ok(())
 }

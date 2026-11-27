@@ -28,7 +28,20 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
         "read_dmi_metadata",
         lua.create_function(safe!(read_dmi_metadata_lua))?,
     )?;
+    exports.set(
+        "save_frame_bytes",
+        lua.create_function(safe!(save_frame_bytes))?,
+    )?;
     exports.set("new_state", lua.create_function(safe!(new_state))?)?;
+    exports.set(
+        "duplicate_state",
+        lua.create_function(safe!(duplicate_state))?,
+    )?;
+    exports.set("split_state", lua.create_function(safe!(split_state))?)?;
+    exports.set(
+        "combine_states",
+        lua.create_function(safe!(combine_states))?,
+    )?;
     exports.set("copy_states", lua.create_function(safe!(copy_states))?)?;
     exports.set("paste_states", lua.create_function(safe!(paste_states))?)?;
     exports.set("resize", lua.create_function(safe!(resize))?)?;
@@ -89,6 +102,53 @@ fn new_state(
     let table = state.into_lua_table(lua)?;
 
     Ok(table)
+}
+
+fn duplicate_state(lua: &Lua, (state, temp): (LuaTable, String)) -> LuaResult<LuaTable> {
+    SerializedState::from_lua_table(state)?
+        .duplicate(Path::new(&temp))?
+        .into_lua_table(lua)
+}
+
+fn split_state(lua: &Lua, (state, temp): (LuaTable, String)) -> LuaResult<Vec<LuaTable>> {
+    SerializedState::from_lua_table(state)?
+        .split(Path::new(&temp))?
+        .into_iter()
+        .map(|state| state.into_lua_table(lua))
+        .collect()
+}
+
+/// `layout` is "frames_first" or "directions_first".
+fn combine_states(
+    lua: &Lua,
+    (states, temp, name, layout, dirs, first_frame_only): (
+        Vec<LuaTable>,
+        String,
+        String,
+        String,
+        u32,
+        bool,
+    ),
+) -> LuaResult<LuaTable> {
+    let layout = match layout.as_str() {
+        "frames_first" => CombineLayout::FramesFirst,
+        "directions_first" => CombineLayout::DirectionsFirst,
+        _ => return Err(LuaError::external(format!("Unknown layout: {layout}"))),
+    };
+    let states = states
+        .into_iter()
+        .map(SerializedState::from_lua_table)
+        .collect::<LuaResult<Vec<_>>>()?;
+
+    SerializedState::combine(
+        &states,
+        Path::new(&temp),
+        name,
+        layout,
+        dirs,
+        first_frame_only,
+    )?
+    .into_lua_table(lua)
 }
 
 fn copy_states(_: &Lua, (states, temp): (Vec<LuaTable>, String)) -> LuaResult<LuaValue> {
@@ -284,6 +344,15 @@ fn read_dmi_metadata_lua(lua: &Lua, filename: String) -> LuaResult<LuaTable> {
     table.set("height", dmi.height)?;
 
     Ok(table)
+}
+
+fn save_frame_bytes(
+    _: &Lua,
+    (filename, width, height, bytes): (String, u32, u32, LuaString),
+) -> LuaResult<LuaValue> {
+    write_frame_bytes(filename, width, height, &bytes.as_bytes())?;
+
+    Ok(LuaValue::Nil)
 }
 
 fn exists(_: &Lua, path: String) -> LuaResult<bool> {

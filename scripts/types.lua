@@ -806,6 +806,10 @@ Version = nil
 --- @field save_file fun(dmi: Dmi, filename: string): nil, string? Saves the DMI file. If fails, returns an error message.
 --- @field import_png fun(dmi: Dmi, filename: string): Dmi?, string? Imports a PNG file into the DMI editor. If fails, returns nil and an error message.
 --- @field new_state fun(width: number, height: number, temp: string, name?: string): State?, string? Creates a new state. If fails, returns nil and an error message.
+--- @field duplicate_state fun(state: State, temp: string): State?, string? Copies a state and its frame images. If fails, returns nil and an error message.
+--- @field split_state fun(state: State, temp: string): State[]?, string? Makes one single-direction state per direction of the state. If fails, returns nil and an error message.
+--- @field combine_states fun(states: State[], temp: string, name: string, layout: "frames_first"|"directions_first", dirs: number, first_frame_only: boolean): State?, string? Combines states into a new one (see `COMBINE_LAYOUTS`). If fails, returns nil and an error message.
+--- @field save_frame_bytes fun(filename: string, width: number, height: number, bytes: string): nil, string? Writes a state frame image (RGBA bytes) to the temp directory. If fails, returns an error message.
 --- @field copy_states fun(states: State[], temp: string): nil, string? Copies one or more states to the clipboard. If fails, returns an error message.
 --- @field paste_states fun(width: number, height: number, temp: string): State[]?, string? Pastes states from the clipboard. If fails, returns nil and an error message.
 --- @field resize fun(dmi: Dmi, width: number, height: number, medhod: string): nil, string? Resizes the DMI file. If fails, returns an error message.
