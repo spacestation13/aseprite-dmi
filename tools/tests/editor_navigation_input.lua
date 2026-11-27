@@ -34,8 +34,13 @@ local function focus_canvas()
 	return { click = { x = origin.x + 4, y = origin.y + editor.canvas_height - 4 }, dialog = dialog, button = "middle" }
 end
 
+local tool_id, fg
+
 local function sprite_untouched(what)
-	T.eq(#sprite.frames, 1, what .. ": frames")
+	T.eq(#sprite.frames, 2, what .. ": frames")
+	T.eq(app.frame and app.frame.frameNumber, 1, what .. ": active frame")
+	T.eq(app.tool.id, tool_id, what .. ": tool")
+	T.eq(app.fgColor.rgbaPixel, fg, what .. ": foreground colour")
 	T.eq(sprite.selection.bounds, Rectangle(0, 0, 8, 8), what .. ": selection")
 	local image = sprite.cels[1].image
 	T.eq({ image.width, image.height }, { 8, 8 }, what .. ": cel size")
@@ -59,7 +64,11 @@ T.steps {
 		editor, dialog = e, e.dialog
 		sprite = Sprite(8, 8)
 		sprite.cels[1].image:clear(RED)
-		sprite.selection:selectAll()
+		sprite:newEmptyFrame()
+		app.frame = sprite.frames[1]
+		-- Undoable, so a Ctrl+Z reaching the sprite would show.
+		app.transaction("select all", function() sprite.selection:selectAll() end)
+		tool_id, fg = app.tool.id, app.fgColor.rgbaPixel
 		T.eq(app.sprite, sprite, "test sprite active")
 
 		local seen
@@ -151,8 +160,70 @@ T.steps {
 		T.eq(#editor.open_sprites, 0, "Ctrl+click opened no state sprite")
 		T.eq(app.sprite, sprite, "active sprite unchanged by Ctrl+click")
 		sprite_untouched("after Ctrl+click")
+		-- Shift+arrows extend from the Ctrl+clicked state.
+		T.input({ { key = "Shift+Right" }, { wait = 0.2 } }, next)
+	end,
+	function(next)
+		T.eq(selected_names(), { "anom", "bhole2" }, "Shift+Right extends from the Ctrl+clicked state")
+		T.input({ { key = "Escape" }, { key = "Shift+Right" }, { wait = 0.2 } }, next)
+	end,
+	function(next)
+		T.eq(selected_names(), { "carp_rift" }, "Esc resets the Shift anchor")
+		-- Keys without Ctrl/Alt never reach Aseprite (Backspace = Clear, `,` = previous frame,
+		-- [ ] + = brush/colour, Space = hand tool), nor do Ctrl combos that act on the sprite.
+		T.input({ { key = "Escape" }, { key = "Space" }, { key = "Backspace" }, { text = ",[]+=" },
+			{ key = "Ctrl+Z" }, { key = "Ctrl+X" }, { key = "Ctrl+D" }, { key = "Ctrl+Backspace" }, { key = "Ctrl+Delete" },
+			{ wait = 0.3 } }, next)
+	end,
+	function(next)
+		sprite_untouched("after stray keys")
+		T.eq(#editor.dmi.states, 9, "stray keys removed no state")
+		-- Type-ahead Backspace edits the buffer.
+		T.input({ { wait = 1.2 }, { text = "bhx" }, { key = "Backspace" }, { wait = 0.2 } }, next)
+	end,
+	function(next)
+		T.eq(editor.typeahead_buffer, "bh", "Backspace edits the type-ahead buffer")
+		T.eq(cursor_name(), "bhole2", "type-ahead after Backspace")
+		-- Context menu: Esc closes it, other keys don't leak.
+		T.input({ { wait = 1.2 }, { click = icon_center("bhole3"), dialog = dialog, button = "right" }, { wait = 0.3 } }, next)
+	end,
+	function(next)
+		T.ok(editor.context_widget, "context menu open")
+		T.input({ { key = "Backspace" }, { text = "," }, { key = "Delete" }, { wait = 0.2 } }, next)
+	end,
+	function(next)
+		T.ok(editor.context_widget, "context menu still open")
+		sprite_untouched("keys under the context menu")
+		T.eq(#editor.dmi.states, 9, "keys under the context menu removed nothing")
+		T.input({ { key = "Escape" }, { wait = 0.2 } }, next)
+	end,
+	function(next)
+		T.ok(not editor.context_widget, "Esc closes the context menu")
+		sprite_untouched("after Esc on the context menu")
+		-- Find: Clear keeps the focus in the query box.
+		T.input({ { text = "/" }, { wait = 0.4 }, { text = "bh" }, { wait = 0.2 } }, next)
+	end,
+	function(next)
+		T.eq(#editor.selected_states, 2, "find bh")
+		local fb = editor.find_dialog.bounds
+		T.detail("find_bounds", tostring(fb))
+		T.ok(fb.x >= 0 and fb.y >= 0 and fb.x + fb.width <= app.window.width and fb.y + fb.height <= app.window.height,
+			"Find window inside the main window")
+		T.input({ { click = { x = 100, y = 57 }, dialog = editor.find_dialog }, { wait = 0.3 } }, next)
+	end,
+	function(next)
+		T.eq(#editor.selected_states, 0, "Clear")
+		T.input({ { text = "por" }, { key = "Backspace" }, { wait = 0.3 } }, next)
+	end,
+	function(next)
+		T.eq(selected_names(), { "portal", "portal1" }, "typing after Clear goes to the query box")
+		sprite_untouched("after Find Clear")
+		T.input({ { key = "Escape" }, { wait = 0.3 } }, next)
+	end,
+	function(next)
+		T.ok(not editor.find_dialog, "Esc closed Find")
 		-- Delete, cancelled with Esc
-		T.input({ focus_canvas(), { wait = 0.1 }, { key = "Home" }, { key = "Delete" }, { wait = 0.5 } }, next)
+		T.input({ { key = "Home" }, { key = "Delete" }, { wait = 0.5 } }, next)
 	end,
 	function(next) T.screenshot("delete_confirm", next) end,
 	function(next)

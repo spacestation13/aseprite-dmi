@@ -427,6 +427,8 @@ function Editor:onmousedown(ev)
 				-- Selection mode with just Ctrl
 				if ev.ctrlKey then
 					self:toggle_state_selection(clickedWidget.iconstate)
+					-- Shift+arrows extend from the last Ctrl+clicked state.
+					self.nav_anchor = clickedWidget.iconstate
 					self:repaint()
 					return
 				end
@@ -535,16 +537,10 @@ function Editor:onmouseup(ev)
 						local state = table.remove(self.dmi.states, source_index)
 						table.insert(self.dmi.states, target_index, state)
 
-						-- Calculate new scroll position to keep the moved item visible
-						local target_row = math.floor((target_index - 1) / self.max_in_a_row)
-						local visible_rows = self.max_in_a_column
-
-						-- Adjust scroll to ensure target row is visible
-						if target_row < self.scroll then
-							self.scroll = target_row
-						elseif target_row >= self.scroll + visible_rows then
-							self.scroll = target_row - visible_rows + 1
-						end
+						-- Keep the moved item visible
+						self.scroll = EditorNav.scroll_to_show(target_index, self.scroll, self.max_in_a_row,
+							self.max_in_a_column,
+							EditorNav.max_scroll(#self.dmi.states, self.max_in_a_row, self.max_in_a_column))
 
 						-- Reset selected states since we've moved around states (and thus idx)
 						self.selected_states = {}

@@ -134,6 +134,57 @@ function EditorNav.typeahead(buffer, char, names, current)
 	return buffer, EditorNav.find_next(names, lower, current > 0 and current - 1 or 0)
 end
 
+--- Type-ahead Backspace: drops the last typed character and finds the shortened text again
+--- (the current state stays if it still matches).
+--- @return string buffer
+--- @return number|nil index Matching index (nil: keep the selection).
+function EditorNav.typeahead_backspace(buffer, names, current)
+	buffer = buffer:sub(1, -2)
+	if buffer == "" then return buffer, nil end
+	current = current or 0
+	return buffer, EditorNav.find_next(names, buffer:lower(), current > 0 and current - 1 or 0)
+end
+
+--- Ctrl/Cmd combos the grid keeps from Aseprite even when it doesn't use them itself: they would
+--- act on the active sprite, which the user isn't looking at while working in the grid
+--- (undo/redo, cut, deselect, clear). Ctrl+A/C/V/F are the grid's own (select all, copy/paste states, find).
+EditorNav.GRID_CTRL_KEYS = {
+	KeyZ = true, KeyY = true, KeyX = true, KeyD = true, Delete = true, Backspace = true,
+	KeyA = true, KeyC = true, KeyV = true, KeyF = true,
+}
+
+--- Whether a key pressed on the focused grid goes on to Aseprite's shortcuts.
+--- Keys without Ctrl/Alt/Cmd never do (Backspace = Clear, `,` = previous frame, Space = hand...);
+--- Ctrl/Alt/Cmd combos do (Ctrl+S, Ctrl+Q, Alt+menus...) except EditorNav.GRID_CTRL_KEYS.
+--- @param ev table KeyEvent-like: code, ctrlKey, altKey, metaKey.
+--- @return boolean
+function EditorNav.key_passes_through(ev)
+	if not (ev.ctrlKey or ev.altKey or ev.metaKey) then return false end
+	if (ev.ctrlKey or ev.metaKey) and EditorNav.GRID_CTRL_KEYS[ev.code] then return false end
+	return true
+end
+
+--- Position for a `size` window next to `anchor` inside `area`: right of it, else left of it,
+--- else overlapping it, always clamped into `area`.
+--- @param anchor table {x, y, width, height}
+--- @param size table {width, height}
+--- @param area table {x, y, width, height}
+--- @return number x
+--- @return number y
+function EditorNav.place_beside(anchor, size, area)
+	local x
+	if anchor.x + anchor.width + size.width <= area.x + area.width then
+		x = anchor.x + anchor.width
+	elseif anchor.x - size.width >= area.x then
+		x = anchor.x - size.width
+	else
+		x = anchor.x + anchor.width - size.width
+	end
+	x = math.max(area.x, math.min(x, area.x + area.width - size.width))
+	local y = math.max(area.y, math.min(anchor.y, area.y + area.height - size.height))
+	return x, y
+end
+
 --- @return string[]
 function Editor:state_names()
 	local names = {}
@@ -229,7 +280,6 @@ function Editor:open_find_dialog()
 	local query = ""
 	dialog = Dialog {
 		title = "Find States",
-		parent = self.dialog,
 		onclose = function()
 			if self.find_dialog == dialog then self.find_dialog = nil end
 		end
@@ -278,50 +328,67 @@ function Editor:open_find_dialog()
 	dialog:button { text = "Clear", onclick = function()
 		query = ""
 		update()
+		dialog:modify { id = "query", focus = true } -- keep typing in the box, not on the button
 	end }
 	dialog:button { text = "Close", onclick = close }
 	self.find_dialog = dialog
 	dialog:show { wait = false }
-	-- Beside the editor so it doesn't cover the grid.
-	local editor_bounds = self.dialog.bounds
+	-- Beside the editor (right, else left, else overlapping) so it doesn't cover the grid.
 	local bounds = dialog.bounds
-	dialog.bounds = Rectangle(editor_bounds.x + editor_bounds.width, editor_bounds.y, bounds.width, bounds.height)
+	local x, y = EditorNav.place_beside(self.dialog.bounds, bounds, app.window and
+		Rectangle(0, 0, app.window.width, app.window.height) or self.dialog.bounds)
+	dialog.bounds = Rectangle(x, y, bounds.width, bounds.height)
 end
 
 --- Handles grid navigation keys. Returns true if the key was used.
 --- @param ev KeyEvent
 --- @return boolean handled
 function Editor:handle_navigation_key(ev)
-	if not self.dmi or self.loading or self.context_widget then return false end
+	local modified = ev.ctrlKey or ev.altKey or ev.metaKey
 	local code = ev.code
 
-	if (ev.ctrlKey and code == "KeyF") or (ev.key == "/" and not ev.ctrlKey) then
+	-- Open context menu: Esc closes it, nothing else gets past it.
+	if self.context_widget then
+		if code == "Escape" then
+			self.context_widget = nil
+			self:repaint()
+		end
+		return true
+	end
+	if not self.dmi or self.loading then
+		return not EditorNav.key_passes_through(ev)
+	end
+
+	if ((ev.ctrlKey or ev.metaKey) and code == "KeyF") or (ev.key == "/" and not modified) then
 		self:open_find_dialog()
 		return true
 	end
-	if ev.ctrlKey and code == "KeyA" then
-		self.selected_states = {}
-		for _, state in ipairs(self.dmi.states) do
-			table.insert(self.selected_states, state)
+	if (ev.ctrlKey or ev.metaKey) and not ev.altKey then
+		if code == "KeyA" then
+			self.selected_states = {}
+			for _, state in ipairs(self.dmi.states) do
+				table.insert(self.selected_states, state)
+			end
+			self:repaint()
+		elseif code == "KeyC" then
+			self:clipboard_copy_selected_states()
+		elseif code == "KeyV" then
+			self:clipboard_paste_state()
 		end
-		self:repaint()
-		return true
 	end
-	if ev.ctrlKey or ev.altKey or ev.metaKey then return false end
+	if modified then
+		return not EditorNav.key_passes_through(ev)
+	end
 
-	-- Keys the grid owns are always consumed while the canvas has focus, so Aseprite's own
-	-- shortcuts (Delete = clear, arrows = move selection/frames, Enter...) never hit the active sprite.
 	local index = EditorNav.move(self:cursor_index(), #self.dmi.states, self.max_in_a_row, self.max_in_a_column, code)
 	if index then
 		self:select_index(index, ev.shiftKey)
 		return true
 	end
-	if EditorNav.move(1, 1, 1, 1, code) then return true end -- navigation key on an empty grid
 
 	if code == "Enter" or code == "NumpadEnter" then
 		local state = self.dmi.states[self:cursor_index() or 0]
 		if state then self:open_state(state) end
-		return true
 	elseif code == "Delete" then
 		local count = #self.selected_states
 		if count == 0 then return true end
@@ -332,26 +399,30 @@ function Editor:handle_navigation_key(ev)
 			self:remove_selected_states()
 		end
 		-- The alert hands keyboard focus back to the sprite editor; keep it on the grid so the
-		-- next Delete/arrow doesn't hit the active sprite.
+		-- next key doesn't hit the active sprite.
 		if self.dialog then self.dialog:modify { id = "canvas", focus = true } end
-		return true
 	elseif code == "Escape" then
-		-- Consumed even with nothing selected: Aseprite's Esc (Cancel) would deselect the active sprite.
 		self.selected_states = {}
+		self.nav_anchor = nil
 		self:reset_typeahead()
 		self:repaint()
-		return true
-	end
-
-	local char = ev.key
-	if char and #char == 1 and char:match("[%w_%-%. ]") and not (char == " " and (self.typeahead_buffer or "") == "") then
-		local buffer, found = EditorNav.typeahead(self.typeahead_buffer or "", char, self:state_names(), self:cursor_index())
+	elseif code == "Backspace" then
+		local buffer, found = EditorNav.typeahead_backspace(self.typeahead_buffer or "", self:state_names(),
+			self:cursor_index())
 		self.typeahead_buffer = buffer
 		self:restart_typeahead_timer()
 		if found then self:select_index(found) end
-		return true
+	else
+		local char = ev.key
+		if char and #char == 1 and char:match("[%w_%-%. ]") and not (char == " " and (self.typeahead_buffer or "") == "") then
+			local buffer, found = EditorNav.typeahead(self.typeahead_buffer or "", char, self:state_names(), self:cursor_index())
+			self.typeahead_buffer = buffer
+			self:restart_typeahead_timer()
+			if found then self:select_index(found) end
+		end
 	end
-	return false
+	-- Every key without Ctrl/Alt/Cmd is consumed (see EditorNav.key_passes_through).
+	return true
 end
 
 function Editor:reset_typeahead()

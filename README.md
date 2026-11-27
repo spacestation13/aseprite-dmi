@@ -31,8 +31,8 @@ The plugin will also prompt you to download an update when a new version is rele
 - Expand, resize, or crop DMI files from the `File > DMI Editor` menu
 - Split/combine icon states in multiple ways
 - `Ctrl`+click toggles a state in the selection and `Ctrl+Shift`+click selects a range, without opening the state
-- Keyboard navigation in the state grid (click the grid first): arrow keys move the selection, `Shift`+arrows extend it, `Home`/`End`/`PageUp`/`PageDown` jump, `Enter` opens the state, `Delete` removes the selection (after confirming), `F2` edits properties, `Ctrl+A` selects all, `Esc` deselects
-- Type-ahead: type a state name to jump to it (names starting with the typed text first, then names containing it; the typed text resets after 1 second; pressing the same letter again cycles through states starting with it)
+- Keyboard navigation in the state grid (click the grid first): arrow keys move the selection, `Shift`+arrows extend it, `Home`/`End`/`PageUp`/`PageDown` jump, `Enter` opens the state, `Delete` removes the selection (after confirming), `F2` edits properties, `Ctrl+A` selects all, `Ctrl+C`/`Ctrl+V` copy/paste states, `Esc` deselects (or closes the right-click menu). While the grid has focus, keys without `Ctrl`/`Alt` never reach the sprite you have open, and neither do `Ctrl+Z`/`Y`/`X`/`D`/`Delete`/`Backspace`; other shortcuts (`Ctrl+S`, `Alt` menus...) still work
+- Type-ahead: type a state name to jump to it (names starting with the typed text first, then names containing it; the typed text resets after 1 second; pressing the same letter again cycles through states starting with it; `Backspace` removes the last typed character)
 - `Ctrl+F`, `/` or right-click empty space > Find... opens Find States: every state whose name contains the text is selected as you type (ready for Combine, Mass Rename, Copy, Remove); `Enter` closes it keeping the selection, `Esc` clears and closes
 - Access plugin preferences under `File > DMI Editor > Preferences`
 

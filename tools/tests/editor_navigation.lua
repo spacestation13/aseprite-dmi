@@ -54,3 +54,37 @@ T.eq(M.edit_query("abc", "Backspace", "\b"), "ab", "find: backspace")
 T.eq(M.edit_query("", "Backspace", "\b"), "", "find: backspace on empty")
 T.eq(M.edit_query("abc", "Delete", ""), "", "find: delete clears")
 T.eq(M.edit_query("abc", "ArrowLeft", ""), nil, "find: non-text key")
+
+buf, i = M.typeahead_backspace("bhx", { "anom", "bhole2", "bhole3" }, 2)
+T.eq({ buf, i }, { "bh", 2 }, "backspace keeps a still-matching state")
+buf, i = M.typeahead_backspace("b", { "anom", "bhole2" }, 2)
+T.eq({ buf, i }, { "", nil }, "backspace to empty keeps the selection")
+T.eq({ M.typeahead_backspace("", {}, nil) }, { "" }, "backspace on empty buffer")
+
+local function k(code, mods)
+	local ev = { code = code }
+	for _, m in ipairs(mods or {}) do ev[m .. "Key"] = true end
+	return M.key_passes_through(ev)
+end
+T.eq(k("Backspace"), false, "Backspace stays on the grid")
+T.eq(k("Comma"), false, "plain keys stay on the grid")
+T.eq(k("Space"), false, "Space stays on the grid")
+T.eq(k("Equal", { "shift" }), false, "Shift combos stay on the grid")
+T.eq(k("KeyS", { "ctrl" }), true, "Ctrl+S reaches Aseprite")
+T.eq(k("KeyQ", { "ctrl" }), true, "Ctrl+Q reaches Aseprite")
+T.eq(k("KeyF", { "alt" }), true, "Alt+F (menu) reaches Aseprite")
+for _, code in ipairs({ "KeyZ", "KeyY", "KeyX", "KeyD", "Delete", "Backspace", "KeyC", "KeyV", "KeyA", "KeyF" }) do
+	T.eq(k(code, { "ctrl" }), false, "Ctrl+" .. code .. " stays on the grid")
+	T.eq(k(code, { "meta" }), false, "Cmd+" .. code .. " stays on the grid")
+end
+T.eq(k("KeyZ", { "ctrl", "shift" }), false, "Ctrl+Shift+Z stays on the grid")
+
+local area = { x = 0, y = 0, width = 1000, height = 600 }
+T.eq({ M.place_beside({ x = 100, y = 50, width = 300, height = 400 }, { width = 200, height = 100 }, area) }, { 400, 50 },
+	"right of the editor")
+T.eq({ M.place_beside({ x = 700, y = 50, width = 300, height = 400 }, { width = 200, height = 100 }, area) }, { 500, 50 },
+	"left of the editor at the right edge")
+T.eq({ M.place_beside({ x = 0, y = 550, width = 900, height = 400 }, { width = 200, height = 100 }, area) }, { 700, 500 },
+	"overlapping when neither side fits, clamped")
+T.eq({ M.place_beside({ x = 100, y = 50, width = 300, height = 400 }, { width = 2000, height = 100 }, area) }, { 0, 50 },
+	"wider than the area: left edge")

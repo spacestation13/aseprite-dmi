@@ -58,8 +58,15 @@ T.wait_until(function() return libdmi and open_editors end, function()
 		-- (F2 rename is unchanged; not pressed here because the properties dialog is modal.)
 		T.after(0.3, function()
 			-- Ctrl+F find
+			-- Editor at the right edge: Find goes to its left, inside the main window.
+			local eb = editor.dialog.bounds
+			editor.dialog.bounds = Rectangle(app.window.width - eb.width - 5, 20, eb.width, eb.height)
+			eb = editor.dialog.bounds
 			key(editor, "KeyF", "f", { ctrlKey = true })
 			T.ok(editor.find_dialog, "find dialog opened")
+			local fb = editor.find_dialog.bounds
+			T.detail("find_bounds", tostring(fb))
+			T.ok(fb.x >= 0 and fb.x + fb.width <= eb.x, "Find left of an editor at the right edge")
 			local count = editor:find_states("a")
 			T.eq(count, #EditorNav.find_all(names, "a"), "find selects matches")
 			T.eq(#editor.selected_states, count, "matches selected")
