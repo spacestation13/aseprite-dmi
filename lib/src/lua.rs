@@ -322,7 +322,11 @@ fn instances(_: &Lua, _: ()) -> LuaResult<usize> {
         sysinfo::ProcessRefreshKind::nothing().with_exe(sysinfo::UpdateKind::OnlyIfNotSet);
     system.refresh_processes_specifics(sysinfo::ProcessesToUpdate::All, true, refresh_kind);
 
-    Ok(system.processes_by_name(OsStr::new("aseprite")).count())
+    // Linux reports each thread as a process, lol
+    Ok(system
+        .processes_by_name(OsStr::new("aseprite"))
+        .filter(|process| process.thread_kind().is_none())
+        .count())
 }
 
 fn check_update(_: &Lua, (): ()) -> LuaResult<bool> {
