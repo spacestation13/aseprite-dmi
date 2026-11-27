@@ -30,6 +30,9 @@ The plugin will also prompt you to download an update when a new version is rele
 - Copy and paste icon states using the context menu (states are copied as JSON with embedded PNG images)
 - Expand, resize, or crop DMI files from the `File > DMI Editor` menu
 - Split/combine icon states in multiple ways
+- Keyboard navigation in the state grid (click the grid first): arrow keys move the selection, `Shift`+arrows extend it, `Home`/`End`/`PageUp`/`PageDown` jump, `Enter` opens the state, `Delete` removes the selection (after confirming), `F2` edits properties, `Ctrl+A` selects all, `Esc` deselects
+- Type-ahead: type a state name to jump to it (names starting with the typed text first, then names containing it; the typed text resets after 1 second; pressing the same letter again cycles through states starting with it)
+- `Ctrl+F` opens Find States: every state whose name contains the text is selected as you type (ready for Combine, Mass Rename, Copy, Remove)
 - Access plugin preferences under `File > DMI Editor > Preferences`
 
 ### Platforms

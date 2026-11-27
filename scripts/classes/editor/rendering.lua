@@ -693,18 +693,9 @@ function Editor:onwheel(ev)
 	end
 
 	-- Normal wheel: scroll
-	local overflow = (#self.dmi.states + 1) - self.max_in_a_row * self.max_in_a_column
+	local max_scroll = EditorNav.max_scroll(#self.dmi.states, self.max_in_a_row, self.max_in_a_column)
+	if max_scroll <= 0 then return end
 
-	if overflow <= 0 then return end
-
-	local last_digit = overflow % self.max_in_a_row
-	local rounded = overflow - last_digit
-
-	if last_digit > 0 then
-		rounded = rounded + self.max_in_a_row
-	end
-
-	local max_scroll = math.floor(rounded / self.max_in_a_row)
 	local new_scroll = math.min(math.max(self.scroll + (ev.deltaY > 0 and 1 or -1), 0), max_scroll)
 
 	if new_scroll ~= self.scroll then

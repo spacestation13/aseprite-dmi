@@ -49,6 +49,9 @@
 				"path": "./scripts/classes/editor/import.lua"
 			},
 			{
+				"path": "./scripts/classes/editor/navigation.lua"
+			},
+			{
 				"path": "./scripts/classes/statesprite.lua"
 			},
 			{

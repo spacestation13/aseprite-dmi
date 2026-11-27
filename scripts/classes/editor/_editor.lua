@@ -147,6 +147,8 @@ end
 function Editor:onkeydown(ev)
 	if ev.code == "F2" and self:rename_selected_or_open_state() then
 		ev:stopPropagation()
+	elseif self:handle_navigation_key(ev) then
+		ev:stopPropagation()
 	end
 end
 
