@@ -2,6 +2,7 @@ use base64::{Engine as _, engine::general_purpose};
 use image::{DynamicImage, ImageReader};
 use image::{ImageBuffer, Rgba, imageops};
 use serde::{Deserialize, Serialize};
+use std::borrow::{Borrow, Cow};
 use std::cmp::Ordering;
 use std::ffi::OsStr;
 use std::fs::{File, create_dir_all, remove_dir_all};
@@ -138,7 +139,17 @@ impl Dmi {
     where
         P: AsRef<Path>,
     {
-        let frames = self.states.iter().flat_map(|state| &state.frames);
+        let frames = || {
+            self.states
+                .iter()
+                .flat_map(|state| &state.frames)
+                .map(|frame| {
+                    Ok(match frame.as_rgba8() {
+                        Some(rgba) => Cow::Borrowed(rgba),
+                        None => Cow::Owned(frame.to_rgba8()),
+                    })
+                })
+        };
         let total = self.states.iter().map(|state| state.frames.len()).sum();
         write_atlas(
             path,
@@ -146,7 +157,7 @@ impl Dmi {
             self.height,
             &self.get_metadata(),
             total,
-            frames.map(|frame| Ok(frame.to_rgba8())),
+            frames,
         )
     }
     /// Saves straight from the frame cache, reading one frame at a time instead of the whole DMI.
@@ -169,11 +180,14 @@ impl Dmi {
                 .collect(),
         }
         .get_metadata();
-        let frames = serialized.states.iter().flat_map(|state| {
-            (0..state.frame_count * state.dirs).map(move |index| {
-                Ok(load_image_from_bytes(frame_path(temp, &state.frame_key, index))?.to_rgba8())
+        let frames = || {
+            serialized.states.iter().flat_map(|state| {
+                (0..state.frame_count * state.dirs).map(move |index| {
+                    let path = frame_path(temp, &state.frame_key, index);
+                    Ok(load_image_from_bytes(path)?.into_rgba8())
+                })
             })
-        });
+        };
         let total = serialized
             .states
             .iter()
@@ -648,29 +662,33 @@ fn rgba_bytes(width: u32, height: u32) -> DmiResult<u64> {
 }
 
 /// Writes `total` frames into the DMI's square-ish grid, one row of tiles at a time, so only a
-/// band of the atlas is ever in memory.
-fn write_atlas<P, I>(
+/// band of the atlas is ever in memory. `frames` is called once per pass over the image.
+fn write_atlas<P, F, I, C>(
     path: P,
     tile_width: u32,
     tile_height: u32,
     metadata: &str,
     total: usize,
-    mut frames: I,
+    frames: F,
 ) -> DmiResult<()>
 where
     P: AsRef<Path>,
-    I: Iterator<Item = DmiResult<image::RgbaImage>>,
+    F: Fn() -> I,
+    I: Iterator<Item = DmiResult<C>>,
+    C: Borrow<image::RgbaImage>,
 {
     let (sqrt, width, height) = optimal_size(total, tile_width, tile_height);
     let columns = sqrt as usize;
     let (tile_w, tile_h) = (tile_width as usize, tile_height as usize);
     let row_stride = width as usize * 4;
-    png::write_dmi_png(width, height, path, metadata, |out| {
+    png::write_dmi_png(width, height, path, metadata, |sink| {
+        let mut frames = frames();
         let mut band = vec![0u8; row_stride * tile_h];
         for _ in 0..height as usize / tile_h {
             band.fill(0);
             for (column, frame) in frames.by_ref().take(columns).enumerate() {
                 let frame = frame?;
+                let frame: &image::RgbaImage = frame.borrow();
                 let frame_stride = frame.width() as usize * 4;
                 let copy_w = frame_stride.min(tile_w * 4);
                 let rows = frame.as_raw().chunks_exact(frame_stride).take(tile_h);
@@ -679,7 +697,7 @@ where
                     band[start..start + copy_w].copy_from_slice(&src[..copy_w]);
                 }
             }
-            out.write_all(&band)?;
+            sink(&band)?;
         }
         Ok(())
     })

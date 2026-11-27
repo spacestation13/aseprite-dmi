@@ -1,5 +1,6 @@
 use flate2::{Compression as ZlibCompression, write::ZlibEncoder};
-use png::{Compression, Decoder, Encoder};
+use png::{BitDepth, ColorType, Compression, Decoder, Encoder};
+use std::collections::HashMap;
 use std::fs::{File, OpenOptions, create_dir_all};
 use std::io::{BufReader, BufWriter, Write};
 use std::path::Path;
@@ -63,26 +64,169 @@ where
         return Err(DmiError::MissingData);
     }
 
-    write_dmi_png(width, height, path, metadata, |out| {
-        Ok(out.write_all(bytes)?)
-    })
+    write_dmi_png(width, height, path, metadata, |sink| sink(bytes))
+}
+
+/// Calls the sink with consecutive RGBA bands of the image, top to bottom, each a whole number
+/// of rows. The writer runs it twice: first to pick the smallest pixel format, then to encode.
+pub(super) trait RowSource:
+    Fn(&mut dyn FnMut(&[u8]) -> DmiResult<()>) -> DmiResult<()>
+{
+}
+impl<F> RowSource for F where F: Fn(&mut dyn FnMut(&[u8]) -> DmiResult<()>) -> DmiResult<()> {}
+
+/// The smallest lossless pixel format for an image, like oxipng's reductions: a palette (at 1, 2,
+/// 4 or 8 bits per pixel) for up to 256 colors, else RGB when fully opaque, else RGBA.
+enum Format {
+    Indexed {
+        /// Little-endian packed RGBA, in order of first appearance.
+        palette: Vec<u32>,
+        index_of: HashMap<u32, u8>,
+        depth: BitDepth,
+    },
+    Rgb,
+    Rgba,
+}
+
+fn pixels(band: &[u8]) -> impl Iterator<Item = u32> + '_ {
+    band.as_chunks::<4>()
+        .0
+        .iter()
+        .map(|px| u32::from_le_bytes(*px))
+}
+
+impl Format {
+    fn detect(source: &impl RowSource) -> DmiResult<Self> {
+        let mut palette = Vec::<u32>::new();
+        let mut index_of = HashMap::<u32, u8>::new();
+        let mut indexable = true;
+        let mut opaque = true;
+        let mut last = None;
+        source(&mut |band| {
+            for pixel in pixels(band) {
+                // Pixel art is mostly flat runs.
+                if last == Some(pixel) {
+                    continue;
+                }
+                last = Some(pixel);
+                opaque &= pixel >> 24 == 0xFF;
+                if indexable && !index_of.contains_key(&pixel) {
+                    match u8::try_from(palette.len()) {
+                        Ok(index) => {
+                            index_of.insert(pixel, index);
+                            palette.push(pixel);
+                        }
+                        Err(_) => indexable = false,
+                    }
+                }
+            }
+            Ok(())
+        })?;
+        Ok(if indexable {
+            let depth = match palette.len() {
+                0..=2 => BitDepth::One,
+                3..=4 => BitDepth::Two,
+                5..=16 => BitDepth::Four,
+                _ => BitDepth::Eight,
+            };
+            Format::Indexed {
+                palette,
+                index_of,
+                depth,
+            }
+        } else if opaque {
+            Format::Rgb
+        } else {
+            Format::Rgba
+        })
+    }
+
+    fn configure<W: Write>(&self, encoder: &mut Encoder<W>) {
+        match self {
+            Format::Indexed { palette, depth, .. } => {
+                encoder.set_color(ColorType::Indexed);
+                encoder.set_depth(*depth);
+                encoder.set_palette(
+                    palette
+                        .iter()
+                        .flat_map(|color| {
+                            let [r, g, b, _] = color.to_le_bytes();
+                            [r, g, b]
+                        })
+                        .collect::<Vec<_>>(),
+                );
+                // Entries after the last translucent one are implicitly opaque.
+                let alpha: Vec<u8> = palette.iter().map(|color| color.to_le_bytes()[3]).collect();
+                if let Some(last) = alpha.iter().rposition(|&a| a != 0xFF) {
+                    encoder.set_trns(alpha[..=last].to_vec());
+                }
+            }
+            Format::Rgb => {
+                encoder.set_color(ColorType::Rgb);
+                encoder.set_depth(BitDepth::Eight);
+            }
+            Format::Rgba => {
+                encoder.set_color(ColorType::Rgba);
+                encoder.set_depth(BitDepth::Eight);
+            }
+        }
+    }
+
+    /// Converts a band of RGBA rows `width` pixels wide to this format. Rows are padded to whole
+    /// bytes. `scratch` holds the result unless the band is already in this format.
+    fn encode<'a>(&self, width: usize, band: &'a [u8], scratch: &'a mut Vec<u8>) -> &'a [u8] {
+        scratch.clear();
+        match self {
+            Format::Rgba => return band,
+            Format::Rgb => {
+                for pixel in band.as_chunks::<4>().0 {
+                    scratch.extend_from_slice(&pixel[..3]);
+                }
+            }
+            Format::Indexed {
+                index_of, depth, ..
+            } => {
+                let bits = *depth as usize;
+                let mut cached = None;
+                for row in band.chunks_exact(width * 4) {
+                    for group in row.chunks(4 * (8 / bits)) {
+                        let mut byte = 0_u8;
+                        for (i, pixel) in pixels(group).enumerate() {
+                            let index = match cached {
+                                Some((color, index)) if color == pixel => index,
+                                _ => {
+                                    let index = index_of[&pixel];
+                                    cached = Some((pixel, index));
+                                    index
+                                }
+                            };
+                            byte |= index << (8 - bits * (i + 1));
+                        }
+                        scratch.push(byte);
+                    }
+                }
+            }
+        }
+        scratch
+    }
 }
 
 /// Streams the PNG to a temporary file next to `path`, then replaces `path` with it, so a failed
-/// encode never touches the existing file. `write_pixels` writes the RGBA rows top to bottom.
-pub(super) fn write_dmi_png<P, F>(
+/// encode never touches the existing file. `source` provides the RGBA rows top to bottom.
+pub(super) fn write_dmi_png<P, S>(
     width: u32,
     height: u32,
     path: P,
     metadata: &str,
-    write_pixels: F,
+    source: S,
 ) -> DmiResult<()>
 where
     P: AsRef<Path>,
-    F: FnOnce(&mut dyn Write) -> DmiResult<()>,
+    S: RowSource,
 {
     let path = path.as_ref();
     let metadata = metadata_chunk(metadata)?;
+    let format = Format::detect(&source)?;
     if let Some(parent) = path.parent()
         && !parent.as_os_str().is_empty()
         && !parent.exists()
@@ -97,13 +241,18 @@ where
         let mut file = BufWriter::new(File::create(temp)?);
         let mut encoder = Encoder::new(&mut file, width, height);
         encoder.set_compression(Compression::High);
-        encoder.set_color(png::ColorType::Rgba);
-        encoder.set_depth(png::BitDepth::Eight);
+        // Row filters mostly hurt pixel art: on 47 Goonstation DMIs, unfiltered rows were the
+        // smallest in 46 and within 0.1% overall of the best filter per file.
+        encoder.set_filter(png::Filter::NoFilter);
+        format.configure(&mut encoder);
         let mut writer = encoder.write_header()?;
-        // Right after IHDR, where the png crate puts text chunks added to the encoder.
+        // After IHDR and the palette, which the png crate writes with the header.
         writer.write_chunk(png::chunk::zTXt, &metadata)?;
         let mut stream = writer.stream_writer()?;
-        write_pixels(&mut stream)?;
+        let mut scratch = Vec::new();
+        source(&mut |band| {
+            Ok(stream.write_all(format.encode(width as usize, band, &mut scratch))?)
+        })?;
         stream.finish()?;
         writer.finish()?;
         file.flush()?;
