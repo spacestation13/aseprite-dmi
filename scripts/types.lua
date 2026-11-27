@@ -803,7 +803,7 @@ Version = nil
 --- @class LibDmi: table
 --- @field new_file fun(name: string, width: number, height: number, temp: string): Dmi?, string? Creates a new DMI file. If fails, returns nil and an error message.
 --- @field open_file fun(path: string, temp: string): Dmi?, string? Opens a DMI file. If fails, returns nil and an error message.
---- @field save_file fun(dmi: Dmi, filename: string): nil, string? Saves the DMI file. If fails, returns an error message.
+--- @field save_file fun(dmi: Dmi, filename: string, black_near_transparent: boolean): nil, string? Saves the DMI file, optionally writing alpha 0 and 1 pixels as black. If fails, returns an error message.
 --- @field import_png fun(dmi: Dmi, filename: string): Dmi?, string? Imports a PNG file into the DMI editor. If fails, returns nil and an error message.
 --- @field new_state fun(width: number, height: number, temp: string, name?: string): State?, string? Creates a new state. If fails, returns nil and an error message.
 --- @field duplicate_state fun(state: State, temp: string): State?, string? Copies a state and its frame images. If fails, returns nil and an error message.
@@ -817,7 +817,7 @@ Version = nil
 --- @field expand fun(dmi: Dmi, x: number, y: number, width: number, height: number): nil, string? Expands the DMI file size. If fails, returns an error message.
 --- @field overlay_color fun(r: number, g: number, b: number, width: number, height: number, bytes: string): string|nil Overlays the given bytes of an image on a plain color.
 --- @field remove_dir fun(path: string, soft: boolean): nil, string? Removes a directory. If fails, returns an error message.
---- @field save_rgba_dmi fun(width: number, height: number, bytes: string, filename: string, metadata: string): nil, string? Saves an RGBA byte buffer as a DMI PNG with the supplied zTXt metadata. If fails, returns an error message.
+--- @field save_rgba_dmi fun(width: number, height: number, bytes: string, filename: string, metadata: string, black_near_transparent: boolean): nil, string? Saves an RGBA byte buffer as a DMI PNG with the supplied zTXt metadata, optionally writing alpha 0 and 1 pixels as black. If fails, returns an error message.
 --- @field read_dmi_png fun(filename: string): {width: number, height: number, bytes: string}, string? Reads a DMI file and returns its dimensions and raw RGBA bytes.
 --- @field raw_open fun(filename: string, temp: string): {png: string, session: RawDmiSession}?, string? Reads a DMI's raw session and copies it to a temporary .png. If fails, returns nil and an error message.
 --- @field encode_raw_session fun(session: RawDmiSession): string?, string? The record that stores a raw DMI session in sprite data.

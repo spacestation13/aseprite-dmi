@@ -1,7 +1,7 @@
 use std::fs::remove_file;
 use std::path::{Path, PathBuf};
 
-use dmi::{Dmi, read_dmi_metadata, save_rgba_dmi};
+use dmi::{Dmi, SaveOptions, read_dmi_metadata, save_rgba_dmi};
 
 fn sample() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/assets/anomaly.dmi")
@@ -63,7 +63,7 @@ fn non_ascii_state_names_round_trip_as_utf8() {
     }
 
     let output = temp_file("utf8.dmi");
-    dmi.save(&output).unwrap();
+    dmi.save(&output, SaveOptions::default()).unwrap();
 
     let metadata = read_dmi_metadata(&output).unwrap();
     assert_eq!(
@@ -116,7 +116,7 @@ fn ascii_metadata_chunk_is_byte_identical_to_png_crate_output() {
     let expected = temp_file("ascii-expected.dmi");
     let output = temp_file("ascii-actual.dmi");
     png_crate_dmi(&expected, &metadata);
-    save_rgba_dmi(2, 1, &[255; 8], &output, &metadata).unwrap();
+    save_rgba_dmi(2, 1, &[255; 8], &output, &metadata, SaveOptions::default()).unwrap();
 
     assert_eq!(ztxt_chunk(&output), ztxt_chunk(&expected));
     assert_eq!(read_dmi_metadata(&output).unwrap(), metadata);

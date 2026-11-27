@@ -25,6 +25,9 @@ function Preferences.initialize(plugin)
 	if Preferences.plugin.preferences.animated_previews == nil then
 		Preferences.plugin.preferences.animated_previews = true
 	end
+	if Preferences.plugin.preferences.black_near_transparent == nil then
+		Preferences.plugin.preferences.black_near_transparent = false
+	end
 	if not Preferences.plugin.preferences.iconstate_padding_multiplier then
 		Preferences.plugin.preferences.iconstate_padding_multiplier = DEFAULT_PADDING_MULTIPLIER
 	end
@@ -80,6 +83,13 @@ function Preferences.show(plugin)
 		selected = Preferences.plugin.preferences.animated_previews ~= false,
 	}
 
+	:check {
+		id = "black_near_transparent",
+		label = "",
+		text = "Save alpha 0 and 1 pixels as black.",
+		selected = Preferences.plugin.preferences.black_near_transparent == true,
+	}
+
 	:separator {}
 
 	dialog:button {
@@ -103,6 +113,7 @@ function Preferences.show(plugin)
 			Preferences.plugin.preferences.auto_flatten = dialog.data.auto_flatten
 			Preferences.plugin.preferences.direction_layer_colors = dialog.data.direction_layer_colors
 			Preferences.plugin.preferences.animated_previews = dialog.data.animated_previews
+			Preferences.plugin.preferences.black_near_transparent = dialog.data.black_near_transparent
 			Preferences.plugin.preferences.iconstate_padding_multiplier = iconstate_padding_multiplier
 
 			if open_editors then
@@ -146,6 +157,10 @@ end
 
 function Preferences.getAnimatePreviews()
 	return Preferences.plugin.preferences.animated_previews ~= false
+end
+
+function Preferences.getBlackNearTransparent()
+	return Preferences.plugin.preferences.black_near_transparent == true
 end
 
 function Preferences.getIconstatePaddingMultiplier()

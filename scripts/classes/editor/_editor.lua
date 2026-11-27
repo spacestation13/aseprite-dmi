@@ -345,7 +345,7 @@ end
 --- @param filename string
 --- @return boolean success Whether the DMI file has been saved.
 function Editor:write_to(filename)
-	local _, err = libdmi.save_file(self.dmi, filename)
+	local _, err = libdmi.save_file(self.dmi, filename, Preferences.getBlackNearTransparent())
 	if err then
 		app.alert { title = self.title, text = { "Failed to save " .. app.fs.fileName(filename), err } }
 		return false

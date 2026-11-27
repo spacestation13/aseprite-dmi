@@ -1,7 +1,7 @@
 use std::fs::{remove_dir_all, remove_file};
 use std::path::Path;
 
-use dmi::{Dmi, SerializedDmi, read_dmi_metadata, save_rgba_dmi};
+use dmi::{Dmi, SaveOptions, SerializedDmi, read_dmi_metadata, save_rgba_dmi};
 use image::{GenericImageView, ImageReader};
 
 #[test]
@@ -42,7 +42,7 @@ fn open_and_save() {
     let temp_dir = Path::new(env!("CARGO_TARGET_TMPDIR"));
     let temp_file = temp_dir.join("anomaly.dmi");
 
-    if let Err(e) = dmi.save(&temp_file) {
+    if let Err(e) = dmi.save(&temp_file, SaveOptions::default()) {
         let _ = remove_file(temp_file);
         panic!("{e:?}");
     }
@@ -72,7 +72,15 @@ fn raw_pixels_and_metadata_round_trip() {
     let bytes = image.into_rgba8().into_raw();
 
     let output = Path::new(env!("CARGO_TARGET_TMPDIR")).join("raw-round-trip.dmi");
-    save_rgba_dmi(width, height, &bytes, &output, &metadata).unwrap();
+    save_rgba_dmi(
+        width,
+        height,
+        &bytes,
+        &output,
+        &metadata,
+        SaveOptions::default(),
+    )
+    .unwrap();
 
     let reopened = Dmi::open(&output).unwrap();
     assert_eq!(read_dmi_metadata(&output).unwrap(), metadata);
@@ -158,7 +166,7 @@ fn failed_save_keeps_existing_file() {
     let mut dmi = Dmi::open(&target).unwrap();
     // The PNG encoder rejects a zero-width image.
     dmi.width = 0;
-    assert!(dmi.save(&target).is_err());
+    assert!(dmi.save(&target, SaveOptions::default()).is_err());
 
     assert_eq!(std::fs::read(&target).unwrap(), before);
     assert!(Dmi::open(&target).is_ok());
@@ -187,7 +195,7 @@ fn save_works_while_another_program_has_the_file_open() {
             .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
             .open(&target)
             .unwrap();
-        dmi.save(&target).unwrap();
+        dmi.save(&target, SaveOptions::default()).unwrap();
     }
     assert_eq!(Dmi::open(&target).unwrap().states[0].name, "renamed");
     remove_file(&target).unwrap();
@@ -197,11 +205,14 @@ fn save_works_while_another_program_has_the_file_open() {
 fn save_from_frame_cache_matches_in_memory_save() {
     let dmi = Dmi::open("tests/assets/anomaly.dmi").unwrap();
     let temp_dir = Path::new(env!("CARGO_TARGET_TMPDIR"));
-    let serialized = dmi.to_serialized(temp_dir, false).unwrap();
+    let serialized = dmi
+        .to_serialized(temp_dir.join("save-cache"), false)
+        .unwrap();
     let streamed = temp_dir.join("streamed.dmi");
     let in_memory = temp_dir.join("in_memory.dmi");
 
-    let result = Dmi::save_serialized(&serialized, &streamed).and_then(|()| dmi.save(&in_memory));
+    let result = Dmi::save_serialized(&serialized, &streamed, SaveOptions::default())
+        .and_then(|()| dmi.save(&in_memory, SaveOptions::default()));
     let _ = remove_dir_all(&serialized.temp);
     result.unwrap();
 
@@ -217,7 +228,10 @@ fn save_from_frame_cache_matches_in_memory_save() {
 fn resize_crop_expand_rewrite_the_frame_cache() {
     let dmi = Dmi::open("tests/assets/anomaly.dmi").unwrap();
     let temp_dir = Path::new(env!("CARGO_TARGET_TMPDIR"));
-    let serialized = dmi.to_serialized(temp_dir, false).unwrap();
+    // Its own directory: tests sharing one would race over the same cache folder.
+    let serialized = dmi
+        .to_serialized(temp_dir.join("edit-cache"), false)
+        .unwrap();
     let frame_dims = |w: u32, h: u32| {
         let saved = Dmi::from_serialized(SerializedDmi {
             name: serialized.name.clone(),

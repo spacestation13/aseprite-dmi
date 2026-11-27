@@ -90,8 +90,14 @@ fn open_file(lua: &Lua, (filename, temp): (String, String)) -> LuaResult<LuaTabl
     Ok(table)
 }
 
-fn save_file(_: &Lua, (dmi, filename): (LuaTable, String)) -> LuaResult<LuaValue> {
-    Dmi::save_serialized(&SerializedDmi::from_lua_table(dmi)?, filename)?;
+fn save_file(
+    _: &Lua,
+    (dmi, filename, black_near_transparent): (LuaTable, String, bool),
+) -> LuaResult<LuaValue> {
+    let options = SaveOptions {
+        black_near_transparent,
+    };
+    Dmi::save_serialized(&SerializedDmi::from_lua_table(dmi)?, filename, options)?;
 
     Ok(LuaValue::Nil)
 }
@@ -322,9 +328,26 @@ fn read_dmi_png(lua: &Lua, filename: String) -> LuaResult<LuaTable> {
 
 fn save_rgba_dmi_lua(
     _: &Lua,
-    (width, height, bytes, filename, metadata): (u32, u32, LuaString, String, String),
+    (width, height, bytes, filename, metadata, black_near_transparent): (
+        u32,
+        u32,
+        LuaString,
+        String,
+        String,
+        bool,
+    ),
 ) -> LuaResult<LuaValue> {
-    crate::dmi::save_rgba_dmi(width, height, &bytes.as_bytes(), filename, &metadata)?;
+    let options = SaveOptions {
+        black_near_transparent,
+    };
+    crate::dmi::save_rgba_dmi(
+        width,
+        height,
+        &bytes.as_bytes(),
+        filename,
+        &metadata,
+        options,
+    )?;
 
     Ok(LuaValue::Nil)
 }

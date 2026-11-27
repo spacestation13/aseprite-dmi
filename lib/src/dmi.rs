@@ -18,7 +18,7 @@ mod png;
 mod raw;
 
 pub use operations::{CombineLayout, CombinePlan, combine_plan};
-pub use png::{read_dmi_metadata, save_rgba_dmi};
+pub use png::{SaveOptions, read_dmi_metadata, save_rgba_dmi};
 pub use raw::RawSession;
 
 // This leaves memory for Aseprite while bounding the decoded atlas plus two frame buffers.
@@ -135,7 +135,7 @@ impl Dmi {
 
         Ok(dmi)
     }
-    pub fn save<P>(&self, path: P) -> DmiResult<()>
+    pub fn save<P>(&self, path: P, options: SaveOptions) -> DmiResult<()>
     where
         P: AsRef<Path>,
     {
@@ -157,11 +157,16 @@ impl Dmi {
             self.height,
             &self.get_metadata(),
             total,
+            options,
             frames,
         )
     }
     /// Saves straight from the frame cache, reading one frame at a time instead of the whole DMI.
-    pub fn save_serialized<P>(serialized: &SerializedDmi, path: P) -> DmiResult<()>
+    pub fn save_serialized<P>(
+        serialized: &SerializedDmi,
+        path: P,
+        options: SaveOptions,
+    ) -> DmiResult<()>
     where
         P: AsRef<Path>,
     {
@@ -199,6 +204,7 @@ impl Dmi {
             serialized.height,
             &metadata,
             total,
+            options,
             frames,
         )
     }
@@ -669,6 +675,7 @@ fn write_atlas<P, F, I, C>(
     tile_height: u32,
     metadata: &str,
     total: usize,
+    options: SaveOptions,
     frames: F,
 ) -> DmiResult<()>
 where
@@ -681,7 +688,7 @@ where
     let columns = sqrt as usize;
     let (tile_w, tile_h) = (tile_width as usize, tile_height as usize);
     let row_stride = width as usize * 4;
-    png::write_dmi_png(width, height, path, metadata, |sink| {
+    png::write_dmi_png(width, height, path, metadata, options, |sink| {
         let mut frames = frames();
         let mut band = vec![0u8; row_stride * tile_h];
         for _ in 0..height as usize / tile_h {

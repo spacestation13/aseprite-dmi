@@ -9,6 +9,16 @@ use super::{DmiError, DmiResult};
 
 const METADATA_KEYWORD: &[u8] = b"Description";
 
+/// Pixels with alpha 0 or 1 are near-transparent: SS13 icons don't care about their color.
+const MAX_NEAR_TRANSPARENT_ALPHA: u8 = 1;
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct SaveOptions {
+    /// Writes pixels with alpha 0 or 1 as black. One color instead of many keeps images within
+    /// a palette.
+    pub black_near_transparent: bool,
+}
+
 /// Reads the zTXt metadata. BYOND 516 writes it as UTF-8; files whose text isn't valid UTF-8
 /// are legacy Latin-1.
 pub fn read_dmi_metadata<P>(path: P) -> DmiResult<String>
@@ -52,6 +62,7 @@ pub fn save_rgba_dmi<P>(
     bytes: &[u8],
     path: P,
     metadata: &str,
+    options: SaveOptions,
 ) -> DmiResult<()>
 where
     P: AsRef<Path>,
@@ -64,7 +75,7 @@ where
         return Err(DmiError::MissingData);
     }
 
-    write_dmi_png(width, height, path, metadata, |sink| sink(bytes))
+    write_dmi_png(width, height, path, metadata, options, |sink| sink(bytes))
 }
 
 /// Calls the sink with consecutive RGBA bands of the image, top to bottom, each a whole number
@@ -218,6 +229,7 @@ pub(super) fn write_dmi_png<P, S>(
     height: u32,
     path: P,
     metadata: &str,
+    options: SaveOptions,
     source: S,
 ) -> DmiResult<()>
 where
@@ -226,6 +238,22 @@ where
 {
     let path = path.as_ref();
     let metadata = metadata_chunk(metadata)?;
+    let source = |sink: &mut dyn FnMut(&[u8]) -> DmiResult<()>| {
+        if !options.black_near_transparent {
+            return source(sink);
+        }
+        let mut scratch = Vec::new();
+        source(&mut |band| {
+            scratch.clear();
+            scratch.extend_from_slice(band);
+            for pixel in scratch.as_chunks_mut::<4>().0 {
+                if pixel[3] <= MAX_NEAR_TRANSPARENT_ALPHA {
+                    pixel[..3].fill(0);
+                }
+            }
+            sink(&scratch)
+        })
+    };
     let format = Format::detect(&source)?;
     if let Some(parent) = path.parent()
         && !parent.as_os_str().is_empty()

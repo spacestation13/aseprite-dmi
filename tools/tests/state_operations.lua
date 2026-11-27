@@ -125,10 +125,12 @@ local sprite = state_sprite.sprite
 local cel = T.ok(sprite.layers[#sprite.layers]:cel(2), "second frame cel")
 local edited = Image(cel.image)
 edited:drawPixel(0, 0, app.pixelColor.rgba(255, 0, 255, 255))
+edited:drawPixel(1, 1, app.pixelColor.rgba(200, 100, 50, 1))
 cel.image = edited
 T.ok(state_sprite:save(), "state save")
 local saved = frames(carp_copy)
 T.eq(saved[2]:getPixel(0, 0), app.pixelColor.rgba(255, 0, 255, 255), "edited pixel saved")
+T.eq(saved[2]:getPixel(1, 1), app.pixelColor.rgba(200, 100, 50, 1), "alpha 1 pixel in frame cache")
 T.pixels_equal(saved[1], carp_frames[1], "unedited frame kept")
 sprite:close()
 
@@ -142,3 +144,23 @@ for i, state in ipairs(dmi.states) do
 		"reopened state " .. i)
 end
 T.detail("states", #dmi.states)
+
+-- Alpha 1 pixels keep their color unless the preference asks for black.
+local alpha_1 = app.pixelColor.rgba(200, 100, 50, 1)
+-- The carp copy shares its name with the original, so find it by position.
+local carp_copy_index = table.index_of(dmi.states, carp_copy)
+T.neq(carp_copy_index, 0, "carp copy position")
+local function saved_pixel(path)
+	local copy = call("open_file", path, TEMP_DIR)
+	local state = copy.states[carp_copy_index]
+	T.eq(state.name, carp_copy.name, "carp copy after save")
+	local file = app.fs.joinPath(copy.temp, state.frame_key .. ".1.bytes")
+	return T.ok(load_image_bytes(file), "reopened frame"):getPixel(1, 1)
+end
+T.eq(saved_pixel(saved_path), alpha_1, "alpha 1 pixel color kept by default")
+
+Preferences.plugin.preferences.black_near_transparent = true
+local black_path = app.fs.joinPath(T.tmp, "black_alpha_1.dmi")
+T.ok(editor:write_to(black_path), "save with black near-transparent pixels")
+Preferences.plugin.preferences.black_near_transparent = false
+T.eq(saved_pixel(black_path), app.pixelColor.rgba(0, 0, 0, 1), "alpha 1 pixel saved as black")

@@ -99,7 +99,8 @@ function RawDmi.save(sprite, filename)
 		image.height,
 		image.bytes,
 		filename,
-		session.metadata
+		session.metadata,
+		Preferences.getBlackNearTransparent()
 	)
 	if save_error then
 		app.alert { title = DIALOG_NAME, text = "Failed to save DMI: " .. save_error }
