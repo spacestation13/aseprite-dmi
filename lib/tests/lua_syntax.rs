@@ -7,6 +7,9 @@ use std::path::{Path, PathBuf};
 
 use mlua::Lua;
 
+// Links the dmi crate, which carries the statically built Lua that mlua needs on Linux.
+use dmi as _;
+
 fn lua_files(dir: &Path, out: &mut Vec<PathBuf>) {
     let entries = fs::read_dir(dir).unwrap_or_else(|e| panic!("reading {}: {e}", dir.display()));
     for entry in entries {
