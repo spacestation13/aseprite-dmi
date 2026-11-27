@@ -27,9 +27,9 @@ function init(plugin)
 		return
 	end
 
-	local min_version = Version("1.3.18")
-	local v = app.version
-	if v < min_version then
+	-- Feature detection
+	local has_file_format, new_file_format = pcall(function() return plugin.newFileFormat end)
+	if not has_file_format or not new_file_format then
 		return app.alert { title = DIALOG_NAME, text = "This extension requires Aseprite v1.3.18 or later." }
 	end
 
