@@ -14,9 +14,11 @@ use crate::utils::{find_directory, image_to_base64, optimal_size, sanitize_filen
 mod metadata;
 mod operations;
 mod png;
+mod raw;
 
 pub use operations::{CombineLayout, CombinePlan, combine_plan};
 pub use png::{read_dmi_metadata, save_rgba_dmi};
+pub use raw::RawSession;
 
 // This leaves memory for Aseprite while bounding the decoded atlas plus two frame buffers.
 const MAX_STREAMING_IMPORT_BYTES: u64 = 256 * 1024 * 1024;

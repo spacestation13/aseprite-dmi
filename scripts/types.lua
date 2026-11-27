@@ -819,7 +819,10 @@ Version = nil
 --- @field remove_dir fun(path: string, soft: boolean): nil, string? Removes a directory. If fails, returns an error message.
 --- @field save_rgba_dmi fun(width: number, height: number, bytes: string, filename: string, metadata: string): nil, string? Saves an RGBA byte buffer as a DMI PNG with the supplied zTXt metadata. If fails, returns an error message.
 --- @field read_dmi_png fun(filename: string): {width: number, height: number, bytes: string}, string? Reads a DMI file and returns its dimensions and raw RGBA bytes.
---- @field read_dmi_metadata fun(filename: string): {metadata: string, width: number, height: number}?, string? Reads validated DMI zTXt metadata and cell dimensions.
+--- @field raw_open fun(filename: string, temp: string): {png: string, session: RawDmiSession}?, string? Reads a DMI's raw session and copies it to a temporary .png. If fails, returns nil and an error message.
+--- @field encode_raw_session fun(session: RawDmiSession): string?, string? The record that stores a raw DMI session in sprite data.
+--- @field decode_raw_session fun(data: string): RawDmiSession?, string? The raw DMI session stored in sprite data, or nil.
+--- @field has_raw_session fun(data: string): boolean?, string? Whether sprite data marks a raw DMI sprite, even with an unreadable session.
 --- @field exists fun(path: string): boolean Returns true if the path points at an existing entity.
 --- @field check_update fun(): boolean? Starts a background update check; returns nil until it finishes, then true if an update is available.
 --- @field instances fun(): number?, string? Return the number of Aseprite instances running.
@@ -833,6 +836,13 @@ Version = nil
 --- @field height number The height of the DMI file.
 --- @field states (State)[] The states of the DMI file.
 --- @field temp string The temporary directory where images of states are stored.
+
+--- @class RawDmiSession: table
+--- @field original_width number The width of the DMI image.
+--- @field original_height number The height of the DMI image.
+--- @field cell_width number The icon width from the metadata.
+--- @field cell_height number The icon height from the metadata.
+--- @field metadata string The DMI metadata, saved back unchanged.
 
 --- @class Timer
 --- @field interval number Seconds between ticks.

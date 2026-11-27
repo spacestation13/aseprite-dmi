@@ -24,9 +24,18 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
         lua.create_function(safe!(save_rgba_dmi_lua))?,
     )?;
     exports.set("read_dmi_png", lua.create_function(safe!(read_dmi_png))?)?;
+    exports.set("raw_open", lua.create_function(safe!(raw_open))?)?;
     exports.set(
-        "read_dmi_metadata",
-        lua.create_function(safe!(read_dmi_metadata_lua))?,
+        "encode_raw_session",
+        lua.create_function(safe!(encode_raw_session))?,
+    )?;
+    exports.set(
+        "decode_raw_session",
+        lua.create_function(safe!(decode_raw_session))?,
+    )?;
+    exports.set(
+        "has_raw_session",
+        lua.create_function(safe!(has_raw_session))?,
     )?;
     exports.set(
         "save_frame_bytes",
@@ -333,17 +342,28 @@ fn save_rgba_dmi_lua(
     Ok(LuaValue::Nil)
 }
 
-fn read_dmi_metadata_lua(lua: &Lua, filename: String) -> LuaResult<LuaTable> {
-    let metadata = crate::dmi::read_dmi_metadata(&filename)?;
-    let mut dmi = Dmi::new(String::new(), 0, 0);
-    dmi.set_metadata(&metadata)?;
+fn raw_open(lua: &Lua, (filename, temp): (String, String)) -> LuaResult<LuaTable> {
+    let (session, png) = RawSession::open(filename, temp)?;
 
     let table = lua.create_table()?;
-    table.set("metadata", metadata)?;
-    table.set("width", dmi.width)?;
-    table.set("height", dmi.height)?;
+    table.set("png", png.to_string_lossy().into_owned())?;
+    table.set("session", session.into_lua_table(lua)?)?;
 
     Ok(table)
+}
+
+fn encode_raw_session(_: &Lua, session: LuaTable) -> LuaResult<String> {
+    Ok(RawSession::from_lua_table(session)?.encode())
+}
+
+fn decode_raw_session(lua: &Lua, data: LuaString) -> LuaResult<Option<LuaTable>> {
+    RawSession::decode(&data.as_bytes())
+        .map(|session| session.into_lua_table(lua))
+        .transpose()
+}
+
+fn has_raw_session(_: &Lua, data: LuaString) -> LuaResult<bool> {
+    Ok(RawSession::is_marked(&data.as_bytes()))
 }
 
 fn save_frame_bytes(
@@ -601,6 +621,33 @@ impl FromLuaTable for SerializedDmi {
             height,
             states,
             temp,
+        })
+    }
+}
+
+impl IntoLuaTable for RawSession {
+    fn into_lua_table(self, lua: &Lua) -> LuaResult<LuaTable> {
+        let table = lua.create_table()?;
+
+        table.set("original_width", self.original_width)?;
+        table.set("original_height", self.original_height)?;
+        table.set("cell_width", self.cell_width)?;
+        table.set("cell_height", self.cell_height)?;
+        table.set("metadata", self.metadata)?;
+
+        Ok(table)
+    }
+}
+
+impl FromLuaTable for RawSession {
+    type Result = RawSession;
+    fn from_lua_table(table: LuaTable) -> LuaResult<Self::Result> {
+        Ok(RawSession {
+            original_width: table.get("original_width")?,
+            original_height: table.get("original_height")?,
+            cell_width: table.get("cell_width")?,
+            cell_height: table.get("cell_height")?,
+            metadata: table.get("metadata")?,
         })
     }
 }
