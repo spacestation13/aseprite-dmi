@@ -345,20 +345,27 @@ fn instances(_: &Lua, _: ()) -> LuaResult<usize> {
         .count())
 }
 
-fn check_update(_: &Lua, (): ()) -> LuaResult<bool> {
+/// Returns nil until the check finishes, then whether an update is available.
+fn check_update(_: &Lua, (): ()) -> LuaResult<Option<bool>> {
     // Skip update checks in debug builds for local development
     #[cfg(debug_assertions)]
     {
-        Ok(false)
+        Ok(Some(false))
     }
 
     #[cfg(not(debug_assertions))]
     {
-        let version = check_latest_version();
-        if let Ok(std::cmp::Ordering::Less) = version {
-            return Ok(true);
-        }
-        Ok(false)
+        use std::sync::{Once, OnceLock};
+        static STARTED: Once = Once::new();
+        static UPDATE_AVAILABLE: OnceLock<bool> = OnceLock::new();
+
+        STARTED.call_once(|| {
+            std::thread::spawn(|| {
+                let newer = matches!(check_latest_version(), Ok(std::cmp::Ordering::Less));
+                let _ = UPDATE_AVAILABLE.set(newer);
+            });
+        });
+        Ok(UPDATE_AVAILABLE.get().copied())
     }
 }
 

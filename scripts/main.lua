@@ -19,6 +19,10 @@ open_editors = {}
 --- @type LibDmi
 libdmi = nil
 
+--- Polls the background update check.
+--- @type Timer|nil
+update_timer = nil
+
 
 --- Initializes the plugin. Called when the plugin is loaded.
 --- @param plugin Plugin The plugin object.
@@ -317,6 +321,10 @@ function exit(plugin)
 			editor:close(false, true)
 		end
 	end
+	if update_timer then
+		update_timer:stop()
+		update_timer = nil
+	end
 	if not exiting and libdmi then
 		-- DLL cannot be unloaded while the process is running; keep libdmi
 		-- alive so a subsequent init() can reuse it via loadlib().
@@ -354,11 +362,19 @@ function loadlib(plugin_path)
 	end
 end
 
---- General checks.
 function general_check()
-	if libdmi.check_update() then
-		update_popup()
-	end
+	--- Checks for updates in the background.
+	update_timer = Timer {
+		interval = 0.5,
+		ontick = function()
+			local available = libdmi.check_update()
+			if available == nil then return end
+			update_timer:stop()
+			update_timer = nil
+			if available then update_popup() end
+		end,
+	}
+	update_timer:start()
 end
 
 --- Shows the update alert popup.

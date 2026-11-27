@@ -817,7 +817,7 @@ Version = nil
 --- @field read_dmi_png fun(filename: string): {width: number, height: number, bytes: string}, string? Reads a DMI file and returns its dimensions and raw RGBA bytes.
 --- @field read_dmi_metadata fun(filename: string): {metadata: string, width: number, height: number}?, string? Reads validated DMI zTXt metadata and cell dimensions.
 --- @field exists fun(path: string): boolean Returns true if the path points at an existing entity.
---- @field check_update fun(): boolean Return true if there is an update available.
+--- @field check_update fun(): boolean? Starts a background update check; returns nil until it finishes, then true if an update is available.
 --- @field instances fun(): number?, string? Return the number of Aseprite instances running.
 --- @field save_dialog fun(title: string, filename: string, location: string): string?, string? Shows a save dialog. Returns the path of the file to save or empty string if the user cancels the dialog.
 --- @field open_dialog fun(title: string, location: string, extension: string): string?, string? Shows an open dialog filtered by extension. Returns the path of the selected file or empty string if the user cancels the dialog.
@@ -829,6 +829,20 @@ Version = nil
 --- @field height number The height of the DMI file.
 --- @field states (State)[] The states of the DMI file.
 --- @field temp string The temporary directory where images of states are stored.
+
+--- @class Timer
+--- @field interval number Seconds between ticks.
+--- @field isRunning boolean
+--- @field start fun(self: Timer)
+--- @field stop fun(self: Timer)
+
+--- @class Timer.Params
+--- @field interval number Seconds between ticks.
+--- @field ontick fun()
+
+--- @param params Timer.Params
+--- @return Timer
+function Timer(params) end
 
 --- @class State: table
 --- @field name string The name of the state.
