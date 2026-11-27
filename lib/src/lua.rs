@@ -317,7 +317,7 @@ fn open_dialog(
 }
 
 fn instances(_: &Lua, _: ()) -> LuaResult<usize> {
-    let mut system = sysinfo::System::new();
+    let mut system = sysinfo::System::new().map_err(LuaError::external)?;
     let refresh_kind =
         sysinfo::ProcessRefreshKind::nothing().with_exe(sysinfo::UpdateKind::OnlyIfNotSet);
     system.refresh_processes_specifics(sysinfo::ProcessesToUpdate::All, true, refresh_kind);
