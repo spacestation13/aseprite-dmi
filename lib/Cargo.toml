@@ -1,6 +1,6 @@
 [package]
 name = "aseprite-dmi"
-version = "2.0.1"
+version = "2.0.2"
 edition = "2024"
 rust-version = "1.96"
 repository = "https://github.com/spacestation13/aseprite-dmi"
