@@ -1,0 +1,4 @@
+# mlua-sys in `module` mode would otherwise link Windows builds against lua54.dll.
+# Point it at the static Lua that build.rs compiles from Aseprite's fork instead.
+[env]
+LUA_LIB_NAME = "lua_aseprite"

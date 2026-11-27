@@ -52,12 +52,12 @@ Running the Windows build via Wine/Lutris is recommended. You probably have Lutr
 
 -	[Rust](https://www.rust-lang.org/)
 -	[Python](https://www.python.org/)
--	Linux (Debian/Ubuntu): `sudo apt install liblua5.4-dev pkg-config`
--	macOS (Homebrew): `brew install lua@5.4 pkg-config`
+-	A C++ compiler (MSVC Build Tools on Windows, `g++`/`clang++` elsewhere)
+-	The `lib/lua` submodule: `git submodule update --init`
+
+Lua is compiled into the library from [Aseprite's Lua fork](https://github.com/aseprite/lua).
 
 To build the project, run the `tools/build.py` Python script.
-
-On macOS, you'll need to set up pkg-config: `PKG_CONFIG_PATH="$(brew --prefix lua@5.4)/lib/pkgconfig" python tools/build.py`
 
 ### Releasing
 

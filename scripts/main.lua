@@ -337,12 +337,8 @@ end
 --- @param plugin_path string Path where the extension is installed.
 function loadlib(plugin_path)
 	if not libdmi then
-		if app.fs.pathSeparator ~= "/" then
-			package.loadlib(app.fs.joinPath(plugin_path, LUA_LIB --[[@as string]]), "")
-		elseif package.config:sub(1,1) == "/" and not package.cpath:find("%.dylib") then
-			package.cpath = package.cpath .. ";?.so"
-		elseif package.config:sub(1,1) == "/" and package.cpath:find("%.dylib") then
-			package.cpath = package.cpath .. ";?.dylib"
+		if IS_POSIX then
+			package.cpath = package.cpath .. (IS_DARWIN and ";?.dylib" or ";?.so")
 		end
 		local loader, err = package.loadlib(app.fs.joinPath(plugin_path, DMI_LIB), "luaopen_dmi_module")
 		if not loader then

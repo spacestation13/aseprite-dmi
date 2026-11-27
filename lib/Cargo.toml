@@ -2,6 +2,7 @@
 name = "aseprite-dmi"
 version = "2.0.1"
 edition = "2024"
+rust-version = "1.96"
 repository = "https://github.com/spacestation13/aseprite-dmi"
 
 [lib]
@@ -13,7 +14,7 @@ anyhow = "1.0"
 arboard = "3.7"
 base64 = "0.23.1"
 image = { version = "0.25.10", default-features = false, features = ["png"] }
-mlua = { version = "0.11.6", features = ["module", "lua54", "serialize"] }
+mlua = { version = "0.12.3", features = ["module", "lua54", "serialize"] }
 native-dialog = "0.9"
 png = "0.18.1"
 reqwest = { version = "0.13.5", default-features = false, features = ["blocking", "json", "native-tls"] }
@@ -24,5 +25,5 @@ sysinfo = { version = "0.40.4", default-features = false, features = ["system"] 
 thiserror = "2.0"
 open = "5.4"
 
-[target.'cfg(not(windows))'.build-dependencies]
-pkg-config = "0.3"
+[build-dependencies]
+cc = "1.2"

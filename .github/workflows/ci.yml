@@ -29,9 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-
-      - name: Install lua-dev
-        run: sudo apt-get update && sudo apt-get install -y liblua5.4-dev pkg-config
+        with:
+          submodules: true
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -77,16 +76,8 @@ jobs:
     name: Build - ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v7
-
-      - name: Install lua-dev (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y liblua5.4-dev pkg-config
-
-      - name: Install lua-dev (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install lua@5.4 pkg-config
-          echo "PKG_CONFIG_PATH=$(brew --prefix lua@5.4)/lib/pkgconfig" >> "$GITHUB_ENV"
+        with:
+          submodules: true
 
       - uses: dtolnay/rust-toolchain@stable
         with:

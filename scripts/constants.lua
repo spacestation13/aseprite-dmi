@@ -7,7 +7,6 @@ TEMP_NAME = "aseprite-dmi"
 IS_POSIX = app.fs.pathSeparator == "/"
 IS_DARWIN = IS_POSIX and package.cpath:find("%.dylib") ~= nil
 
-LUA_LIB = not IS_POSIX and "lua54.dll" or nil -- Handled by linker on posix
 DMI_LIB = not IS_POSIX and "dmi.dll"
 	 or IS_DARWIN and "libdmi.dylib"
 	 or "libdmi.so"
