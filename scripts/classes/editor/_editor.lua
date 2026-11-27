@@ -121,6 +121,7 @@ function Editor:new_dialog(title)
 	}
 
 	self.dialog:canvas {
+		id = "canvas",
 		width = self.canvas_width,
 		height = self.canvas_height,
 		onpaint = function(ev) self:onpaint(ev.context) end,

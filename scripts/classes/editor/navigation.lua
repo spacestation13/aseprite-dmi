@@ -202,12 +202,31 @@ function Editor:find_states(query)
 	return #indices
 end
 
---- Opens the non-modal Find dialog (Ctrl+F): selects states containing the text as you type.
+--- Find box text editing: the new query for a key, or nil if the key doesn't edit text.
+--- @param query string
+--- @param code string KeyEvent code.
+--- @param char string|nil KeyEvent key (typed character).
+--- @return string|nil
+function EditorNav.edit_query(query, code, char)
+	if code == "Backspace" then
+		return query:sub(1, -2)
+	elseif code == "Delete" then
+		return ""
+	elseif char and #char == 1 and char:byte() >= 32 and char:byte() < 127 then
+		return query .. char
+	end
+	return nil
+end
+
+--- Opens the non-modal Find States dialog (Ctrl+F or /): selects states containing the text as you type.
+--- The text box is a canvas so Esc/Enter/Delete are handled here and never reach Aseprite's
+--- shortcuts (an entry in a non-modal dialog lets Esc run Cancel, deselecting the active sprite).
 function Editor:open_find_dialog()
 	if self.find_dialog then
 		self.find_dialog:close()
 	end
 	local dialog
+	local query = ""
 	dialog = Dialog {
 		title = "Find States",
 		parent = self.dialog,
@@ -216,16 +235,51 @@ function Editor:open_find_dialog()
 		end
 	}
 	local function update()
-		local count = self:find_states(dialog.data.query)
-		dialog:modify { id = "result", text = dialog.data.query == "" and "" or (count .. " match" .. (count == 1 and "" or "es")) }
+		local count = self:find_states(query)
+		dialog:repaint()
+		dialog:modify { id = "result", text = query == "" and "" or (count .. " match" .. (count == 1 and "" or "es")) }
 	end
-	dialog:entry { id = "query", label = "Name contains", focus = true, onchange = update }
+	local function close()
+		dialog:close()
+		if self.dialog then self.dialog:modify { id = "canvas", focus = true } end
+	end
+	dialog:canvas {
+		id = "query",
+		label = "Name contains",
+		width = 120,
+		height = 18,
+		focus = true,
+		onpaint = function(ev)
+			local ctx = ev.context
+			ctx:drawThemeRect("sunken_focused", Rectangle(0, 0, ctx.width, ctx.height))
+			local text = query .. "|"
+			local size = ctx:measureText(text)
+			ctx.color = app.theme.color.text
+			ctx:fillText(text, 4, (ctx.height - size.height) / 2)
+		end,
+		onkeydown = function(ev)
+			if ev.code == "Escape" then
+				query = ""
+				update()
+				close()
+			elseif ev.code == "Enter" or ev.code == "NumpadEnter" then
+				close()
+			elseif not (ev.ctrlKey or ev.altKey or ev.metaKey) then
+				local new_query = EditorNav.edit_query(query, ev.code, ev.key)
+				if new_query then
+					query = new_query
+					update()
+				end
+			end
+			ev:stopPropagation()
+		end
+	}
 	dialog:label { id = "result", text = "" }
 	dialog:button { text = "Clear", onclick = function()
-		dialog:modify { id = "query", text = "" }
+		query = ""
 		update()
 	end }
-	dialog:button { text = "Close", onclick = function() dialog:close() end }
+	dialog:button { text = "Close", onclick = close }
 	self.find_dialog = dialog
 	dialog:show { wait = false }
 	-- Beside the editor so it doesn't cover the grid.
@@ -277,9 +331,12 @@ function Editor:handle_navigation_key(ev)
 		if app.alert { title = self.title, text = text, buttons = { "&Remove", "&Cancel" } } == 1 then
 			self:remove_selected_states()
 		end
+		-- The alert hands keyboard focus back to the sprite editor; keep it on the grid so the
+		-- next Delete/arrow doesn't hit the active sprite.
+		if self.dialog then self.dialog:modify { id = "canvas", focus = true } end
 		return true
 	elseif code == "Escape" then
-		if #self.selected_states == 0 then return false end -- keep Esc's default (close the dialog)
+		-- Consumed even with nothing selected: Aseprite's Esc (Cancel) would deselect the active sprite.
 		self.selected_states = {}
 		self:reset_typeahead()
 		self:repaint()

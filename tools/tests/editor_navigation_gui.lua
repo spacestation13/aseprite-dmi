@@ -63,7 +63,6 @@ T.wait_until(function() return libdmi and open_editors end, function()
 			local count = editor:find_states("a")
 			T.eq(count, #EditorNav.find_all(names, "a"), "find selects matches")
 			T.eq(#editor.selected_states, count, "matches selected")
-			editor.find_dialog:modify { id = "query", text = "a" }
 			T.detail("selected", table.concat(selected_names(editor), ","))
 			T.after(1, T.done)
 		end)

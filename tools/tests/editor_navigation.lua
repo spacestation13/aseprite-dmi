@@ -48,3 +48,9 @@ T.eq({ buf, i }, { "tel", 6 }, "growing word moves on")
 -- After a pause the editor's timer empties the buffer: a new word starts.
 buf, i = M.typeahead("", "m", names, i)
 T.eq({ buf, i }, { "m", 3 }, "new word after reset")
+
+T.eq(M.edit_query("ab", "KeyC", "c"), "abc", "find: type")
+T.eq(M.edit_query("abc", "Backspace", "\b"), "ab", "find: backspace")
+T.eq(M.edit_query("", "Backspace", "\b"), "", "find: backspace on empty")
+T.eq(M.edit_query("abc", "Delete", ""), "", "find: delete clears")
+T.eq(M.edit_query("abc", "ArrowLeft", ""), nil, "find: non-text key")

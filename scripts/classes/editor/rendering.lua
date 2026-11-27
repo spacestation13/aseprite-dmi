@@ -472,7 +472,10 @@ function Editor:onmouseup(ev)
 				if is_mouse_over then
 					if ev.button == MouseButton.LEFT and widget.onleftclick then
 						triggered = true
-						widget.onleftclick(ev)
+						-- Ctrl(+Shift)+click on a preview only changes the selection (see onmousedown).
+						if not (ev.ctrlKey and widget.type == "IconWidget") then
+							widget.onleftclick(ev)
+						end
 					elseif ev.button == MouseButton.RIGHT and widget.onrightclick then
 						triggered = true
 						widget.onrightclick(ev)
