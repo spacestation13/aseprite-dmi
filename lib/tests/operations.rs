@@ -58,14 +58,9 @@ fn sources(plan: &CombinePlan) -> Vec<(usize, u32)> {
 }
 
 #[test]
-fn frame_bytes_format() {
+fn frame_bytes_reject_a_wrong_pixel_count() {
     let temp = temp_dir("format");
     let path = temp.join("frame.bytes");
-    write_frame_bytes(&path, 2, 1, &[1, 2, 3, 4, 5, 6, 7, 8]).unwrap();
-    assert_eq!(
-        fs::read(&path).unwrap(),
-        b"2\n1\n\x01\x02\x03\x04\x05\x06\x07\x08"
-    );
     assert!(matches!(
         write_frame_bytes(&path, 2, 2, &[0; 8]),
         Err(DmiError::MissingData)

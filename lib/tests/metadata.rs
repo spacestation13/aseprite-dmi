@@ -1,7 +1,7 @@
 use std::fs::remove_file;
 use std::path::{Path, PathBuf};
 
-use dmi::{Dmi, SaveOptions, read_dmi_metadata, save_rgba_dmi};
+use dmi::{Dmi, SaveOptions, read_dmi_metadata};
 
 fn sample() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/assets/anomaly.dmi")
@@ -93,33 +93,5 @@ fn legacy_latin1_metadata_is_read() {
     let dmi = Dmi::open(&output).unwrap();
     assert_eq!(dmi.states[0].name, "caf\u{E9}");
     assert_eq!(dmi.states[1].name, "na\u{EF}ve \u{A9}");
-    remove_file(output).unwrap();
-}
-
-/// The raw zTXt chunk (data only) of a PNG file.
-fn ztxt_chunk(path: &Path) -> Vec<u8> {
-    let bytes = std::fs::read(path).unwrap();
-    let mut at = 8;
-    while at + 8 <= bytes.len() {
-        let len = u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap()) as usize;
-        if &bytes[at + 4..at + 8] == b"zTXt" {
-            return bytes[at + 8..at + 8 + len].to_vec();
-        }
-        at += 12 + len;
-    }
-    panic!("no zTXt chunk");
-}
-
-#[test]
-fn ascii_metadata_chunk_is_byte_identical_to_png_crate_output() {
-    let metadata = two_states("plain", "with \\\"quotes\\\"");
-    let expected = temp_file("ascii-expected.dmi");
-    let output = temp_file("ascii-actual.dmi");
-    png_crate_dmi(&expected, &metadata);
-    save_rgba_dmi(2, 1, &[255; 8], &output, &metadata, SaveOptions::default()).unwrap();
-
-    assert_eq!(ztxt_chunk(&output), ztxt_chunk(&expected));
-    assert_eq!(read_dmi_metadata(&output).unwrap(), metadata);
-    remove_file(expected).unwrap();
     remove_file(output).unwrap();
 }

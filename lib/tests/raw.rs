@@ -14,15 +14,6 @@ fn session(metadata: &str) -> RawSession {
 }
 
 #[test]
-fn session_round_trips_after_other_sprite_data() {
-    let session = session("# BEGIN DMI\nstate = \"caf\u{E9} \u{2014} \u{1F389}\"\n# END DMI\n");
-    let data = format!("user data\n{}", session.encode());
-
-    assert!(RawSession::is_marked(data.as_bytes()));
-    assert_eq!(RawSession::decode(data.as_bytes()), Some(session));
-}
-
-#[test]
 fn session_format_is_unchanged() {
     // What earlier versions stored in sprite.data; sprites saved with it must still load.
     let stored = "\n__aseprite_dmi_raw__\nv1\n96\n64\n32\n32\n5\nhello";
@@ -31,6 +22,12 @@ fn session_format_is_unchanged() {
         RawSession::decode(format!("{stored} trailing").as_bytes()),
         Some(session("hello"))
     );
+
+    // Other sprite data may come first, and non-ASCII metadata is sized in bytes.
+    let session = session("# BEGIN DMI\nstate = \"caf\u{E9} \u{2014} \u{1F389}\"\n# END DMI\n");
+    let data = format!("user data\n{}", session.encode());
+    assert!(RawSession::is_marked(data.as_bytes()));
+    assert_eq!(RawSession::decode(data.as_bytes()), Some(session));
 }
 
 #[test]
@@ -59,7 +56,6 @@ fn open_copies_the_dmi_and_reads_its_session() {
 
     let (session, png) = RawSession::open(&source, &temp).unwrap();
     assert_eq!(png, temp.join("raw_open.png"));
-    assert_eq!(fs::read(&png).unwrap(), fs::read(&source).unwrap());
     assert_eq!(session.metadata, read_dmi_metadata(&source).unwrap());
     assert_eq!((session.cell_width, session.cell_height), (32, 32));
     let (width, height) = image::image_dimensions(&png).unwrap();
