@@ -147,14 +147,42 @@ path, asset_info = Registry.asset(asset_url, { online = true, refresh = true })
 T.eq(asset_info.source, "cache", "asset cache after a failure")
 T.eq(read(path), "GIMP Palette\n0 255 0\tGreen-1\n")
 
-local other_url = "https://raw.githubusercontent.com/example/codebase/master/.github/palette.png?raw=1"
-path, asset_info = Registry.asset(other_url)
-T.eq(path, nil, "foreign asset without cache")
-T.ok(asset_info.error, "foreign asset error")
+-- Only files hosted in this repository: anything else is refused before the cache or network.
+local refused = {
+	"https://raw.githubusercontent.com/example/codebase/master/.github/palette.png",
+	"https://raw.githubusercontent.com/spacestation13/aseprite-dmi-evil/main/x.gpl", -- lookalike repo
+	"http://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/registry/x.gpl", -- not https
+	"https://raw.githubusercontent.com/spacestation13/aseprite-dmi/../../example/codebase/master/x.gpl",
+	"https://raw.githubusercontent.com/spacestation13/aseprite-dmi/%2e%2e/%2e%2e/example/x.gpl",
+	"https://example.com/https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/x.gpl",
+}
 local calls_before = #calls
-Registry.asset(other_url, { online = true })
-T.eq(calls[#calls], other_url, "foreign asset downloaded online")
-T.eq(#calls, calls_before + 1)
+for _, url in ipairs(refused) do
+	T.eq(Registry.is_allowed(url), false, "refused: " .. url)
+	-- A file already sitting at its cache path must not be used either.
+	write(app.fs.joinPath(cache, "assets", Registry.hash(url) .. ".gpl"), "GIMP Palette\n1 2 3\tX\n")
+	for _, options in ipairs({ {}, { online = true }, { online = true, refresh = true } }) do
+		path, asset_info = Registry.asset(url, options)
+		T.eq(path, nil, "no path for " .. url)
+		T.ok(asset_info.error and asset_info.error:find("hosted in this repository", 1, true),
+			"clear error: " .. tostring(asset_info.error))
+	end
+end
+T.eq(#calls, calls_before, "refused URLs are never downloaded")
+T.ok(Registry.is_allowed("https://raw.githubusercontent.com/spacestation13/aseprite-dmi/some-branch/registry/x.gpl"),
+	"any branch of this repo")
+T.ok(Registry.is_allowed(Registry.BASE_URL .. "palettes.json"), "registry index allowed")
+T.eq(Registry.is_allowed(nil), false, "nil url")
+
+-- Entries pointing outside the repository aren't listed.
+local listed = Palettes.entries {
+	palettes = {
+		{ id = "ours", name = "Ours", url = Registry.BASE_URL .. "palettes/ours.gpl" },
+		{ id = "theirs", name = "Theirs", url = refused[1] },
+	},
+}
+T.eq(#listed, 1, "foreign entry skipped")
+T.eq(listed[1].id, "ours")
 
 T.eq(Registry.bundled_path(Registry.BASE_URL .. "../secret.txt"), nil, "no path traversal")
 T.eq(Registry.bundled_path("https://example.com/palettes.json"), nil, "foreign URL not bundled")

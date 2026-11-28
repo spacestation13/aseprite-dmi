@@ -94,8 +94,9 @@ end
 --- Every color line gets a name ("Untitled" when it has none, like Aseprite writes): Aseprite
 --- skips color lines without one.
 --- @param palette PaletteData
+--- @param comment string|nil Written as a `#` comment line after the header.
 --- @return string
-function Palettes.to_gpl(palette)
+function Palettes.to_gpl(palette, comment)
 	local alpha = false
 	for _, color in ipairs(palette.colors) do
 		if color.a ~= 255 then alpha = true end
@@ -107,6 +108,9 @@ function Palettes.to_gpl(palette)
 	end
 	if alpha then
 		table.insert(lines, "Channels: RGBA")
+	end
+	if comment then
+		table.insert(lines, "# " .. comment:gsub("[\r\n]", " "))
 	end
 	table.insert(lines, "#")
 	for _, color in ipairs(palette.colors) do
@@ -190,14 +194,15 @@ end
 --- Writes a palette as .gpl.
 --- @param palette PaletteData
 --- @param path string
+--- @param comment string|nil See Palettes.to_gpl.
 --- @return boolean ok
 --- @return string|nil error
-function Palettes.write_gpl(palette, path)
+function Palettes.write_gpl(palette, path, comment)
 	local file = io.open(path, "wb")
 	if not file then
 		return false, "Could not write " .. path
 	end
-	file:write(Palettes.to_gpl(palette))
+	file:write(Palettes.to_gpl(palette, comment))
 	file:close()
 	return true
 end
@@ -219,16 +224,43 @@ function Palettes.presets_dir()
 	return app.fs.joinPath(app.fs.userConfigPath, "palettes")
 end
 
---- Saves a palette into the Presets folder as `<name>.gpl` (replacing an older copy).
+--- Comment marking presets this extension installed (they may be replaced without asking).
+local INSTALLED_MARK = "Installed by the DMI Editor extension"
+
+--- Path of the preset `<name>.gpl` in the Presets folder.
+--- @param name string
+--- @return string
+function Palettes.preset_path(name)
+	return app.fs.joinPath(Palettes.presets_dir(), Palettes.file_title(name) .. ".gpl")
+end
+
+--- Whether the preset file was installed by this extension.
+--- @param path string
+--- @return boolean
+local function installed_by_us(path)
+	local file = io.open(path, "rb")
+	if not file then return false end
+	local head = file:read(4096) or ""
+	file:close()
+	return head:find("# " .. INSTALLED_MARK, 1, true) ~= nil
+end
+
+--- Saves a palette into the Presets folder as `<name>.gpl`. A preset this extension installed
+--- earlier is replaced; any other existing file only with `replace`, else nothing is written
+--- and the third result is true (ask the user, then call again with `replace`).
 --- @param palette PaletteData
 --- @param name string|nil Preset name, defaults to the palette name.
+--- @param replace boolean|nil Replace a preset that isn't ours.
 --- @return string|nil path
 --- @return string|nil error
-function Palettes.install(palette, name)
-	local dir = Palettes.presets_dir()
-	app.fs.makeAllDirectories(dir)
-	local path = app.fs.joinPath(dir, Palettes.file_title(name or palette.name or "palette") .. ".gpl")
-	local ok, err = Palettes.write_gpl(palette, path)
+--- @return boolean|nil exists A preset of that name exists and wasn't replaced.
+function Palettes.install(palette, name, replace)
+	local path = Palettes.preset_path(name or palette.name or "palette")
+	if not replace and app.fs.isFile(path) and not installed_by_us(path) then
+		return nil, "A preset named \"" .. app.fs.fileTitle(path) .. "\" already exists.", true
+	end
+	app.fs.makeAllDirectories(Palettes.presets_dir())
+	local ok, err = Palettes.write_gpl(palette, path, INSTALLED_MARK)
 	if not ok then return nil, err end
 	return path
 end
@@ -270,25 +302,37 @@ function Palettes.apply(sprites, palette)
 	end
 end
 
+--- The open state sprite (StateSprite) showing `sprite` in a DMI editor, or nil. Closed state
+--- tabs are dropped from the editors first (their sprites are deleted).
+--- @param sprite Sprite|nil
+--- @return StateSprite|nil
+function Palettes.state_sprite_of(sprite)
+	if not sprite then return nil end
+	for _, editor in ipairs(open_editors or {}) do
+		if not editor.closed then
+			editor:gc_open_sprites()
+			for _, state_sprite in ipairs(editor.open_sprites) do
+				if state_sprite.sprite == sprite then
+					return state_sprite
+				end
+			end
+		end
+	end
+	return nil
+end
+
 --- The sprite, or with `all_states` every open state sprite of the DMI it belongs to.
 --- @param sprite Sprite
 --- @param all_states boolean|nil
 --- @return Sprite[]
 function Palettes.target_sprites(sprite, all_states)
-	if all_states then
-		for _, editor in ipairs(open_editors or {}) do
-			if not editor.closed then
-				for _, state_sprite in ipairs(editor.open_sprites) do
-					if state_sprite.sprite == sprite then
-						local sprites = {}
-						for _, other in ipairs(editor.open_sprites) do
-							table.insert(sprites, other.sprite)
-						end
-						return sprites
-					end
-				end
-			end
+	local state_sprite = all_states and Palettes.state_sprite_of(sprite)
+	if state_sprite then
+		local sprites = {}
+		for _, other in ipairs(state_sprite.editor.open_sprites) do
+			table.insert(sprites, other.sprite)
 		end
+		return sprites
 	end
 	return { sprite }
 end
@@ -552,7 +596,8 @@ end
 --- @field homepage string|nil
 --- @field license string|nil
 
---- Valid entries of a palettes registry, in file order (entries without id/name/url skipped).
+--- Valid entries of a palettes registry, in file order. Entries without id/name/url, or whose
+--- url is outside this repository (Registry.is_allowed), are skipped.
 --- @param registry table|nil Decoded palettes.json.
 --- @return PaletteEntry[]
 function Palettes.entries(registry)
@@ -562,7 +607,7 @@ function Palettes.entries(registry)
 	end
 	for _, entry in ipairs(registry.palettes) do
 		if type(entry) == "table" and type(entry.id) == "string" and type(entry.name) == "string"
-			and type(entry.url) == "string" then
+			and Registry.is_allowed(entry.url) then
 			table.insert(entries, entry)
 		end
 	end

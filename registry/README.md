@@ -15,7 +15,11 @@ How the extension uses it (`scripts/classes/registry.lua`):
   the bundled copy it uses the one with the newer `updated` date, so a stale cache never hides
   a newer list shipped with an extension update.
 - Files an entry points at (`url`) are cached by a hash of the URL, with the same freshness
-  rules. URLs inside this directory fall back to the bundled copy.
+  rules, and fall back to the bundled copy.
+- Only files in this repository are fetched: every URL must start with
+  `https://raw.githubusercontent.com/spacestation13/aseprite-dmi/`. Entries pointing anywhere
+  else are not listed, and such URLs are refused without touching the cache or the network.
+  Files in other repositories could go stale or be swapped for something else after review.
 
 ## palettes.json
 
@@ -55,29 +59,31 @@ Entry:
 |---------------|----------|----------------------------------------------------------------------------|
 | `id`          | yes      | Unique, lowercase, `a-z0-9-`.                                              |
 | `name`        | yes      | Shown in the list; also the Presets file name (`<name>.gpl`).              |
-| `url`         | yes      | Raw file URL (http/https). Here or in the codebase's own repository.      |
+| `url`         | yes      | Raw URL of the file in this repository: `https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/registry/palettes/<id>.<ext>`. Any other host or repository is refused. |
 | `format`      | no       | `gpl` (GIMP palette), `hex` (one `RRGGBB` per line, Lospec's export) or `png` (unique colors in reading order, transparent pixels skipped). Default: the URL's extension. |
 | `codebase`    | no       | The codebase it belongs to.                                                |
 | `description` | no       | One sentence.                                                              |
 | `guidelines`  | no       | One sentence on how the codebase wants it used.                            |
-| `homepage`    | no       | Where it comes from (repository, wiki page).                               |
+| `homepage`    | no       | Where it comes from (repository, wiki page). Shown for credit only, never fetched. |
 | `license`     | no       | If the palette file has one.                                               |
 
 Keep text fields short: the dialog shows about 60 characters per line.
 
 ### Adding your codebase's palette
 
-1. Either commit the palette here as `registry/palettes/<id>.gpl` and use its raw URL
-   (`https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/registry/palettes/<id>.gpl`),
-   or point `url` at a raw file in your codebase's repository (for example
-   `https://raw.githubusercontent.com/<org>/<repo>/master/.github/palette.png`). A file in your
-   repository lets maintainers update the palette without a PR here, but it is only bundled
-   with the extension if it lives here.
+Palettes are contributed by pull request to this repository; the extension never downloads
+from a codebase's own repository.
+
+1. Add the palette file as `registry/palettes/<id>.gpl` (or `.hex`/`.png`). If it comes from
+   your codebase (for example its `.github/palette.png`), copy the file in and credit it in
+   `homepage` and the list below. To update it later, open another PR here.
 2. Give every `.gpl` color line a name: Aseprite skips color lines without one, and reads
    only the first word of a name (it shows as the color's tooltip). Use names like `Red-1`
    (ramp, then step, darkest first); the dialog groups colors into ramps by that prefix.
-3. Add the entry to `palettes.json` (keep the list alphabetical by `name`), bump `updated`
-   and open a pull request.
+3. Add the entry to `palettes.json` with
+   `"url": "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/registry/palettes/<id>.gpl"`
+   (keep the list alphabetical by `name`), bump `updated` and open a pull request. The file is
+   downloadable once the PR is merged into `main`, and bundled with the next release.
 
 ### Palettes
 

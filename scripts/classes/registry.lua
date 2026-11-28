@@ -5,10 +5,15 @@
 --- explicit user action (opening a dialog, pressing Refresh), never at startup. Downloads use a
 --- short timeout; results are cached under the user config folder with a TTL, and a failed
 --- fetch falls back to the cache, then to the copy bundled with the extension.
+---
+--- Only files hosted in this repository are ever fetched (`Registry.ALLOWED_PREFIX`): files in
+--- other repositories can go stale or be swapped for something else after review.
 --- @class Registry
 Registry = {}
 
 Registry.BASE_URL = "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/registry/"
+--- Every registry and asset URL must start with this.
+Registry.ALLOWED_PREFIX = "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/"
 
 --- Seconds a download may take.
 Registry.TIMEOUT = 5
@@ -142,6 +147,21 @@ local function update_meta(key, fields)
 	write_file(meta_path(), json.encode(meta))
 end
 
+--- Whether a URL may be fetched: inside this repository (`ALLOWED_PREFIX`), without `..`,
+--- backslashes or percent-escapes that could lead out of it.
+--- @param url string
+--- @return boolean
+function Registry.is_allowed(url)
+	return type(url) == "string" and url:starts_with(Registry.ALLOWED_PREFIX)
+		and not url:find("..", 1, true) and not url:find("[\\%%]")
+end
+
+--- The error for a URL outside this repository.
+local function not_allowed(url)
+	return "Refused " .. tostring(url) .. ": registry files must be hosted in this repository ("
+		.. Registry.ALLOWED_PREFIX .. ")"
+end
+
 --- Downloads into the cache unless the cached file is fresh. Returns the info of what is cached.
 --- @param key string Cache key (meta.json).
 --- @param url string
@@ -158,6 +178,9 @@ local function sync(key, url, path, options, validate)
 		and now - entry.failed < Registry.RETRY_AFTER
 
 	local err
+	if not Registry.is_allowed(url) then
+		return { error = not_allowed(url) }
+	end
 	if options.online and (options.refresh or (not fresh and not backing_off)) then
 		local tmp = path .. ".download"
 		app.fs.makeAllDirectories(app.fs.filePath(path))
@@ -213,14 +236,17 @@ function Registry.load(name, options)
 end
 
 --- Local path of a file an entry points at (`url`), downloaded with `online` when not cached
---- or stale. Cached by URL hash. Falls back to the cache, then, for URLs inside this repo's
---- registry, to the bundled copy.
+--- or stale. Cached by URL hash. Falls back to the cache, then to the bundled copy. URLs
+--- outside this repository are refused (nil and an error, nothing read or downloaded).
 --- @param url string
 --- @param options Registry.Options|nil
 --- @return string|nil path
 --- @return Registry.Info info
 function Registry.asset(url, options)
 	options = options or {}
+	if not Registry.is_allowed(url) then
+		return nil, { error = not_allowed(url) }
+	end
 	local extension = url:gsub("[?#].*$", ""):match("%.(%w+)$") or "bin"
 	local path = app.fs.joinPath(Registry.cache_dir, "assets", Registry.hash(url) .. "." .. extension:lower())
 
