@@ -11,6 +11,16 @@
 			"description": "Goonstation's spriting palette: 20 color ramps, darkest first.",
 			"guidelines": "Keep palettes small: build each sprite from a few of these ramps.",
 			"homepage": "https://github.com/goonstation/goonstation"
+		},
+		{
+			"id": "goonstation_metals",
+			"name": "Goonstation Metals",
+			"codebase": "Goonstation",
+			"url": "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/registry/palettes/goonstation_metals.gpl",
+			"format": "gpl",
+			"description": "Goonstation's metal ramps: brass, gold, silver, bronze, copper, iron and steel, darkest first.",
+			"guidelines": "Use one metal ramp per material; outlines take the ramp's darkest step.",
+			"homepage": "https://github.com/goonstation/goonstation"
 		}
 	]
 }

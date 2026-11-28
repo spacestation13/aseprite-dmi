@@ -218,11 +218,12 @@ T.eq(shipped_info.source, "bundled")
 T.eq(shipped.version, 1)
 local entries = Palettes.entries(shipped)
 T.ok(#entries >= 1, "shipped entries")
-local goon
+local shipped_by_id = {}
 for _, entry in ipairs(entries) do
 	T.ok(entry.url:find("^https://"), entry.id .. " url is https")
-	if entry.id == "goonstation" then goon = entry end
+	shipped_by_id[entry.id] = entry
 end
+local goon = shipped_by_id.goonstation
 T.ok(goon, "goonstation entry")
 local palette, palette_info = Palettes.load_entry(goon)
 T.ok(palette, "goonstation palette loads: " .. tostring(palette_info.error))
@@ -231,6 +232,13 @@ T.eq(palette.name, "Goonstation")
 T.eq(#palette.colors, 78, "goonstation color count")
 T.eq(palette.colors[1], { r = 0x39, g = 0x3a, b = 0x57, a = 255, name = "Steel-1" }, "first swatch")
 T.eq(palette.colors[#palette.colors].name, "Gunmetal-4", "last swatch")
+
+local metals, metals_info = Palettes.load_entry(shipped_by_id.goonstation_metals)
+T.ok(metals, "goonstation metals palette loads: " .. tostring(metals_info and metals_info.error))
+T.eq(metals.name, "Goonstation Metals")
+T.eq(#metals.colors, 35, "seven 5-step metal ramps")
+T.eq(metals.colors[1].name, "Brass-1", "first metal swatch")
+T.eq(metals.colors[#metals.colors].name, "Steel-5", "last metal swatch")
 
 Registry.download = real_download
 T.detail("goonstation_colors", #palette.colors)
