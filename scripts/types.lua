@@ -817,6 +817,7 @@ Version = nil
 --- @field combine_states fun(states: State[], temp: string, name: string, layout: "frames_first"|"directions_first", dirs: number, first_frame_only: boolean): State?, string? Combines states into a new one (see `COMBINE_LAYOUTS`). If fails, returns nil and an error message.
 --- @field save_frame_bytes fun(filename: string, width: number, height: number, bytes: string): nil, string? Writes a state frame image (RGBA bytes) to the temp directory. If fails, returns an error message.
 --- @field copy_states fun(states: State[], temp: string): nil, string? Copies one or more states to the clipboard. If fails, returns an error message.
+--- @field copy_text fun(text: string): nil, string? Copies plain text to the system clipboard. If fails, returns an error message.
 --- @field paste_states fun(width: number, height: number, temp: string): State[]?, string? Pastes states from the clipboard. If fails, returns nil and an error message.
 --- @field resize fun(dmi: Dmi, width: number, height: number, medhod: string): nil, string? Resizes the DMI file. If fails, returns an error message.
 --- @field crop fun(dmi: Dmi, x: number, y: number, width: number, height: number): nil, string? Crops the DMI file. If fails, returns an error message.
@@ -836,6 +837,7 @@ Version = nil
 --- @field save_dialog fun(title: string, filename: string, location: string): string?, string? Shows a save dialog. Returns the path of the file to save or empty string if the user cancels the dialog.
 --- @field open_dialog fun(title: string, location: string, extension: string): string?, string? Shows an open dialog filtered by extension. Returns the path of the selected file or empty string if the user cancels the dialog.
 --- @field open_repo fun(path?: string): nil, string? Opens the repository in the default browser. If fails, returns an error message.
+--- @field open_url fun(url: string): nil, string? Opens an https URL in the default browser (anything else is refused). If fails, returns an error message.
 
 --- @class Dmi: table
 --- @field name string The name of the DMI file.

@@ -100,6 +100,7 @@ os.makedirs(unzipped_dir)
 shutil.copy("package.json", unzipped_dir)
 shutil.copy("LICENSE", unzipped_dir)
 shutil.copy("README.md", unzipped_dir)
+shutil.copy("CREDITS.txt", unzipped_dir)
 shutil.copy(library_source, unzipped_dir)
 
 shutil.copytree(os.path.join("scripts"), os.path.join(unzipped_dir, "scripts"))

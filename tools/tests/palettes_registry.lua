@@ -51,6 +51,7 @@ write(app.fs.joinPath(bundled, "palettes", "bundled.gpl"), "GIMP Palette\n255 0 
 local server, calls = {}, {}
 local clock = 1000000
 Registry.now = function() return clock end
+---@diagnostic disable-next-line: duplicate-set-field
 Registry.download = function(url, dest, timeout)
 	table.insert(calls, url)
 	T.eq(timeout, Registry.TIMEOUT, "download timeout")
@@ -210,6 +211,7 @@ for _, url in ipairs({ "file:///C:/Windows/win.ini", "https://example.com/x.gpl"
 end
 
 -- The shipped registry: palettes.json + goonstation.gpl, offline.
+---@diagnostic disable-next-line: duplicate-set-field
 Registry.download = function() T.fail("network used") end
 Registry.now = real_now
 Registry.initialize(T.repo, app.fs.joinPath(T.tmp, "real-cache"))

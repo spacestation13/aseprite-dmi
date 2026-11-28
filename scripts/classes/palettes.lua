@@ -16,8 +16,6 @@ Palettes = {}
 --- @field name string|nil
 --- @field colors PaletteColor[]
 
-local pc = app.pixelColor
-
 local function clamp_byte(value)
 	return math.max(0, math.min(255, math.floor(tonumber(value) or 0)))
 end
@@ -118,70 +116,14 @@ function Palettes.to_gpl(palette, comment)
 	return table.concat(lines, "\n") .. "\n"
 end
 
---- Parses a .hex palette (one RRGGBB or AARRGGBB per line, as Lospec exports).
---- @param text string
---- @return PaletteData|nil palette
---- @return string|nil error
-function Palettes.parse_hex(text)
-	local palette = { colors = {} }
-	for line in text:gmatch("[^\r\n]+") do
-		local hex = line:match("^%s*#?(%x+)%s*$")
-		if hex and (#hex == 6 or #hex == 8) then
-			local value = tonumber(hex, 16)
-			local a = #hex == 8 and (value >> 24) & 0xff or 255
-			table.insert(palette.colors, {
-				r = (value >> 16) & 0xff, g = (value >> 8) & 0xff, b = value & 0xff, a = a,
-			})
-		end
-	end
-	if #palette.colors == 0 then
-		return nil, "No colors found"
-	end
-	return palette
-end
-
---- Unique colors of an image in reading order (alpha 0 skipped), e.g. a palette strip PNG.
+--- Reads a .gpl palette file.
 --- @param path string
 --- @return PaletteData|nil palette
 --- @return string|nil error
-function Palettes.read_image(path)
-	local ok, image = pcall(Image, { fromFile = path })
-	if not ok or not image then
-		return nil, "Could not open image: " .. path
-	end
-	local rgb = Image(image.width, image.height, ColorMode.RGB)
-	rgb:drawImage(image)
-
-	local palette = { colors = {} }
-	local seen = {}
-	local bytes = rgb.bytes
-	for i = 1, #bytes, 4 do
-		local r, g, b, a = bytes:byte(i, i + 3)
-		local key = pc.rgba(r, g, b, a)
-		if a > 0 and not seen[key] then
-			seen[key] = true
-			table.insert(palette.colors, { r = r, g = g, b = b, a = a })
-		end
-	end
-	return palette
-end
-
---- Reads a palette file: format "gpl", "hex" or "png" (default: from the extension).
---- @param path string
---- @param format string|nil
---- @return PaletteData|nil palette
---- @return string|nil error
-function Palettes.read(path, format)
-	format = (format or app.fs.fileExtension(path)):lower()
-	if format == "png" then
-		return Palettes.read_image(path)
-	end
+function Palettes.read(path)
 	local text = read_file(path)
 	if not text then
 		return nil, "Could not read " .. path
-	end
-	if format == "hex" or format == "txt" then
-		return Palettes.parse_hex(text)
 	end
 	return Palettes.parse_gpl(text)
 end
@@ -269,10 +211,7 @@ end
 --- @field name string
 --- @field codebase string|nil
 --- @field url string
---- @field format string|nil "gpl" (default from the URL), "hex" or "png".
 --- @field description string|nil
---- @field guidelines string|nil
---- @field homepage string|nil
 --- @field license string|nil
 
 --- Valid entries of a palettes registry, in file order. Entries without id/name/url, or whose
@@ -303,7 +242,7 @@ function Palettes.load_entry(entry, options)
 	if not path then
 		return nil, info
 	end
-	local palette, err = Palettes.read(path, entry.format)
+	local palette, err = Palettes.read(path)
 	if not palette then
 		info.error = err
 		return nil, info

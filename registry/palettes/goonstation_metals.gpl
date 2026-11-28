@@ -1,10 +1,8 @@
 GIMP Palette
 Name: Goonstation Metals
 Columns: 5
-# Goonstation metal palette: brass (BR), gold (AU), silver (AG), bronze (BR), copper (CU),
-# iron (FE) and steel (FE+C) ramps, darkest first. Entry names are <metal>-<step>.
-# Sampled from the metal reference image Goonstation artists share (an upscaled screenshot),
-# so values are close approximations; replace with exact values if a source file turns up.
+# Goonstation metal palette
+# Originally by Walpvrgis
 #
  91  60  39	Brass-1
 135  96  56	Brass-2

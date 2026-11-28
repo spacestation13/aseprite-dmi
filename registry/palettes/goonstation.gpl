@@ -1,9 +1,8 @@
 GIMP Palette
 Name: Goonstation
 Columns: 5
-# Goonstation spriting palette: color ramps (darkest first) from the palette reference
-# image Goonstation artists share. Entry names are <ramp>-<step>.
-# NT-* / Syndicate-* ramps are faction colors; Faction-Grey is shared by both.
+# Goonstation main spriting palette
+# Originally by Flaborized
 #
  57  58  87	Steel-1
 103 112 131	Steel-2
@@ -57,6 +56,15 @@ Columns: 5
 120 100  90	Bone-2
 170 153 135	Bone-3
 220 214 201	Bone-4
+ 16  12  54	Gunmetal-1
+ 25  30  68	Gunmetal-2
+ 45  60  82	Gunmetal-3
+ 68  98 105	Gunmetal-4
+ 30  33  50	Robotics-1
+ 52  52  66	Robotics-2
+ 78  82  99	Robotics-3
+140 161 163	Robotics-4
+191 201 202	Robotics-5
   1  39  63	NT-Blue-1
  10  72 130	NT-Blue-2
  57  92 198	NT-Blue-3
@@ -74,12 +82,3 @@ Columns: 5
  51 142   0	Syndicate-Green-1
  76 168   0	Syndicate-Green-2
 108 176   0	Syndicate-Green-3
- 30  33  50	Robotics-1
- 52  52  66	Robotics-2
- 78  82  99	Robotics-3
-140 161 163	Robotics-4
-191 201 202	Robotics-5
- 16  12  54	Gunmetal-1
- 25  30  68	Gunmetal-2
- 45  60  82	Gunmetal-3
- 68  98 105	Gunmetal-4

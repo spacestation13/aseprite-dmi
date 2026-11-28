@@ -289,11 +289,11 @@ function init(plugin)
 	}
 
 	plugin:newCommand {
-		id = "dmi_releases",
-		title = "Releases",
+		id = "dmi_credits",
+		title = "Credits",
 		group = "dmi_editor",
 		onclick = function()
-			libdmi.open_repo("releases")
+			show_credits(app.fs.joinPath(plugin.path, "CREDITS.txt"))
 		end,
 	}
 

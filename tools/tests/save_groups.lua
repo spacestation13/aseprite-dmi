@@ -3,11 +3,11 @@
 --- py tools/aseprite_runner.py tools/tests/save_groups.lua
 
 local rgba = app.pixelColor.rgba
-local A, C, D, E = rgba(255, 0, 0), rgba(0, 0, 255), rgba(255, 255, 0), rgba(0, 255, 255)
+local A, C, D, E = rgba(255, 0, 0, 255), rgba(0, 0, 255, 255), rgba(255, 255, 0, 255), rgba(0, 255, 255, 255)
 
 --- A sprite laid out like Editor:open_state builds it: one layer per direction, South on top.
 local function make_state(dirs, size)
-	local sprite = Sprite(ImageSpec { width = size, height = size, colorMode = ColorMode.RGB })
+	local sprite = Sprite(ImageSpec { width = size, height = size, colorMode = ColorMode.RGB, transparentColor = 0 })
 	app.sprite = sprite
 	while #sprite.layers < dirs do sprite:newLayer() end
 	for i = 1, dirs do
@@ -138,10 +138,10 @@ do
 	local results = {}
 	for _, grouped in ipairs({ false, true }) do
 		local sprite, L = make_state(4, 4)
-		sprite:newCel(L.South, 1, image { { rgba(200, 200, 200) } }, Point(0, 0))
+		sprite:newCel(L.South, 1, image { { rgba(200, 200, 200, 255) } }, Point(0, 0))
 		local shade = new_layer(sprite, "Shade")
 		shade.blendMode = BlendMode.MULTIPLY
-		sprite:newCel(shade, 1, image { { rgba(128, 0, 0) } }, Point(0, 0))
+		sprite:newCel(shade, 1, image { { rgba(128, 0, 0, 255) } }, Point(0, 0))
 		if grouped then
 			local group = sprite:newGroup()
 			group.name = "Shading"
@@ -156,7 +156,7 @@ do
 		results[key] = { canvas:getPixel(0, 0), exported("South"):getPixel(0, 0) }
 		sprite:close()
 	end
-	local expected = rgba(100, 0, 0)
+	local expected = rgba(100, 0, 0, 255)
 	T.eq(results.multiply_top, { expected, expected }, "top-level Multiply: canvas, saved")
 	T.eq(results.multiply_grouped, { expected, expected }, "grouped Multiply: canvas, saved")
 end
@@ -200,7 +200,7 @@ end
 -- Changing a state's directions saves after its own transaction: the flatten is undone without
 -- touching the direction change, and one undo reverts the direction change.
 do
-	local sprite = Sprite(ImageSpec { width = 8, height = 8, colorMode = ColorMode.RGB })
+	local sprite = Sprite(ImageSpec { width = 8, height = 8, colorMode = ColorMode.RGB, transparentColor = 0 })
 	app.sprite = sprite
 	local south = sprite.layers[1]
 	south.name = "South"
@@ -214,9 +214,10 @@ do
 	state_sprite.editor:set_state_dirs(state_sprite.state, 4)
 	T.eq(state_sprite.state.dirs, 4, "dirs changed")
 	T.eq(tree(sprite.layers), "West,East,North,South,Shading{Shade}", "directions added, group kept")
-	local exported = load_image_bytes(app.fs.joinPath(temp, "set_dirs.0.bytes")) -- South: top of the export order
+	local exported = assert(load_image_bytes(app.fs.joinPath(temp, "set_dirs.0.bytes"))) -- South: top of the export order
 	T.eq({ exported:getPixel(2, 2), exported:getPixel(3, 3) }, { A, D }, "South saved with the group merged")
 
+	---@diagnostic disable-next-line: undefined-field
 	app.undo()
 	T.eq(tree(sprite.layers), "South,Shading{Shade}", "one undo reverts the direction change")
 	sprite:close()

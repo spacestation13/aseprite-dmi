@@ -2,17 +2,17 @@
 --- @class PaletteDialogs
 PaletteDialogs = {}
 
-local SIDEBAR_WIDTH = 150
-local DETAIL_WIDTH = 360
-local HEIGHT = 250
+local SIDEBAR_WIDTH = 90
+local DETAIL_WIDTH = 280
+local HEIGHT = 180
 local ROW_HEIGHT = 20
 local PAD = 4
 
 local TITLE_HEIGHT = 20
 local SWATCHES_TOP = TITLE_HEIGHT + 2
-local SWATCHES_HEIGHT = 80
+local SWATCHES_HEIGHT = 70
 local HOVER_TOP = SWATCHES_TOP + SWATCHES_HEIGHT + 4
-local TEXT_TOP = HOVER_TOP + 24
+local TEXT_TOP = HOVER_TOP + 18
 local STATUS_HEIGHT = 16
 
 local GROUP_GAP = 5
@@ -233,6 +233,15 @@ function PaletteDialogs.codebase()
 		end,
 	}
 
+	--- The palette color under a canvas mouse event, if any.
+	local function swatch_at(ev)
+		for i, rect in pairs(state.swatches) do
+			if rect:contains(Point(ev.x, ev.y)) then
+				return state.palettes[state.entries[state.index].id].colors[i]
+			end
+		end
+	end
+
 	dialog:canvas {
 		id = "detail",
 		width = DETAIL_WIDTH,
@@ -259,9 +268,9 @@ function PaletteDialogs.codebase()
 				state.swatches[i] = rect
 				if color.a < 255 then
 					local half = rect.width // 2
-					ctx.color = Color { r = 204, g = 204, b = 204 }
+					ctx.color = Color { r = 204, g = 204, b = 204, a = 255 }
 					ctx:fillRect(rect)
-					ctx.color = Color { r = 255, g = 255, b = 255 }
+					ctx.color = Color { r = 255, g = 255, b = 255, a = 255 }
 					ctx:fillRect(Rectangle(rect.x, rect.y, half, half))
 					ctx:fillRect(Rectangle(rect.x + half, rect.y + half, rect.width - half, rect.height - half))
 				end
@@ -275,30 +284,32 @@ function PaletteDialogs.codebase()
 			end
 
 			local y = TEXT_TOP
-			for _, note in ipairs { entry.description, entry.guidelines } do
-				if note and note ~= "" then
-					for _, line in ipairs(wrap(ctx, note, ctx.width)) do
-						text(line, 0, y)
-						y = y + ctx:measureText(line).height + 2
-					end
-					y = y + 6
-				end
+			for _, line in ipairs(wrap(ctx, entry.description or "", ctx.width)) do
+				text(line, 0, y)
+				y = y + ctx:measureText(line).height + 2
 			end
 
 			text(state.status, 0, ctx.height - STATUS_HEIGHT)
 		end,
 		onmousemove = function(ev)
-			local hovered = nil
-			for i, rect in pairs(state.swatches) do
-				if rect:contains(Point(ev.x, ev.y)) then
-					hovered = state.palettes[state.entries[state.index].id].colors[i]
-					break
-				end
-			end
+			local hovered = swatch_at(ev)
 			if hovered ~= state.hovered then
 				state.hovered = hovered
 				dialog:repaint()
 			end
+		end,
+		onmousedown = function(ev)
+			local color = swatch_at(ev)
+			if not color then return end
+			local text = hex(color):match("^%S+")
+			local _, err = libdmi.copy_text(text)
+			-- Changing the foreground color fires `fgcolorchange`; other extensions' listeners
+			-- (Live Brush) index app.sprite, which is nil with no sprite open.
+			if app.sprite then
+				app.fgColor = Color { r = color.r, g = color.g, b = color.b, a = color.a }
+			end
+			state.status = err and ("Copy failed: " .. err) or ("Copied " .. text)
+			dialog:repaint()
 		end,
 	}
 

@@ -1,0 +1,60 @@
+GIMP Palette
+Name: Paradise
+# Alfie's palette, from the Paradise codebase
+#
+129   3  29	Fire-1
+171  64   3	Fire-2
+233 121   1	Fire-3
+252 186  34	Fire-4
+109   3  47	Red-1
+174   0   0	Red-2
+231  87   4	Red-3
+ 71  21  61	Crimson-1
+103  29  54	Crimson-2
+136  36  45	Crimson-3
+196  75  54	Crimson-4
+139  76  39	Tan-1
+180 123  49	Tan-2
+207 172  68	Tan-3
+213 204  98	Tan-4
+224 150   0	Yellow-1
+255 216  20	Yellow-2
+255 250 102	Yellow-3
+  1 101  54	Lime-1
+ 58 173   0	Lime-2
+182 226   3	Lime-3
+ 26  81  71	Green-1
+ 32 121  65	Green-2
+ 65 154  40	Green-3
+152 202  63	Green-4
+ 56  58 122	Blue-1
+ 64  86 165	Blue-2
+ 66 117 189	Blue-3
+ 99 159 197	Blue-4
+ 24  25  52	Navy-1
+ 36  48  92	Navy-2
+ 40  70 113	Navy-3
+ 52 107 141	Navy-4
+ 44  40 108	Purple-1
+ 68  54 150	Purple-2
+109  66 189	Purple-3
+171 115 206	Purple-4
+127  27 157	Magenta-1
+176  28 164	Magenta-2
+230  55 154	Magenta-3
+235 117 146	Magenta-4
+ 95  98  82	Moss-1
+122 132 104	Moss-2
+ 23  21  22	Slate-1
+ 32  35  45	Slate-2
+ 48  53  70	Slate-3
+ 80  85 100	Slate-4
+ 46  38  35	Gray-1
+ 77  74  74	Gray-2
+127 121 120	Gray-3
+176 166 160	Gray-4
+113  79 103	Mauve-1
+141 108 117	Mauve-2
+174 151 147	Mauve-3
+212 204 191	Mauve-4
+231 228 218	Mauve-5

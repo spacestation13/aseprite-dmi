@@ -1,0 +1,8 @@
+[DMI Editor for Aseprite](https://github.com/spacestation13/aseprite-dmi) by the Space Station 13 community.
+Maintainer: ZeWaka, originally created by Seefaaa
+
+Codebase Palettes:
+[Goonstation](https://github.com/goonstation/goonstation) - primary (Flaborized) & metal (Walpvrgis)
+[Paradise](https://github.com/ParadiseSS13/Paradise) - alfie's (Alfie)
+
+[https://github.com/spacestation13/aseprite-dmi](https://github.com/spacestation13/aseprite-dmi)

@@ -6,9 +6,10 @@
 
 T.async()
 
+---@diagnostic disable-next-line: duplicate-set-field
 Registry.download = function() return nil, "offline (test stub)" end
 
-local dialog, state, bounds, origin
+local dialog, state, bounds, origin, hover_x
 
 local function same_bounds(what)
 	T.eq(dialog.bounds, bounds, "dialog size unchanged " .. what)
@@ -43,8 +44,7 @@ local function check_installed(entry, colors)
 	local path = Palettes.preset_path(entry.name)
 	T.ok(app.fs.isFile(path), "preset installed: " .. path)
 	T.ok(path:lower():find(app.fs.userConfigPath:lower(), 1, true), "into the isolated user folder")
-	local palette = Palettes.read(path)
-	T.ok(palette, "installed preset parses")
+	local palette = assert(Palettes.read(path), "installed preset parses")
 	T.eq(#palette.colors, colors, entry.name .. " color count")
 	T.ok(Palette { fromResource = entry.name }, "Aseprite lists the preset")
 end
@@ -70,10 +70,11 @@ T.steps {
 
 	-- Hover: scan across the swatches until one answers.
 	function(next)
-		local x = origin.x + 160
+		local x = origin.x + 100
 		local function try()
 			if state.hovered or x > origin.x + 500 then return next() end
 			T.input({ { move = { x = x, y = origin.y + 26 }, dialog = dialog }, { wait = 0.05 } }, function()
+				hover_x = x
 				x = x + 3
 				try()
 			end)
@@ -83,7 +84,25 @@ T.steps {
 	function(next)
 		T.eq(state.hovered and state.hovered.name, "Steel-1", "hovering a swatch reads its color")
 		same_bounds("after hover")
-		T.screenshot("palettes_hover", next)
+		-- A click at the spot of the last move is dropped by the harness (laf has no widget under
+		-- the mouse after its queued WM_MOUSELEAVE), so click two units away.
+		libdmi.copy_text("before")
+		app.fgColor = Color { r = 1, g = 2, b = 3, a = 255 }
+		T.input({ { click = { x = hover_x + 2, y = origin.y + 26 }, dialog = dialog }, { wait = 0.3 } }, function()
+			T.eq(state.status, "Copied #393A57", "clicking a swatch copies its hex to the clipboard")
+			-- The clipboard itself: read back through PowerShell (Windows runs only).
+			local clip = io.popen('powershell -NoProfile -Command "Get-Clipboard"'):read("a")
+			T.eq(clip:gsub("%s+$", ""), "#393A57", "system clipboard holds the hex")
+			local fg = app.fgColor
+			T.ok(not (fg.red == 57 and fg.green == 58 and fg.blue == 87), "no sprite open: foreground color left alone")
+			same_bounds("after click")
+			Sprite(8, 8)
+			T.input({ { click = { x = hover_x + 4, y = origin.y + 26 }, dialog = dialog }, { wait = 0.3 } }, function()
+				local set = app.fgColor
+				T.eq({ set.red, set.green, set.blue }, { 57, 58, 87 }, "sprite open: click also sets the foreground color")
+				T.screenshot("palettes_hover", next)
+			end)
+		end)
 	end,
 
 	-- Install the first palette.
