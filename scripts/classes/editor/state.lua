@@ -422,8 +422,10 @@ function Editor:set_state_dirs(state, directions)
 				sprite:deleteLayer(sprite:newLayer())
 			end
 			state.dirs = directions
-			state_sprite:save()
 		end)
+		-- Save outside the transaction: save() flattens in its own transaction and undoes it,
+		-- which only works (and only rolls back on failure) when it isn't nested in another.
+		state_sprite:save()
 	end
 end
 
