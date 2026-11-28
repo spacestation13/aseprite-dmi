@@ -137,7 +137,7 @@ T.steps {
 		local last = editor:box_bounds(4)
 		local right = editor.canvas_width - (last.x + last.width + pad)
 		T.detail("grid_margins", left .. " / " .. right)
-		T.ok(left >= 10 and math.abs(left - right) <= 1, "grid centred with side padding: " .. left .. " / " .. right)
+		T.ok(left >= 5 and math.abs(left - right) <= 1, "grid centred with side padding: " .. left .. " / " .. right)
 		T.input({ focus_canvas(), { wait = 0.1 }, { key = "Right" }, { key = "Right" }, { key = "Down" }, { wait = 0.2 } }, next)
 	end,
 	function(next)

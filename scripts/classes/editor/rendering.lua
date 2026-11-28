@@ -2,7 +2,7 @@ local TEXT_HEIGHT = 0
 local CONTEXT_BUTTON_HEIGHT = 0
 local BOX_BORDER = 4
 local BOX_PADDING = 5
-local SIDE_PADDING = BOX_PADDING * 2 -- between the window edge and the grid's first and last columns
+local SIDE_PADDING = BOX_PADDING -- between the window edge and the grid's first and last columns
 local FIT_COLUMNS = 4 -- columns a freshly opened window fits
 
 function Editor:max_preview_size()
