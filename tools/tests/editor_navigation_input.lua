@@ -5,6 +5,9 @@
 
 T.async()
 
+-- Type-ahead forgets what was typed after a pause; the real one is 1 s. Shorter here.
+local TYPEAHEAD_TIMEOUT = 0.4
+
 local path = T.path("lib", "tests", "assets", "anomaly.dmi")
 local editor, dialog, origin, sprite
 local RED = app.pixelColor.rgba(255, 0, 0, 255)
@@ -33,6 +36,27 @@ end
 --- Middle click on empty canvas space: gives the canvas keyboard focus without changing the selection.
 local function focus_canvas()
 	return { click = { x = origin.x + 4, y = origin.y + editor.canvas_height - 4 }, dialog = dialog, button = "middle" }
+end
+
+--- Calls next once pred() holds, polling every 50 ms. Gives up after 3 s and continues anyway, so
+--- the assertion that follows reports the real mismatch instead of a bare timeout. pred must be
+--- false until the posted input has been handled, or it proves nothing.
+local function settle(pred, next)
+	local ticks = 0
+	T.wait_until(function()
+		ticks = ticks + 1
+		return pred() or ticks >= 60
+	end, function() next() end, { interval = 0.05, timeout = 10 })
+end
+
+--- Posts input, then settles on pred.
+local function drive(actions, pred, next)
+	T.input(actions, function() settle(pred, next) end)
+end
+
+--- Waits until the type-ahead buffer has been forgotten. Only meaningful after input that filled it.
+local function quiet(next)
+	settle(function() return (editor.typeahead_buffer or "") == "" end, next)
 end
 
 --- Finds where the editor canvas sits in its dialog (canvas positions aren't exposed to Lua).
@@ -105,6 +129,7 @@ end
 
 T.steps {
 	function(next)
+		EditorNav.TYPEAHEAD_TIMEOUT = TYPEAHEAD_TIMEOUT
 		app.command.OpenFile { filename = path }
 		T.wait_until(function()
 			local e = open_editors[1]
@@ -138,37 +163,38 @@ T.steps {
 		local right = editor.canvas_width - (last.x + last.width + pad)
 		T.detail("grid_margins", left .. " / " .. right)
 		T.ok(left >= 5 and math.abs(left - right) <= 1, "grid centred with side padding: " .. left .. " / " .. right)
-		T.input({ focus_canvas(), { wait = 0.1 }, { key = "Right" }, { key = "Right" }, { key = "Down" }, { wait = 0.2 } }, next)
+		drive({ focus_canvas(), { wait = 0.4 }, { key = "Right" }, { key = "Right" }, { key = "Down" } },
+			function() return cursor_name() == "immrod" end, next)
 	end,
 	function(next)
 		T.eq(cursor_name(), "immrod", "Right, Right, Down")
-		T.input({ { key = "Shift+Left" }, { wait = 0.2 } }, next)
+		drive({ { key = "Shift+Left" } }, function() return #editor.selected_states == 2 end, next)
 	end,
 	function(next)
 		T.eq(selected_names(), { "immrod", "bhole2" }, "Shift+Left extends")
-		T.input({ { key = "End" }, { wait = 0.1 } }, next)
+		drive({ { key = "End" } }, function() return selected_names()[1] == "portal1" end, next)
 	end,
 	function(next)
 		T.eq(selected_names(), { "portal1" }, "End")
-		T.input({ { key = "Home" }, { wait = 0.1 } }, next)
+		drive({ { key = "Home" } }, function() return selected_names()[1] == "carp_rift" end, next)
 	end,
 	function(next)
 		T.eq(selected_names(), { "carp_rift" }, "Home")
 		sprite_untouched("after arrows")
 		-- Type-ahead
-		T.input({ { text = "b" }, { wait = 0.1 } }, next)
+		drive({ { text = "b" } }, function() return cursor_name() == "bhole2" end, next)
 	end,
 	function(next)
 		T.eq(cursor_name(), "bhole2", "type b")
-		T.input({ { text = "b" }, { wait = 0.1 } }, next)
+		drive({ { text = "b" } }, function() return cursor_name() == "bhole3" end, next)
 	end,
 	function(next)
 		T.eq(cursor_name(), "bhole3", "type b again cycles")
-		T.input({ { wait = 2 }, { text = "i" }, { wait = 0.1 } }, next)
+		quiet(function() drive({ { text = "i" } }, function() return cursor_name() == "immrod" end, next) end)
 	end,
 	function(next)
 		T.eq(cursor_name(), "immrod", "buffer reset by the timer")
-		T.input({ { wait = 2 }, { text = "po" }, { wait = 0.1 } }, next)
+		quiet(function() drive({ { text = "po" } }, function() return cursor_name() == "portal" end, next) end)
 	end,
 	function(next)
 		T.eq(cursor_name(), "portal", "type po")
@@ -177,12 +203,12 @@ T.steps {
 
 	-- Ctrl+F: the focused canvas consumes it before Aseprite's AdvancedMode shortcut.
 	function(next)
-		T.input({ { wait = 1.2 }, { key = "Ctrl+F" }, { wait = 0.4 } }, next)
+		quiet(function() drive({ { key = "Ctrl+F" } }, function() return editor.filter_editing end, next) end)
 	end,
 	function(next)
 		T.ok(editor.filter_editing, "Ctrl+F started the filter")
 		sprite_untouched("after Ctrl+F")
-		T.input({ { text = "carp" }, { wait = 0.3 } }, next)
+		drive({ { text = "carp" } }, function() return #editor:visible_states() == 3 end, next)
 	end,
 	function(next)
 		T.eq(editor:state_names(), { "carp_rift", "carp_rift_carpspawn", "carp_rift_charged" }, "find filters the grid")
@@ -191,7 +217,8 @@ T.steps {
 	end,
 	function(next)
 		-- Esc clears the filter, and the grid keeps the keyboard focus: no click needed.
-		T.input({ { key = "Escape" }, { wait = 0.3 }, { text = "/" }, { wait = 0.4 } }, next)
+		drive({ { key = "Escape" }, { wait = 0.15 }, { text = "/" } },
+			function() return editor.filter_editing and editor.filter_query == "" end, next)
 	end,
 	function(next)
 		T.screenshot("slash", next)
@@ -203,7 +230,8 @@ T.steps {
 		editor:clear_filter()
 		T.eq(#editor:visible_states(), 9, "clearing restores the grid")
 		-- Ctrl+click only toggles the selection; it doesn't open the state.
-		T.input({ { click = icon_center("anom"), dialog = dialog, mods = "Ctrl" }, { wait = 0.4 } }, next)
+		drive({ { click = icon_center("anom"), dialog = dialog, mods = "Ctrl" } },
+			function() return selected_names()[1] == "anom" end, next)
 	end,
 	function(next)
 		T.ok(table.index_of(editor.selected_states, editor.dmi.states[4]) > 0, "Ctrl+click selected anom")
@@ -211,11 +239,12 @@ T.steps {
 		T.eq(app.sprite, sprite, "active sprite unchanged by Ctrl+click")
 		sprite_untouched("after Ctrl+click")
 		-- Shift+arrows extend from the Ctrl+clicked state.
-		T.input({ { key = "Shift+Right" }, { wait = 0.2 } }, next)
+		drive({ { key = "Shift+Right" } }, function() return #editor.selected_states == 2 end, next)
 	end,
 	function(next)
 		T.eq(selected_names(), { "anom", "bhole2" }, "Shift+Right extends from the Ctrl+clicked state")
-		T.input({ { key = "Escape" }, { key = "Shift+Right" }, { wait = 0.2 } }, next)
+		drive({ { key = "Escape" }, { key = "Shift+Right" } },
+			function() return #editor.selected_states == 1 and selected_names()[1] == "carp_rift" end, next)
 	end,
 	function(next)
 		T.eq(selected_names(), { "carp_rift" }, "Esc resets the Shift anchor")
@@ -229,13 +258,18 @@ T.steps {
 		sprite_untouched("after stray keys")
 		T.eq(#editor.dmi.states, 9, "stray keys removed no state")
 		-- Type-ahead Backspace edits the buffer.
-		T.input({ { wait = 1.2 }, { text = "bhx" }, { key = "Backspace" }, { wait = 0.2 } }, next)
+		quiet(function()
+			drive({ { text = "bhx" }, { key = "Backspace" } }, function() return editor.typeahead_buffer == "bh" end, next)
+		end)
 	end,
 	function(next)
 		T.eq(editor.typeahead_buffer, "bh", "Backspace edits the type-ahead buffer")
 		T.eq(cursor_name(), "bhole2", "type-ahead after Backspace")
 		-- Context menu: Esc closes it, other keys don't leak.
-		T.input({ { wait = 1.2 }, { click = icon_center("bhole3"), dialog = dialog, button = "right" }, { wait = 0.3 } }, next)
+		quiet(function()
+			drive({ { click = icon_center("bhole3"), dialog = dialog, button = "right" } },
+				function() return editor.context_widget end, next)
+		end)
 	end,
 	function(next)
 		T.ok(editor.context_widget, "context menu open")
@@ -245,24 +279,24 @@ T.steps {
 		T.ok(editor.context_widget, "context menu still open")
 		sprite_untouched("keys under the context menu")
 		T.eq(#editor.dmi.states, 9, "keys under the context menu removed nothing")
-		T.input({ { key = "Escape" }, { wait = 0.2 } }, next)
+		drive({ { key = "Escape" } }, function() return not editor.context_widget end, next)
 	end,
 	function(next)
 		T.ok(not editor.context_widget, "Esc closes the context menu")
 		sprite_untouched("after Esc on the context menu")
 		-- The filter bar's x clears the filter.
-		T.input({ { text = "/" }, { wait = 0.4 }, { text = "bh" }, { wait = 0.2 } }, next)
+		drive({ { text = "/" }, { wait = 0.15 }, { text = "bh" } }, function() return editor.filter_query == "bh" end, next)
 	end,
 	function(next)
 		T.eq(editor:state_names(), { "bhole2", "bhole3" }, "filter bh")
 		local _, close = editor:filter_bar_bounds()
-		T.input({ { click = { x = origin.x + close.x + close.width // 2, y = origin.y + close.y + close.height // 2 },
-			dialog = dialog }, { wait = 0.3 } }, next)
+		drive({ { click = { x = origin.x + close.x + close.width // 2, y = origin.y + close.y + close.height // 2 },
+			dialog = dialog } }, function() return not editor:filter_bar_visible() end, next)
 	end,
 	function(next)
 		T.eq(#editor:visible_states(), 9, "the x restores the grid")
 		T.ok(not editor:filter_bar_visible(), "the bar is hidden")
-		T.input({ { wait = 1.2 }, { text = "por" }, { key = "Backspace" }, { wait = 0.3 } }, next)
+		quiet(function() drive({ { text = "por" }, { key = "Backspace" } }, function() return cursor_name() == "portal" end, next) end)
 	end,
 	function(next)
 		T.eq(cursor_name(), "portal", "typing after the x goes to type-ahead")
@@ -278,7 +312,9 @@ T.steps {
 		T.eq(#editor.dmi.states, 9, "Esc cancels Delete")
 		sprite_untouched("after Esc in alert")
 		T.screenshot("after_esc", function() end)
-		T.input({ { key = "Delete" }, { wait = 0.5 }, { key = "Enter" }, { wait = 0.4 } }, next)
+		T.input({ { key = "Delete" }, { wait = 0.5 }, { key = "Enter" } }, function()
+			settle(function() return #editor.dmi.states == 8 end, next)
+		end)
 	end,
 	function(next)
 		T.eq(#editor.dmi.states, 8, "Enter confirms Delete")
@@ -310,15 +346,18 @@ T.steps {
 	end,
 	function(next) T.screenshot("copy_alert", next) end,
 	function(next)
-		T.input({ { key = "Enter" }, { wait = 0.4 }, { key = "Right" }, { key = "Backspace" }, { wait = 0.3 } }, next)
+		T.input({ { key = "Enter" }, { wait = 0.4 }, { key = "Right" }, { key = "Backspace" } }, function()
+			settle(function() return cursor_name() == editor.dmi.states[2].name end, next)
+		end)
 	end,
 	function(next)
 		T.eq(cursor_name(), editor.dmi.states[2].name, "Right after the Ctrl+C alert moves on the grid")
 		T.eq(app.sprite, sprite, "test sprite active after the Ctrl+C alert")
 		sprite_untouched("after the Ctrl+C alert")
 		-- Ctrl+C / Ctrl+V copy and paste states (states[2] isn't open, so no alert).
-		T.input({ { key = "Ctrl+C" }, { wait = 0.3 }, { key = "Ctrl+V" }, { wait = 0.5 }, { key = "Backspace" }, { key = "Left" },
-			{ wait = 0.3 } }, next)
+		T.input({ { key = "Ctrl+C" }, { wait = 0.3 }, { key = "Ctrl+V" }, { wait = 0.5 }, { key = "Backspace" }, { key = "Left" } }, function()
+			settle(function() return #editor.dmi.states == 9 and cursor_name() == editor.dmi.states[1].name end, next)
+		end)
 	end,
 	function(next)
 		T.eq(#editor.dmi.states, 9, "Ctrl+V pasted the copied state")
@@ -334,7 +373,9 @@ T.steps {
 	end,
 	function(next) T.screenshot("f2_properties", next) end,
 	function(next)
-		T.input({ { key = "Escape" }, { wait = 0.4 }, { key = "Right" }, { key = "Backspace" }, { wait = 0.3 } }, next)
+		T.input({ { key = "Escape" }, { wait = 0.3 }, { key = "Right" }, { key = "Backspace" } }, function()
+			settle(function() return cursor_name() == editor.dmi.states[2].name end, next)
+		end)
 	end,
 	function(next)
 		T.eq(cursor_name(), editor.dmi.states[2].name, "Right after the F2 dialog moves on the grid")
@@ -363,7 +404,8 @@ T.steps {
 	function(next)
 		T.detail("many_grid", editor.max_in_a_row .. "x" .. editor.max_in_a_column)
 		T.ok(#icon_names() < 60, "the 60 states don't fit unfiltered")
-		T.input({ focus_canvas(), { wait = 0.1 }, { text = "/" }, { wait = 0.4 }, { text = "oor" }, { wait = 0.4 } }, next)
+		drive({ focus_canvas(), { wait = 0.1 }, { text = "/" }, { wait = 0.15 }, { text = "oor" } },
+			function() return editor.filter_query == "oor" end, next)
 	end,
 	function(next)
 		T.ok(editor.filter_editing, "/ started the filter")
@@ -375,19 +417,19 @@ T.steps {
 		T.screenshot("many_filtered", next)
 	end,
 	function(next)
-		T.input({ { key = "Enter" }, { wait = 0.4 } }, next)
+		drive({ { key = "Enter" } }, function() return not editor.filter_editing end, next)
 	end,
 	function(next)
 		T.ok(not editor.filter_editing, "Enter stopped typing")
 		T.eq(editor.filter_query, "oor", "Enter keeps the filter")
 		T.eq(cursor_name(), "Floor", "Enter put the cursor on the first match")
-		T.input({ { key = "End" }, { key = "Up" }, { key = "Right" }, { wait = 0.2 } }, next)
+		drive({ { key = "End" }, { key = "Up" }, { key = "Right" } }, function() return cursor_name() ~= "Floor" end, next)
 	end,
 	function(next)
 		local cols, rows = editor.max_in_a_row, editor.max_in_a_column
 		local i = EditorNav.move(EditorNav.move(#OOR, #OOR, cols, rows, "ArrowUp"), #OOR, cols, rows, "ArrowRight")
 		T.eq(cursor_name(), OOR[i], "End, Up, Right move over the matches")
-		T.input({ { key = "Home" }, { key = "PageDown" }, { key = "Shift+Home" }, { wait = 0.2 } }, next)
+		drive({ { key = "Home" }, { key = "PageDown" }, { key = "Shift+Home" } }, function() return #editor.selected_states > 1 end, next)
 	end,
 	function(next)
 		local i = EditorNav.move(1, #OOR, editor.max_in_a_row, editor.max_in_a_column, "PageDown")
@@ -395,17 +437,23 @@ T.steps {
 		for j = i, 1, -1 do table.insert(expected, OOR[j]) end
 		T.eq(selected_names(), expected, "PageDown, Shift+Home select matches only")
 		-- Type-ahead: hidden states (wall, window) aren't found.
-		T.input({ { key = "Escape" }, { wait = 1.2 }, { text = "d" }, { wait = 1.2 }, { text = "w" }, { wait = 0.2 } }, next)
+		drive({ { key = "Escape" }, { text = "d" } }, function() return cursor_name() == "door" end, function()
+			quiet(function() T.input({ { text = "w" }, { wait = 0.15 } }, next) end)
+		end)
 	end,
 	function(next)
 		T.eq(editor.filter_query, "oor", "Esc with a selection only deselects")
 		T.eq(cursor_name(), "door", "type-ahead finds a match, not hidden states")
-		T.input({ { wait = 1.2 }, { text = "door_o" }, { wait = 0.2 }, { key = "Enter" } }, function()
-			T.wait_until(function()
-				for _, state_sprite in ipairs(editor.open_sprites) do
-					if state_sprite.sprite and app.sprite == state_sprite.sprite then return state_sprite end
-				end
-			end, next, { what = "door_open opened" })
+		quiet(function()
+			drive({ { text = "door_o" } }, function() return cursor_name() == "door_open" end, function()
+				T.input({ { key = "Enter" } }, function()
+					T.wait_until(function()
+						for _, state_sprite in ipairs(editor.open_sprites) do
+							if state_sprite.sprite and app.sprite == state_sprite.sprite then return state_sprite end
+						end
+					end, next, { what = "door_open opened" })
+				end)
+			end)
 		end)
 	end,
 	function(next, state_sprite)
@@ -414,18 +462,19 @@ T.steps {
 		app.sprite = sprite
 		app.frame = sprite.frames[1]
 		editor:refocus_grid()
-		T.input({ { wait = 0.2 }, { key = "Ctrl+A" }, { wait = 0.2 } }, next)
+		drive({ { wait = 0.1 }, { key = "Ctrl+A" } }, function() return #editor.selected_states == #OOR end, next)
 	end,
 	function(next)
 		T.eq(selected_names(), OOR, "Ctrl+A selects the matches only")
 		sprite_untouched("navigating the filtered grid")
 		-- Continuing a kept filter, then clearing it by backspacing.
-		T.input({ { key = "Escape" }, { key = "Ctrl+F" }, { wait = 0.4 } }, next)
+		drive({ { key = "Escape" }, { key = "Ctrl+F" } }, function() return editor.filter_editing end, next)
 	end,
 	function(next)
 		T.ok(editor.filter_editing, "Ctrl+F continues the filter")
 		T.eq(editor.filter_query, "oor", "the kept query is still there")
-		T.input({ { key = "Backspace" }, { key = "Backspace" }, { key = "Backspace" }, { wait = 0.4 } }, next)
+		drive({ { key = "Backspace" }, { key = "Backspace" }, { key = "Backspace" } },
+			function() return #editor:visible_states() == 60 end, next)
 	end,
 	function(next)
 		T.ok(editor.filter_editing, "still typing")
@@ -435,17 +484,17 @@ T.steps {
 	end,
 	-- Grid Esc: the first deselects, the second drops a filter kept by Enter.
 	function(next)
-		T.input({ { key = "Escape" }, { wait = 0.3 }, { text = "/" }, { wait = 0.4 }, { text = "door" }, { key = "Enter" },
-			{ wait = 0.4 } }, next)
+		drive({ { key = "Escape" }, { wait = 0.15 }, { text = "/" }, { wait = 0.15 }, { text = "door" }, { key = "Enter" } },
+			function() return editor.filter_query == "door" and not editor.filter_editing end, next)
 	end,
 	function(next)
 		T.eq(editor:state_names(), { "door", "door_broken", "door_open", "door_dark", "door_alt", "door_2" }, "filter door")
 		T.eq(cursor_name(), "door", "cursor on the first door")
-		T.input({ { key = "Escape" }, { wait = 0.2 } }, next)
+		drive({ { key = "Escape" } }, function() return #editor.selected_states == 0 end, next)
 	end,
 	function(next)
 		T.eq({ #editor.selected_states, editor.filter_query }, { 0, "door" }, "first Esc deselects")
-		T.input({ { key = "Escape" }, { wait = 0.2 } }, next)
+		drive({ { key = "Escape" } }, function() return #editor:visible_states() == 60 end, next)
 	end,
 	function(next)
 		T.eq(#editor:visible_states(), 60, "second Esc restores the grid")
@@ -455,25 +504,26 @@ T.steps {
 	end,
 	-- Tab leaves the filter box and cycles through the shown states; the grid keeps the keyboard.
 	function(next)
-		T.input({ { wait = 0.2 }, { key = "Ctrl+F" }, { wait = 0.4 }, { text = "door" }, { wait = 0.3 },
-			{ key = "Tab" }, { wait = 0.4 } }, next)
+		drive({ { wait = 0.1 }, { key = "Ctrl+F" }, { wait = 0.15 }, { text = "door" }, { wait = 0.15 }, { key = "Tab" } },
+			function() return editor.filter_query == "door" and not editor.filter_editing end, next)
 	end,
 	function(next)
 		T.ok(not editor.filter_editing, "Tab left the filter box")
 		T.eq(editor.filter_query, "door", "Tab keeps the filter")
 		T.eq(cursor_name(), "door", "Tab picked the first match")
-		T.input({ { key = "Tab" }, { wait = 0.3 }, { key = "Tab" }, { wait = 0.3 }, { key = "Shift+Tab" }, { wait = 0.4 } }, next)
+		drive({ { key = "Tab" }, { wait = 0.15 }, { key = "Tab" }, { wait = 0.15 }, { key = "Shift+Tab" } },
+			function() return cursor_name() == "door_broken" end, next)
 	end,
 	function(next)
 		T.eq(cursor_name(), "door_broken", "Tab, Tab, Shift+Tab: next, next, back")
-		T.input({ { key = "Right" }, { wait = 0.3 } }, next)
+		drive({ { key = "Right" } }, function() return cursor_name() == "door_open" end, next)
 	end,
 	function(next)
 		T.eq(cursor_name(), "door_open", "arrows still move after Tab")
 		T.eq(editor.filter_query, "door", "arrows keep the filter")
 		T.eq(app.sprite, sprite, "Tab never took the keyboard off the grid")
 		sprite_untouched("after Tab")
-		T.input({ { key = "Escape" }, { wait = 0.2 }, { key = "Escape" }, { wait = 0.3 } }, next)
+		drive({ { key = "Escape" }, { wait = 0.1 }, { key = "Escape" } }, function() return #editor:visible_states() == 60 end, next)
 	end,
 	function(next)
 		T.eq(#editor:visible_states(), 60, "Esc, Esc clears the filter")
@@ -486,8 +536,8 @@ T.steps {
 		T.after(0.5, function() next(dialog.bounds) end)
 	end,
 	function(next, resized)
-		T.input({ focus_canvas(), { wait = 0.2 }, { key = "Ctrl+F" }, { wait = 0.4 }, { text = "do" }, { wait = 0.2 },
-			{ key = "Escape" }, { wait = 0.6 } }, function() next(resized) end)
+		T.input({ focus_canvas(), { wait = 0.1 }, { key = "Ctrl+F" }, { wait = 0.15 }, { text = "do" }, { wait = 0.1 },
+			{ key = "Escape" }, { wait = 0.4 } }, function() next(resized) end)
 	end,
 	function(next, resized)
 		T.eq(dialog.bounds, resized, "the filter keeps the editor window size")
@@ -497,7 +547,8 @@ T.steps {
 	function(next)
 		editor:select_index(1)
 		local before = #editor.open_sprites
-		T.input({ focus_canvas(), { wait = 0.2 }, { key = "Space" }, { wait = 0.8 } }, function() next(before) end)
+		drive({ focus_canvas(), { wait = 0.1 }, { key = "Space" } },
+			function() return #editor.open_sprites == before + 1 end, function() next(before) end)
 	end,
 	function(next, before)
 		T.eq(#editor.open_sprites, before + 1, "Space opened a state sprite")
