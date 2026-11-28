@@ -131,6 +131,13 @@ T.steps {
 	function(next)
 		T.detail("grid", editor.max_in_a_row .. "x" .. editor.max_in_a_column)
 		T.eq(editor.max_in_a_row, 4, "grid columns")
+		-- The window opens wide enough for 4 columns, and the grid is centred in it.
+		local pad = math.floor((editor:label_cell_width() - editor:box_bounds(1).width) / 2)
+		local left = editor:box_bounds(1).x - pad
+		local last = editor:box_bounds(4)
+		local right = editor.canvas_width - (last.x + last.width + pad)
+		T.detail("grid_margins", left .. " / " .. right)
+		T.ok(left >= 10 and math.abs(left - right) <= 1, "grid centred with side padding: " .. left .. " / " .. right)
 		T.input({ focus_canvas(), { wait = 0.1 }, { key = "Right" }, { key = "Right" }, { key = "Down" }, { wait = 0.2 } }, next)
 	end,
 	function(next)

@@ -19,6 +19,7 @@
 --- @field filter_editing boolean Whether the filter bar is being typed in.
 --- @field filter_press "bar"|"close"|nil Where a left press on the filter bar started; it acts on release.
 --- @field filter_keep table<State, true> States created or renamed while filtered, shown whatever their name.
+--- @field fit_pending boolean|nil Whether the window still has to be widened to fit the grid (once per opened file).
 --- @field context_widget ContextWidget|nil The state that is currently being right clicked
 --- @field dialog Dialog The dialog object.
 --- @field save_path string|nil The path of the file to be saved.
@@ -352,10 +353,12 @@ function Editor:open_file(dmi)
 		end
 
 		self.loading = false
+		self.fit_pending = true
 		self:repaint_states()
 	else
 		self.dmi = dmi
 		self.loading = false
+		self.fit_pending = true
 		self:repaint_states()
 	end
 end

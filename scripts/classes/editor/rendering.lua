@@ -2,6 +2,8 @@ local TEXT_HEIGHT = 0
 local CONTEXT_BUTTON_HEIGHT = 0
 local BOX_BORDER = 4
 local BOX_PADDING = 5
+local SIDE_PADDING = BOX_PADDING * 2 -- between the window edge and the grid's first and last columns
+local FIT_COLUMNS = 4 -- columns a freshly opened window fits
 
 function Editor:max_preview_size()
 	local preview_size = self.zoom_size or (Preferences.getPreviewSize and Preferences.getPreviewSize()) or 128
@@ -34,6 +36,36 @@ function Editor:label_cell_width()
 	return math.floor(cell_width * multiplier)
 end
 
+--- Space left of the first column: at least SIDE_PADDING, more when the columns leave room over, which
+--- is split between both sides so the grid is centred instead of hugging the left edge.
+--- @return number
+function Editor:grid_left_padding()
+	local used = self.max_in_a_row * (self:label_cell_width() + BOX_PADDING) - BOX_PADDING
+	return math.max(math.floor((self.canvas_width - used) / 2), SIDE_PADDING)
+end
+
+--- Opens the window wide enough for the first columns of the grid with their side padding: the dialog
+--- opens at the width of its buttons. Once per opened file, so a size the user sets afterwards stays.
+--- @param canvas_width number Width of the canvas now.
+--- @param slot_width number Width of one column.
+function Editor:fit_window(canvas_width, slot_width)
+	self.fit_pending = false
+	local columns = math.min(FIT_COLUMNS, #self.dmi.states + 1)
+	local grow = columns * slot_width - BOX_PADDING + SIDE_PADDING * 2 - canvas_width
+	if grow <= 0 then return end
+	-- Resizing the dialog from inside its own paint is not safe: wait for the next tick.
+	self.fit_timer = Timer {
+		interval = 0.01,
+		ontick = function()
+			self.fit_timer:stop()
+			if self.closed or not self.dialog then return end
+			local bounds = self.dialog.bounds
+			self.dialog.bounds = Rectangle(bounds.x - grow // 2, bounds.y, bounds.width + grow, bounds.height)
+		end
+	}
+	self.fit_timer:start()
+end
+
 --- Repaints the editor.
 function Editor:repaint()
 	if self.dialog then
@@ -62,7 +94,7 @@ function Editor:onpaint(ctx)
 	local min_height = self.dmi and (cell_height + BOX_PADDING * 2 + TEXT_HEIGHT) or 1
 	local bar_height = self:filter_bar_height()
 
-	self.canvas_width = math.max(ctx.width, min_width)
+	self.canvas_width = math.max(ctx.width, min_width + SIDE_PADDING * 2)
 	self.canvas_height = math.max(ctx.height, min_height + bar_height)
 
 	if TEXT_HEIGHT == 0 then
@@ -73,7 +105,12 @@ function Editor:onpaint(ctx)
 		CONTEXT_BUTTON_HEIGHT = TEXT_HEIGHT + BOX_PADDING * 2
 	end
 
-	local max_row = self.dmi and math.floor((self.canvas_width + BOX_PADDING) / min_width) or 1
+	if self.fit_pending and self.dmi then
+		self:fit_window(ctx.width, min_width)
+	end
+
+	local max_row = self.dmi and
+		math.floor((self.canvas_width - SIDE_PADDING * 2 + BOX_PADDING) / min_width) or 1
 	local max_column = self.dmi and
 		math.floor((self.canvas_height - bar_height + BOX_PADDING) / min_height) or 1
 
@@ -374,7 +411,7 @@ function Editor:box_bounds(index)
 	local label_width = self:label_cell_width()
 	local slot_x = (label_width + BOX_PADDING) * ((row_index - 1) % self.max_in_a_row)
 	return Rectangle(
-		slot_x + math.floor((label_width - cell_width) / 2),
+		self:grid_left_padding() + slot_x + math.floor((label_width - cell_width) / 2),
 		(cell_height + BOX_PADDING * 2 + TEXT_HEIGHT) *
 		math.floor((row_index - 1) / self.max_in_a_row) + BOX_PADDING + self:filter_bar_height(),
 		cell_width,
