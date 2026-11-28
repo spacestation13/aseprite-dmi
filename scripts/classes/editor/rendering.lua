@@ -397,7 +397,7 @@ function Editor:filter_bar_bounds()
 	return Rectangle(0, 0, self.canvas_width, height), Rectangle(self.canvas_width - height, 0, height, height)
 end
 
---- Draws the filter bar: the text typed so far (with a caret while typing), how many states match,
+--- Draws the filter bar: the text typed so far, how many states match,
 --- and the x that clears the filter.
 --- @param ctx GraphicsContext
 function Editor:paint_filter_bar(ctx)
@@ -422,14 +422,15 @@ function Editor:paint_filter_bar(ctx)
 	end
 
 	-- A long query shows its end, where you are typing.
-	local query, cut = self.filter_query, false
-	local function label() return 'filter: "' .. (cut and "..." or "") .. query .. (editing and "|" or "") .. '"' end
-	while #query > 0 and BOX_PADDING + ctx:measureText(label()).width > right do
-		query, cut = query:sub(2), true
+	local text, cut = self.filter_query, false
+	local function label() return (cut and "..." or "") .. text end
+	while #text > 0 and BOX_PADDING + ctx:measureText(label()).width > right do
+		text, cut = text:sub(2), true
 	end
-	local text = label()
+	if text == "" then return end
+	local shown_text = label()
 	ctx.color = app.theme.color.text
-	ctx:fillText(text, BOX_PADDING, (bar.height - ctx:measureText(text).height) / 2)
+	ctx:fillText(shown_text, BOX_PADDING, (bar.height - ctx:measureText(shown_text).height) / 2)
 end
 
 --- Handles the mouse down event in the editor and triggers a repaint.
