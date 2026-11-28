@@ -167,6 +167,33 @@ T.steps {
 		T.detail("from_dmi_colors", #state.palette.colors)
 		T.after(0.5, function() T.screenshot("from_dmi", next) end)
 	end,
+	-- Removing a state while a palette dialog listens to sitechange keeps the other open states
+	-- tracked (closing its sprite fires sitechange in the middle of remove_state).
+	function(next)
+		for i = 3, 5 do
+			editor:open_state(editor.dmi.states[i])
+		end
+		T.wait_until(function() return #editor.open_sprites >= 4 end, next, { what = "more state sprites" })
+	end,
+	function(next)
+		editor:gc_open_sprites() -- drop the state tab closed earlier
+		local first = editor.open_sprites[1]
+		local others = {}
+		for i = 2, #editor.open_sprites do
+			table.insert(others, editor.open_sprites[i])
+		end
+		app.sprite = first.sprite
+		T.after(0.3, function()
+			editor:remove_state(first.state)
+			T.eq(#editor.open_sprites, #others, "only the removed state is untracked")
+			for _, other in ipairs(others) do
+				T.ok(table.index_of(editor.open_sprites, other), "still tracked: " .. other.state.name)
+				T.ok(Editor.is_sprite_open(other.sprite), "still open: " .. other.state.name)
+			end
+			dialog:close()
+			next()
+		end)
+	end,
 	function()
 		T.done()
 	end,

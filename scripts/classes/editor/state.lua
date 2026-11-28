@@ -451,8 +451,10 @@ end
 function Editor:remove_state(state)
 	for i, state_sprite in ipairs(self.open_sprites) do
 		if state_sprite.state == state then
-			state_sprite.sprite:close()
+			-- Untrack before closing: close() fires sitechange, and its listeners may look at
+			-- open_sprites, so `i` must not be used after it.
 			table.remove(self.open_sprites, i)
+			state_sprite.sprite:close()
 			break
 		end
 	end

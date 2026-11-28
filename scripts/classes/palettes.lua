@@ -302,17 +302,17 @@ function Palettes.apply(sprites, palette)
 	end
 end
 
---- The open state sprite (StateSprite) showing `sprite` in a DMI editor, or nil. Closed state
---- tabs are dropped from the editors first (their sprites are deleted).
+--- The open state sprite (StateSprite) showing `sprite` in a DMI editor, or nil. Read-only:
+--- runs from sitechange listeners, so it never changes editor state; entries of closed state
+--- tabs (deleted sprites) are skipped.
 --- @param sprite Sprite|nil
 --- @return StateSprite|nil
 function Palettes.state_sprite_of(sprite)
 	if not sprite then return nil end
 	for _, editor in ipairs(open_editors or {}) do
 		if not editor.closed then
-			editor:gc_open_sprites()
 			for _, state_sprite in ipairs(editor.open_sprites) do
-				if state_sprite.sprite == sprite then
+				if state_sprite.sprite == sprite and Editor.is_sprite_open(state_sprite.sprite) then
 					return state_sprite
 				end
 			end
@@ -321,7 +321,8 @@ function Palettes.state_sprite_of(sprite)
 	return nil
 end
 
---- The sprite, or with `all_states` every open state sprite of the DMI it belongs to.
+--- The sprite, or with `all_states` every open state sprite of the DMI it belongs to (closed
+--- state tabs skipped).
 --- @param sprite Sprite
 --- @param all_states boolean|nil
 --- @return Sprite[]
@@ -330,7 +331,9 @@ function Palettes.target_sprites(sprite, all_states)
 	if state_sprite then
 		local sprites = {}
 		for _, other in ipairs(state_sprite.editor.open_sprites) do
-			table.insert(sprites, other.sprite)
+			if Editor.is_sprite_open(other.sprite) then
+				table.insert(sprites, other.sprite)
+			end
 		end
 		return sprites
 	end
