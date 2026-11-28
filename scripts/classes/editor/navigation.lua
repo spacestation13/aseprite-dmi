@@ -284,11 +284,11 @@ function Editor:filter_bar_visible()
 	return self.filter_editing or self.filter_query ~= ""
 end
 
---- Starts typing a filter (Ctrl+F, `/`, the context menu or a click on the bar): the bar drops
---- down from the title and the grid shows only the states whose name contains what is typed (see
---- Editor:set_filter). Typing is on the grid itself, so Esc, Enter and Backspace never reach Aseprite.
---- Enter stops typing and keeps the filter with the cursor on the first match; Esc or the bar's x
---- clears it. Ctrl+F or `/` again continues with the current text.
+--- Starts typing a filter (Ctrl+F, `/` or the context menu; clicking the bar while it shows resumes
+--- typing): the bar drops down from the title and the grid shows only the states whose name contains
+--- what is typed (see Editor:set_filter). Typing is on the grid itself, so Esc, Enter and Backspace
+--- never reach Aseprite. Enter stops typing and keeps the filter with the cursor on the first match;
+--- Tab stops typing too; Esc or the bar's x clears it. Ctrl+F or `/` again continues with the current text.
 function Editor:start_filter()
 	if self.filter_editing or not self.dmi then return end
 	local was_visible = self:filter_bar_visible()
@@ -330,7 +330,9 @@ function Editor:handle_filter_key(ev)
 		-- Arrows and Enter on the grid go on from the first match.
 		if self.filter_query ~= "" and #self.selected_states == 0 then self:select_index(1) end
 		self:stop_filter_editing()
-	elseif code == "Backspace" and self.filter_query == "" then
+		self:refocus_grid()
+	elseif code == "Tab" or (code == "Backspace" and self.filter_query == "") then
+		-- Tab leaves the box but stays on the grid (the filter stays on), instead of moving focus to Save.
 		self:stop_filter_editing()
 	else
 		local query = EditorNav.edit_query(self.filter_query, code, ev.key)

@@ -63,13 +63,13 @@ end
 --- A 32x32 DMI with 60 states, 10 kinds x 6 variants, each kind in its own colour.
 local function write_many_dmi()
 	local dmi, err = libdmi.new_file("many", 32, 32, TEMP_DIR)
-	T.ok(err == nil, err)
+	assert(dmi, err)
 	local kinds = { "wall", "Floor", "door", "window", "table", "chair", "light", "pipe", "vent", "crate" }
 	local variants = { "", "_broken", "_open", "_dark", "_alt", "_2" }
 	for k, kind in ipairs(kinds) do
 		for v, variant in ipairs(variants) do
 			local state, serr = libdmi.new_state(32, 32, dmi.temp, kind .. variant)
-			T.ok(serr == nil, serr)
+			assert(state, serr)
 			local image = Image(32, 32, ColorMode.RGB)
 			image:clear(Color { hue = (k - 1) * 36, saturation = 0.8, value = 0.4 + v * 0.1, alpha = 255 })
 			local _, werr = libdmi.save_frame_bytes(app.fs.joinPath(dmi.temp, state.frame_key .. ".0.bytes"), 32, 32, image.bytes)
@@ -78,7 +78,7 @@ local function write_many_dmi()
 		end
 	end
 	local file = app.fs.joinPath(T.tmp, "many.dmi")
-	local _, werr = libdmi.save_file(dmi, file)
+	local _, werr = libdmi.save_file(dmi, file, false)
 	T.ok(werr == nil, werr)
 	libdmi.remove_dir(dmi.temp, false)
 	return file

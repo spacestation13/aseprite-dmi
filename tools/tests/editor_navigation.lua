@@ -189,6 +189,15 @@ press("Escape")
 T.eq(editor.filter_query, "", "second Esc clears the filter")
 T.eq(#editor:visible_states(), 12, "full grid restored")
 
+-- Tab leaves the filter box (keeping the filter) and the grid keeps the keyboard.
+editor:start_filter()
+T.ok(editor.filter_editing, "start_filter starts typing")
+editor:set_filter("door")
+T.ok(press("Tab"), "Tab is consumed while typing")
+T.eq({ editor.filter_editing, editor.filter_query }, { false, "door" }, "Tab stops typing and keeps the filter")
+T.ok(not press("Tab"), "Tab outside the box goes on to Aseprite")
+editor:clear_filter()
+
 -- Clearing keeps the cursor and scrolls it into view in the full grid (13 cells: 5 rows).
 editor:set_filter("oor")
 press("End")

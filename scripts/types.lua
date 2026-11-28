@@ -46,11 +46,17 @@ end
 --- @field b number
 --- @field a number
 
+--- @class Color.ParamsHSV
+--- @field hue number 0-360
+--- @field saturation number 0-1
+--- @field value number 0-1
+--- @field alpha? number
+
 --- Creates a new Color object.
 --- @return Color color
 --- @overload fun(r: number, g: number, b: number, a: number): Color
 --- @overload fun(index: number): Color
---- @overload fun(params: Color.ParamsIndex|Color.ParamsRGB|Color.ParamsRGB2): Color
+--- @overload fun(params: Color.ParamsIndex|Color.ParamsRGB|Color.ParamsRGB2|Color.ParamsHSV): Color
 --- @todo HSVA HSLA GRAY
 function Color()
 	return {}
@@ -441,7 +447,7 @@ Version = nil
 --- @field newGroup localecategory
 --- @field deleteLayer (fun(self: Sprite, layer: Layer))|(fun(self: Sprite, layerName: string)))
 --- @field newFrame (fun(self: Sprite, frameNumber: number): Frame)|(fun(self: Sprite, frame: Frame): Frame))
---- @field newEmptyFrame fun(self: Sprite, frameNumber: number): Frame
+--- @field newEmptyFrame fun(self: Sprite, frameNumber?: number): Frame
 --- @field deleteFrame function
 --- @field newCel function
 --- @field deleteCel function
@@ -856,7 +862,9 @@ Version = nil
 
 --- @param params Timer.Params
 --- @return Timer
-function Timer(params) end
+function Timer(params)
+	return {}
+end
 
 --- @class State: table
 --- @field name string The name of the state.

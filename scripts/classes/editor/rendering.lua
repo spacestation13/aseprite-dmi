@@ -454,7 +454,7 @@ function Editor:onmousedown(ev)
 			-- The filter bar: the x clears the filter, the rest of the bar types in it.
 			local bar, close = self:filter_bar_bounds()
 			local point = Point(ev.x, ev.y)
-			if bar and bar:contains(point) then
+			if bar and close and bar:contains(point) then
 				self.filter_press = close:contains(point) and "close" or "bar" -- acts on release (Editor:onmouseup)
 				return
 			end
@@ -519,7 +519,7 @@ function Editor:onmouseup(ev)
 		self.filter_press = nil
 		local bar, close = self:filter_bar_bounds()
 		local point = Point(ev.x, ev.y)
-		if bar and ev.button == MouseButton.LEFT then
+		if bar and close and ev.button == MouseButton.LEFT then
 			if press == "close" and close:contains(point) then
 				self:clear_filter()
 			elseif press == "bar" and bar:contains(point) and not close:contains(point) then
