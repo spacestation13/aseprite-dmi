@@ -42,6 +42,7 @@ function init(plugin)
 	-- Initialize Preferences
 	Preferences.initialize(plugin)
 	RawDmi.initialize(plugin.path)
+	Registry.initialize(plugin.path) -- no network here: only on explicit user actions
 
 	-- Load the native library early so newFileFormat callbacks can use it
 	loadlib(plugin.path)
@@ -249,6 +250,46 @@ function init(plugin)
 		end,
 		onenabled = function()
 			return active_state_sprite() and true or false
+		end,
+	}
+
+	plugin:newMenuSeparator {
+		group = "dmi_editor",
+	}
+
+	plugin:newMenuGroup {
+		id = "dmi_palettes",
+		title = "Palettes",
+		group = "dmi_editor",
+	}
+
+	plugin:newCommand {
+		id = "dmi_codebase_palettes",
+		title = "Codebase Palettes...",
+		group = "dmi_palettes",
+		onclick = function()
+			PaletteDialogs.codebase()
+		end,
+	}
+
+	plugin:newCommand {
+		id = "dmi_palette_from_dmi",
+		title = "Palette from DMI...",
+		group = "dmi_palettes",
+		onclick = function()
+			PaletteDialogs.from_dmi()
+		end,
+	}
+
+	plugin:newCommand {
+		id = "dmi_check_colors",
+		title = "Check Colors",
+		group = "dmi_palettes",
+		onclick = function()
+			PaletteDialogs.check_colors()
+		end,
+		onenabled = function()
+			return app.sprite ~= nil
 		end,
 	}
 

@@ -1,0 +1,16 @@
+{
+	"version": 1,
+	"updated": "2026-11-27",
+	"palettes": [
+		{
+			"id": "goonstation",
+			"name": "Goonstation",
+			"codebase": "Goonstation",
+			"url": "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/registry/palettes/goonstation.gpl",
+			"format": "gpl",
+			"description": "Goonstation's spriting palette: 20 color ramps, darkest first.",
+			"guidelines": "Keep palettes small: build each sprite from a few of these ramps.",
+			"homepage": "https://github.com/goonstation/goonstation"
+		}
+	]
+}

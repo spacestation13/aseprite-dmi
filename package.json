@@ -61,6 +61,15 @@
 				"path": "./scripts/classes/widget.lua"
 			},
 			{
+				"path": "./scripts/classes/registry.lua"
+			},
+			{
+				"path": "./scripts/classes/palettes.lua"
+			},
+			{
+				"path": "./scripts/classes/palette_dialogs.lua"
+			},
+			{
 				"path": "./scripts/functions/other.lua"
 			},
 			{

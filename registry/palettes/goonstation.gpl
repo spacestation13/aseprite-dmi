@@ -1,0 +1,85 @@
+GIMP Palette
+Name: Goonstation
+Columns: 5
+# Goonstation spriting palette: color ramps (darkest first) from the palette reference
+# image Goonstation artists share. Entry names are <ramp>-<step>.
+# NT-* / Syndicate-* ramps are faction colors; Faction-Grey is shared by both.
+#
+ 57  58  87	Steel-1
+103 112 131	Steel-2
+173 182 188	Steel-3
+235 240 242	Steel-4
+ 81  15  34	Red-1
+141  20  34	Red-2
+215  55  21	Red-3
+235 127  70	Red-4
+131  16  76	Pink-1
+201  41  78	Pink-2
+245 115 130	Pink-3
+248 170 170	Pink-4
+ 37   6   6	Brown-1
+ 74  40  27	Brown-2
+114  79  41	Brown-3
+144 126  71	Brown-4
+ 87  21   2	Orange-1
+174  64   5	Orange-2
+211 118  16	Orange-3
+235 176  43	Orange-4
+101  51   8	Yellow-1
+185 117  23	Yellow-2
+211 203  33	Yellow-3
+252 245 116	Yellow-4
+  9  54  41	Green-1
+ 22 121  53	Green-2
+ 63 181  79	Green-3
+158 238 128	Green-4
+ 16  36  81	Teal-1
+ 36  99 154	Teal-2
+ 36 189 198	Teal-3
+ 85 238 194	Teal-4
+ 18  19  91	Blue-1
+ 26  55 141	Blue-2
+ 60 109 195	Blue-3
+ 98 165 238	Blue-4
+ 57  57  57	Greyscale-1
+ 91  91  91	Greyscale-2
+121 121 121	Greyscale-3
+171 171 171	Greyscale-4
+  9  10  34	Black-1
+ 29  34  60	Black-2
+ 63  76  91	Black-3
+ 94 120 128	Black-4
+ 23  13  60	Purple-1
+ 90  29 138	Purple-2
+179  32 195	Purple-3
+238  89 227	Purple-4
+ 92  69  59	Bone-1
+120 100  90	Bone-2
+170 153 135	Bone-3
+220 214 201	Bone-4
+  1  39  63	NT-Blue-1
+ 10  72 130	NT-Blue-2
+ 57  92 198	NT-Blue-3
+  0 141 242	NT-Cyan-1
+ 61 184 255	NT-Cyan-2
+115 255 236	NT-Cyan-3
+ 13  12  25	Faction-Grey-1
+ 30  30  50	Faction-Grey-2
+ 52  52  66	Faction-Grey-3
+ 84  84  97	Faction-Grey-4
+ 63   1  13	Syndicate-Red-1
+130  10  22	Syndicate-Red-2
+178  44  32	Syndicate-Red-3
+198  80  57	Syndicate-Red-4
+ 51 142   0	Syndicate-Green-1
+ 76 168   0	Syndicate-Green-2
+108 176   0	Syndicate-Green-3
+ 30  33  50	Robotics-1
+ 52  52  66	Robotics-2
+ 78  82  99	Robotics-3
+140 161 163	Robotics-4
+191 201 202	Robotics-5
+ 16  12  54	Gunmetal-1
+ 25  30  68	Gunmetal-2
+ 45  60  82	Gunmetal-3
+ 68  98 105	Gunmetal-4

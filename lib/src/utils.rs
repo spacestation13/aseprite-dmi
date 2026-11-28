@@ -5,9 +5,13 @@ use png::{Compression, Encoder};
 use serde_json::Value;
 use std::cmp::Ordering;
 use std::ffi::OsStr;
-use std::io::BufWriter;
+use std::fs::{self, File};
+use std::io::{self, BufWriter, Read as _};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+
+/// Largest file `download` accepts; registry JSON, palettes and preview images are tiny.
+const MAX_DOWNLOAD_BYTES: u64 = 32 * 1024 * 1024;
 
 pub fn image_to_base64(image: &DynamicImage) -> Result<String> {
     let mut image_data = Vec::new();
@@ -69,9 +73,58 @@ pub fn optimal_size(frames: usize, width: u32, height: u32) -> (f32, u32, u32) {
     (sqrt, width, height)
 }
 
+fn http_client(timeout: Duration) -> Result<reqwest::blocking::Client> {
+    Ok(reqwest::blocking::Client::builder()
+        .user_agent(concat!(
+            env!("CARGO_PKG_NAME"),
+            "/",
+            env!("CARGO_PKG_VERSION")
+        ))
+        .connect_timeout(timeout)
+        .timeout(timeout)
+        .build()?)
+}
+
+/// Downloads an http(s) URL to `dest` (parent directories are created). The file is written
+/// to `<dest>.part` and renamed, so `dest` is never left half-written. Non-2xx statuses are
+/// errors. Returns the number of bytes written.
+pub fn download(url: &str, dest: &Path, timeout: Duration) -> Result<u64> {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        anyhow::bail!("Only http(s) URLs can be downloaded: {url}");
+    }
+
+    let response = http_client(timeout)?.get(url).send()?.error_for_status()?;
+
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let mut part = dest.as_os_str().to_owned();
+    part.push(".part");
+    let part = PathBuf::from(part);
+
+    let written = (|| -> Result<u64> {
+        let mut file = File::create(&part)?;
+        let written = io::copy(&mut response.take(MAX_DOWNLOAD_BYTES + 1), &mut file)?;
+        if written > MAX_DOWNLOAD_BYTES {
+            anyhow::bail!("Download is larger than {MAX_DOWNLOAD_BYTES} bytes: {url}");
+        }
+        Ok(written)
+    })();
+
+    match written {
+        Ok(written) => {
+            fs::rename(&part, dest)?;
+            Ok(written)
+        }
+        Err(err) => {
+            let _ = fs::remove_file(&part);
+            Err(err)
+        }
+    }
+}
+
 pub fn check_latest_version() -> Result<Ordering> {
     let current_version = env!("CARGO_PKG_VERSION");
-    let package_name = env!("CARGO_PKG_NAME");
 
     let repository = env!("CARGO_PKG_REPOSITORY")
         .split('/')
@@ -79,10 +132,7 @@ pub fn check_latest_version() -> Result<Ordering> {
         .collect::<Vec<_>>()
         .join("/");
 
-    let client = reqwest::blocking::Client::builder()
-        .user_agent(format!("{package_name}/{current_version}"))
-        .timeout(Duration::from_secs(3))
-        .build()?;
+    let client = http_client(Duration::from_secs(3))?;
 
     let url = format!("https://api.github.com/repos/{repository}/releases/latest");
 

@@ -103,6 +103,8 @@ shutil.copy("README.md", unzipped_dir)
 shutil.copy(library_source, unzipped_dir)
 
 shutil.copytree(os.path.join("scripts"), os.path.join(unzipped_dir, "scripts"))
+# Bundled registry copy: the offline fallback of scripts/classes/registry.lua.
+shutil.copytree("registry", os.path.join(unzipped_dir, "registry"), ignore=shutil.ignore_patterns("*.md"))
 
 if CI:
     if TARGET.find("windows") != -1:
