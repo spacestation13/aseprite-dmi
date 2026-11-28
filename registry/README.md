@@ -12,8 +12,8 @@ How the extension uses it (`scripts/classes/registry.lua`):
   download times). A cached file counts as fresh for 24 hours; after a failed download the
   extension waits 10 minutes before trying again on its own (Refresh always tries).
 - When a download fails it uses the cached copy, else the bundled copy. Between the cache and
-  the bundled copy it uses the one with the newer `updated` date, so updating the extension
-  is never older than a stale cache.
+  the bundled copy it uses the one with the newer `updated` date, so a stale cache never hides
+  a newer list shipped with an extension update.
 - Files an entry points at (`url`) are cached by a hash of the URL, with the same freshness
   rules. URLs inside this directory fall back to the bundled copy.
 
@@ -73,8 +73,9 @@ Keep text fields short: the dialog shows about 60 characters per line.
    `https://raw.githubusercontent.com/<org>/<repo>/master/.github/palette.png`). A file in your
    repository lets maintainers update the palette without a PR here, but it is only bundled
    with the extension if it lives here.
-2. `.gpl` entry names show as color tooltips in Aseprite, which reads only the first word of a
-   name: use names like `Red-1` (ramp, then step, darkest first).
+2. Give every `.gpl` color line a name: Aseprite skips color lines without one, and reads
+   only the first word of a name (it shows as the color's tooltip). Use names like `Red-1`
+   (ramp, then step, darkest first); the dialog groups colors into ramps by that prefix.
 3. Add the entry to `palettes.json` (keep the list alphabetical by `name`), bump `updated`
    and open a pull request.
 

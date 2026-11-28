@@ -27,14 +27,22 @@ local function hex(color)
 	return text
 end
 
---- Shows a non-modal dialog where it was last closed (position kept in plugin preferences).
+--- Shows a non-modal dialog where it was last closed (position kept in plugin preferences,
+--- kept inside the main window).
 local function show_remembered(dialog, key)
 	dialog:show { wait = false }
 	local saved = Preferences.plugin.preferences[key]
 	if type(saved) == "table" and saved.x and saved.y then
 		local bounds = dialog.bounds
-		dialog.bounds = Rectangle(saved.x, saved.y, bounds.width, bounds.height)
+		local x, y = saved.x, saved.y
+		if app.window then
+			x = math.max(0, math.min(x, app.window.width - bounds.width))
+			y = math.max(0, math.min(y, app.window.height - bounds.height))
+		end
+		dialog.bounds = Rectangle(x, y, bounds.width, bounds.height)
 	end
+	-- Canvases repainted before show() aren't painted again on their own.
+	dialog:repaint()
 end
 
 local function remember_position(dialog, key)
@@ -87,7 +95,9 @@ local function layout_swatches(colors, width, size)
 			if x + size > width then
 				x, y = 0, y + size + 2
 			end
-			rects[j] = Rectangle(x, y, size, size)
+			-- Loose colors get a 1 px gap so neighbours stay apart; ramps stay solid strips.
+			local inset = (not ramp and size >= 6) and 1 or 0
+			rects[j] = Rectangle(x, y, size - inset, size - inset)
 			x = x + size
 		end
 		x = x + (ramp and GROUP_GAP or 0)
@@ -270,6 +280,7 @@ function PaletteDialogs.codebase()
 	dialog:newrow()
 	swatch_canvas(dialog, "preview", function() return state.palette and state.palette.colors end,
 		"No palette loaded", function(color)
+			state.hovered = color
 			dialog:modify { id = "palette_status", text = color and describe_color(color) or state.palette_text }
 		end)
 	dialog:newrow()

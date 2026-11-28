@@ -1,11 +1,10 @@
---- GUI: the Palettes dialogs on a real DMI state sprite, for screenshots.
---- py tools/aseprite_runner.py tools/tests/gui_palettes.lua --gui --screenshot codebase.png
----   --param dialog=codebase|from_dmi|check   (default codebase)
+--- GUI: the Palettes dialogs on a real DMI state sprite, with screenshots of each
+--- (<run>/screenshots/codebase.png, check.png, check_selected.png, from_dmi.png).
+--- py tools/aseprite_runner.py tools/tests/gui_palettes.lua --gui --screenshot final.png
 --- The network is stubbed: "downloads" copy the bundled registry files.
 
 T.async()
 
-local which = T.param("dialog", "codebase")
 local path = T.path("lib", "tests", "assets", "anomaly.dmi")
 
 -- Serve this repo's registry URLs from the bundled copy; anything else fails.
@@ -23,55 +22,106 @@ Registry.download = function(url, dest)
 	return #text
 end
 
-T.wait_until(function() return libdmi and open_editors and Registry.bundled_dir end, function()
-	T.ok(app.fs.isFile(app.fs.joinPath(Registry.bundled_dir, "palettes.json")), "bundled registry installed")
-	app.command.OpenFile { filename = path }
+local editor, sprite, dialog
 
-	T.wait_until(function()
-		local editor = open_editors[1]
-		return editor and not editor.loading and editor.dmi and editor
-	end, function(editor)
+T.steps {
+	function(next)
+		T.wait_until(function() return libdmi and open_editors and Registry.bundled_dir end, next,
+			{ what = "plugin init" })
+	end,
+	function(next)
+		T.ok(app.fs.isFile(app.fs.joinPath(Registry.bundled_dir, "palettes.json")), "bundled registry installed")
+		app.command.OpenFile { filename = path }
+		T.wait_until(function()
+			local e = open_editors[1]
+			return e and not e.loading and e.dmi and e
+		end, next, { what = "DMI Editor to open " .. path })
+	end,
+	function(next, e)
+		editor = e
 		editor:open_state(editor.dmi.states[1])
+		editor:open_state(editor.dmi.states[2])
+		T.wait_until(function() return #editor.open_sprites >= 2 and app.sprite end, next, { what = "state sprites" })
+	end,
 
-		T.wait_until(function() return app.sprite and #editor.open_sprites > 0 and app.sprite end, function(sprite)
-			if which == "codebase" then
-				local dialog = PaletteDialogs.codebase()
-				T.ok(dialog, "dialog")
-				-- The deferred online refresh downloads the list and the palette.
-				T.wait_until(function() return #downloads >= 2 end, function()
-					local state = PaletteDialogs.codebase_state
-					T.eq(state.entry and state.entry.id, "goonstation", "selected entry")
-					T.eq(state.list_info.source, "network", "list refreshed")
-					T.eq(#state.palette.colors, 78, "palette loaded")
-					T.eq(state.palette_info.source, "network", "palette downloaded")
-					-- Apply to every open state of the DMI, then check colors against it.
-					dialog:modify { id = "all_states", selected = true }
-					Palettes.apply(Palettes.target_sprites(sprite, true), state.palette)
-					T.eq(#sprite.palettes[1], 78, "goon palette applied")
-					T.detail("downloads", downloads)
-					T.after(1, T.done)
-				end, { what = "palette download" })
-			elseif which == "from_dmi" then
-				local dialog = PaletteDialogs.from_dmi()
-				T.ok(dialog, "dialog")
-				local state = PaletteDialogs.from_dmi_state
-				T.eq(#state.paths, 1, "starts with the open DMI")
-				T.eq(state.paths[1]:lower(), path:lower())
-				T.ok(state.palette and #state.palette.colors > 0, "colors collected")
-				T.detail("colors", #state.palette.colors)
-				T.after(1, T.done)
-			else
-				local registry = Registry.load("palettes")
-				local goon = Palettes.load_entry(Palettes.entries(registry)[1])
-				Palettes.apply({ sprite }, goon)
-				local dialog = PaletteDialogs.check_colors()
-				T.ok(dialog, "dialog")
-				local report = PaletteDialogs.check_report
-				T.ok(report.colors > 0, "colors counted")
-				T.detail("colors", report.colors)
-				T.detail("off_palette", #report.off_palette)
-				T.after(1, T.done)
-			end
-		end, { what = "state sprite" })
-	end, { what = "DMI Editor to open " .. path })
-end, { what = "plugin init" })
+	-- Codebase Palettes: opens from the bundled copy, then the deferred refresh "downloads".
+	function(next, s)
+		sprite = s
+		dialog = PaletteDialogs.codebase()
+		T.ok(dialog, "codebase dialog")
+		T.eq(#downloads, 0, "nothing downloaded before the dialog shows")
+		T.wait_until(function() return #downloads >= 2 end, next, { what = "registry refresh" })
+	end,
+	function(next)
+		local state = PaletteDialogs.codebase_state
+		T.eq(state.entry and state.entry.id, "goonstation", "selected entry")
+		T.eq(state.list_info.source, "network", "list refreshed")
+		T.eq(state.palette_info.source, "network", "palette downloaded")
+		T.eq(#state.palette.colors, 78, "palette loaded")
+		T.eq(#downloads, 2, "one download each")
+		T.after(0.5, function() T.screenshot("codebase", next) end)
+	end,
+	-- Hovering a swatch names it (posted mouse moves; the canvas offset isn't exposed, so scan
+	-- down from below the description labels until a swatch answers).
+	function(next)
+		local state = PaletteDialogs.codebase_state
+		local y = 40
+		local function try()
+			if state.hovered or y > 120 then return next() end
+			T.input({ { move = { x = 48, y = y }, dialog = dialog }, { wait = 0.1 } }, function()
+				y = y + 4
+				try()
+			end)
+		end
+		try()
+	end,
+	function(next)
+		local state = PaletteDialogs.codebase_state
+		T.ok(state.hovered, "hovering a swatch reports its color")
+		T.eq(state.hovered and state.hovered.name, "Steel-1", "first swatch hovered")
+		T.screenshot("codebase_hover", next)
+	end,
+	function(next)
+		local state = PaletteDialogs.codebase_state
+		local targets = Palettes.target_sprites(sprite, true)
+		T.eq(#targets, 2, "all open states of the DMI")
+		Palettes.apply(targets, state.palette)
+		for _, target in ipairs(targets) do
+			T.eq(#target.palettes[1], 78, "goon palette applied")
+		end
+		dialog:close()
+		next()
+	end,
+
+	-- Check Colors against the goon palette, then select the off-palette pixels.
+	function(next)
+		dialog = PaletteDialogs.check_colors()
+		local report = PaletteDialogs.check_report
+		T.ok(report.colors > 0, "colors counted")
+		T.ok(#report.off_palette > 0, "anomaly isn't drawn with goon's palette")
+		T.detail("check", { colors = report.colors, off = #report.off_palette, off_pixels = report.off_pixels })
+		T.after(0.5, function() T.screenshot("check", next) end)
+	end,
+	function(next)
+		local pixels = Palettes.select_off_palette(sprite, app.frame.frameNumber)
+		T.ok(pixels > 0, "pixels selected")
+		T.ok(not sprite.selection.isEmpty, "selection set")
+		app.refresh()
+		T.after(0.5, function() T.screenshot("check_selected", next) end)
+	end,
+
+	-- Palette from DMI: starts with the open DMI.
+	function(next)
+		dialog:close()
+		dialog = PaletteDialogs.from_dmi()
+		local state = PaletteDialogs.from_dmi_state
+		T.eq(#state.paths, 1, "starts with the open DMI")
+		T.eq(state.paths[1]:lower(), path:lower())
+		T.ok(state.palette and #state.palette.colors > 0, "colors collected")
+		T.detail("from_dmi_colors", #state.palette.colors)
+		T.after(0.5, function() T.screenshot("from_dmi", next) end)
+	end,
+	function()
+		T.done()
+	end,
+}
