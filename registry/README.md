@@ -6,8 +6,8 @@ A copy of this directory ships inside the extension, so everything also works of
 
 How the extension uses it (`scripts/classes/registry.lua`):
 
-- The network is used only on an explicit user action (opening a dialog that needs the data,
-  or pressing its Refresh button), never at startup. Downloads time out after 5 seconds.
+- The network is used only when a dialog that needs the data opens, never at startup.
+  Downloads time out after 5 seconds.
 - Downloads are cached in `<Aseprite user config>/aseprite-dmi/registry/` (`meta.json` keeps
   download times). A cached file counts as fresh for 24 hours; after a failed download the
   extension waits 10 minutes before trying again on its own (Refresh always tries).
@@ -23,8 +23,8 @@ How the extension uses it (`scripts/classes/registry.lua`):
 
 ## palettes.json
 
-Codebase palettes, listed in `File > DMI Editor > Palettes > Codebase Palettes...`, where they
-can be applied to the open sprite or installed into Aseprite's palette Presets.
+Codebase palettes, listed in `File > DMI Editor > Codebase Palettes`, where they can be
+installed into Aseprite's palette Presets.
 
 ```json
 {
@@ -64,10 +64,10 @@ Entry:
 | `codebase`    | no       | The codebase it belongs to.                                                |
 | `description` | no       | One sentence.                                                              |
 | `guidelines`  | no       | One sentence on how the codebase wants it used.                            |
-| `homepage`    | no       | Where it comes from (repository, wiki page). Shown for credit only, never fetched. |
+| `homepage`    | no       | Where it comes from (repository, wiki page). Credit only, never fetched.   |
 | `license`     | no       | If the palette file has one.                                               |
 
-Keep text fields short: the dialog shows about 60 characters per line.
+Keep text fields short: the dialog wraps them but has room for only a few lines.
 
 ### Adding your codebase's palette
 

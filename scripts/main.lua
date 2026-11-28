@@ -257,39 +257,12 @@ function init(plugin)
 		group = "dmi_editor",
 	}
 
-	plugin:newMenuGroup {
-		id = "dmi_palettes",
-		title = "Palettes",
-		group = "dmi_editor",
-	}
-
 	plugin:newCommand {
 		id = "dmi_codebase_palettes",
-		title = "Codebase Palettes...",
-		group = "dmi_palettes",
+		title = "Codebase Palettes",
+		group = "dmi_editor",
 		onclick = function()
 			PaletteDialogs.codebase()
-		end,
-	}
-
-	plugin:newCommand {
-		id = "dmi_palette_from_dmi",
-		title = "Palette from DMI...",
-		group = "dmi_palettes",
-		onclick = function()
-			PaletteDialogs.from_dmi()
-		end,
-	}
-
-	plugin:newCommand {
-		id = "dmi_check_colors",
-		title = "Check Colors",
-		group = "dmi_palettes",
-		onclick = function()
-			PaletteDialogs.check_colors()
-		end,
-		onenabled = function()
-			return app.sprite ~= nil
 		end,
 	}
 
