@@ -446,6 +446,32 @@ T.steps {
 		T.eq(app.sprite, sprite, "test sprite still active")
 		next()
 	end,
+	-- Tab leaves the filter box and cycles through the shown states; the grid keeps the keyboard.
+	function(next)
+		T.input({ { wait = 0.2 }, { key = "Ctrl+F" }, { wait = 0.4 }, { text = "door" }, { wait = 0.3 },
+			{ key = "Tab" }, { wait = 0.4 } }, next)
+	end,
+	function(next)
+		T.ok(not editor.filter_editing, "Tab left the filter box")
+		T.eq(editor.filter_query, "door", "Tab keeps the filter")
+		T.eq(cursor_name(), "door", "Tab picked the first match")
+		T.input({ { key = "Tab" }, { wait = 0.3 }, { key = "Tab" }, { wait = 0.3 }, { key = "Shift+Tab" }, { wait = 0.4 } }, next)
+	end,
+	function(next)
+		T.eq(cursor_name(), "door_broken", "Tab, Tab, Shift+Tab: next, next, back")
+		T.input({ { key = "Right" }, { wait = 0.3 } }, next)
+	end,
+	function(next)
+		T.eq(cursor_name(), "door_open", "arrows still move after Tab")
+		T.eq(editor.filter_query, "door", "arrows keep the filter")
+		T.eq(app.sprite, sprite, "Tab never took the keyboard off the grid")
+		sprite_untouched("after Tab")
+		T.input({ { key = "Escape" }, { wait = 0.2 }, { key = "Escape" }, { wait = 0.3 } }, next)
+	end,
+	function(next)
+		T.eq(#editor:visible_states(), 60, "Esc, Esc clears the filter")
+		next()
+	end,
 	-- Clearing the filter (and any refocus of the grid) keeps a window the user resized.
 	function(next)
 		local b = dialog.bounds

@@ -95,7 +95,15 @@ for _, code in ipairs({ "KeyZ", "KeyY", "KeyX", "KeyD", "Delete", "Backspace", "
 end
 T.eq(k("KeyZ", { "ctrl", "shift" }), false, "Ctrl+Shift+Z stays on the grid")
 T.eq(k("KeyS", { "ctrl", "shift" }), false, "Ctrl+Shift+S saves the DMI too")
-T.eq(k("Tab"), true, "Tab moves dialog focus")
+T.eq(k("Tab"), false, "Tab is the grid's: it cycles the states")
+T.eq(k("Tab", { "ctrl" }), true, "Ctrl+Tab switches sprite tabs")
+T.eq(M.cycle(nil, 5), 1, "cycle: nothing selected starts at the first")
+T.eq(M.cycle(nil, 5, false, 3), 3, "cycle: or at the first in view")
+T.eq(M.cycle(nil, 5, true), 5, "cycle: Shift starts at the last")
+T.eq(M.cycle(5, 5), 1, "cycle wraps forwards")
+T.eq(M.cycle(1, 5, true), 5, "cycle wraps backwards")
+T.eq(M.cycle(2, 5), 3, "cycle: next")
+T.eq(M.cycle(1, 0), nil, "cycle: no states")
 
 -- Editor navigation over a filtered grid. A stub editor (no dialog in batch): 3 columns, 2 rows.
 local grid_names = { "wall", "Floor", "door", "floor_dark", "window", "door_open", "vent", "FLOOR_alt", "pipe",
@@ -189,14 +197,26 @@ press("Escape")
 T.eq(editor.filter_query, "", "second Esc clears the filter")
 T.eq(#editor:visible_states(), 12, "full grid restored")
 
--- Tab leaves the filter box (keeping the filter) and the grid keeps the keyboard.
+-- Tab cycles the shown states (Shift+Tab back, wrapping) and leaves the filter box, keeping the filter.
 editor:start_filter()
 T.ok(editor.filter_editing, "start_filter starts typing")
 editor:set_filter("door")
-T.ok(press("Tab"), "Tab is consumed while typing")
-T.eq({ editor.filter_editing, editor.filter_query }, { false, "door" }, "Tab stops typing and keeps the filter")
-T.ok(not press("Tab"), "Tab outside the box goes on to Aseprite")
+T.ok(press("Tab"), "Tab is consumed")
+T.eq({ editor.filter_editing, editor.filter_query, selected() }, { false, "door", { "door" } },
+	"Tab stops typing, keeps the filter and picks the first match")
+press("Tab")
+T.eq(cursor(), "door_open", "Tab: next match")
+press("Tab")
+T.eq(cursor(), "trapdoor", "Tab: next match")
+press("Tab")
+T.eq(cursor(), "door", "Tab wraps to the first")
+press("Tab", "\t", { "shift" })
+T.eq(cursor(), "trapdoor", "Shift+Tab wraps to the last")
+press("Tab", "\t", { "shift" })
+T.eq(cursor(), "door_open", "Shift+Tab: previous match")
+T.eq(selected(), { "door_open" }, "Tab selects one state at a time")
 editor:clear_filter()
+editor.selected_states = {}
 
 -- Clearing keeps the cursor and scrolls it into view in the full grid (13 cells: 5 rows).
 editor:set_filter("oor")

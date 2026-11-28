@@ -55,6 +55,19 @@ function EditorNav.move(index, count, columns, rows, code, first)
 	return math.min(math.max(target, 1), count)
 end
 
+--- Next (or, backwards, previous) slot for Tab, wrapping around the ends.
+--- @param index number|nil Current slot, nil if nothing is selected.
+--- @param count number
+--- @param backwards boolean|nil
+--- @param first number|nil Slot picked with nothing selected going forwards (default 1); backwards picks the last.
+--- @return number|nil index nil if there are no states.
+function EditorNav.cycle(index, count, backwards, first)
+	if count < 1 then return nil end
+	if not index then return backwards and count or first or 1 end
+	if backwards then return index > 1 and index - 1 or count end
+	return index < count and index + 1 or 1
+end
+
 --- Highest scroll value (in rows) for a grid of `count` states plus the "+" cell.
 --- @return number
 function EditorNav.max_scroll(count, columns, rows)
@@ -167,7 +180,6 @@ EditorNav.GRID_CTRL_KEYS = {
 --- @param ev table KeyEvent-like: code, ctrlKey, altKey, metaKey.
 --- @return boolean
 function EditorNav.key_passes_through(ev)
-	if ev.code == "Tab" then return true end
 	if not (ev.ctrlKey or ev.altKey or ev.metaKey) then return false end
 	if (ev.ctrlKey or ev.metaKey) and EditorNav.GRID_CTRL_KEYS[ev.code] then return false end
 	return true
@@ -286,9 +298,10 @@ end
 
 --- Starts typing a filter (Ctrl+F, `/` or the context menu; clicking the bar while it shows resumes
 --- typing): the bar drops down from the title and the grid shows only the states whose name contains
---- what is typed (see Editor:set_filter). Typing is on the grid itself, so Esc, Enter and Backspace
+--- what is typed (see Editor:set_filter). Typing is on the grid itself, so Esc, Enter, Tab and Backspace
 --- never reach Aseprite. Enter stops typing and keeps the filter with the cursor on the first match;
---- Tab stops typing too; Esc or the bar's x clears it. Ctrl+F or `/` again continues with the current text.
+--- Tab stops typing and moves on to the next match; Esc or the bar's x clears it. Ctrl+F or `/` again
+--- continues with the current text.
 function Editor:start_filter()
 	if self.filter_editing or not self.dmi then return end
 	local was_visible = self:filter_bar_visible()
@@ -331,8 +344,7 @@ function Editor:handle_filter_key(ev)
 		if self.filter_query ~= "" and #self.selected_states == 0 then self:select_index(1) end
 		self:stop_filter_editing()
 		self:refocus_grid()
-	elseif code == "Tab" or (code == "Backspace" and self.filter_query == "") then
-		-- Tab leaves the box but stays on the grid (the filter stays on), instead of moving focus to Save.
+	elseif code == "Backspace" and self.filter_query == "" then
 		self:stop_filter_editing()
 	else
 		local query = EditorNav.edit_query(self.filter_query, code, ev.key)
@@ -386,9 +398,19 @@ function Editor:handle_navigation_key(ev)
 			self:refocus_grid()
 		end
 	end
-	-- Tab goes on to the dialog's own focus handling.
-	if modified or code == "Tab" then
+	-- Ctrl/Alt/Cmd combos go on to Aseprite unless they are the grid's own (Ctrl+Tab switches sprite tabs).
+	if modified then
 		return not EditorNav.key_passes_through(ev)
+	end
+
+	-- Tab cycles through the shown states, Shift+Tab back, wrapping around; it also leaves the filter box.
+	if code == "Tab" then
+		self:stop_filter_editing()
+		local count = #self:visible_states()
+		local first_in_view = math.min(self.scroll * math.max(self.max_in_a_row, 1) + 1, math.max(count, 1))
+		local index = EditorNav.cycle(self:cursor_index(), count, ev.shiftKey, first_in_view)
+		if index then self:select_index(index) end
+		return true
 	end
 
 	-- With nothing selected (after Esc, Delete or a click), the first arrow starts from what is in view
