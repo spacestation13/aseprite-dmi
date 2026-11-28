@@ -50,17 +50,45 @@ local function remember_position(dialog, key)
 	Preferences.plugin.preferences[key] = { x = bounds.x, y = bounds.y }
 end
 
-local function state_sprite_of(sprite)
-	for _, editor in ipairs(open_editors or {}) do
-		if not editor.closed then
-			for _, state_sprite in ipairs(editor.open_sprites) do
-				if state_sprite.sprite == sprite then
-					return state_sprite
-				end
-			end
+--- Calls `fn` whenever the active sprite/frame changes; returns a function that stops it (call
+--- it from the dialog's onclose). Never call this from inside an app.events callback.
+local function watch_site(fn)
+	local id = app.events:on("sitechange", fn)
+	return function()
+		if id then
+			app.events:off(id)
+			id = nil
 		end
 	end
-	return nil
+end
+
+--- Installs a preset, asking before replacing one this extension didn't install.
+--- @return string|nil path
+--- @return string|nil error
+local function install_preset(palette, name)
+	local path, err, exists = Palettes.install(palette, name)
+	if exists then
+		local choice = app.alert {
+			title = "Install to Presets",
+			text = { err, "Replace it?" },
+			buttons = { "&Replace", "&Cancel" },
+		}
+		if choice ~= 1 then
+			return nil, "Not installed: " .. err
+		end
+		path, err = Palettes.install(palette, name, true)
+	end
+	return path, err
+end
+
+--- Updates the controls that depend on the active sprite (Apply, Install, the "all open
+--- states" check) of the Codebase Palettes / Palette from DMI dialogs.
+local function update_sprite_controls(dialog, state)
+	state.can_apply = state.palette ~= nil and app.sprite ~= nil
+	state.shows_all_states = Palettes.state_sprite_of(app.sprite) ~= nil
+	dialog:modify { id = "apply", enabled = state.can_apply }
+	dialog:modify { id = "install", enabled = state.palette ~= nil }
+	dialog:modify { id = "all_states", visible = state.shows_all_states }
 end
 
 --------------------------------------------------------------------------------
@@ -201,6 +229,10 @@ function PaletteDialogs.codebase()
 		return entry.name
 	end
 
+	local function update_controls()
+		update_sprite_controls(dialog, state)
+	end
+
 	local function update_status(message)
 		local list = state.list_info and Registry.describe(state.list_info) or ""
 		dialog:modify { id = "status", text = message or ("List: " .. list) }
@@ -213,9 +245,7 @@ function PaletteDialogs.codebase()
 			state.palette_text = ""
 		end
 		dialog:modify { id = "palette_status", text = state.palette_text }
-		dialog:modify { id = "apply", enabled = state.palette ~= nil and app.sprite ~= nil }
-		dialog:modify { id = "install", enabled = state.palette ~= nil }
-		dialog:modify { id = "all_states", visible = state_sprite_of(app.sprite) ~= nil }
+		update_controls()
 	end
 
 	local function show_entry(options)
@@ -258,9 +288,13 @@ function PaletteDialogs.codebase()
 		select_entry(selected)
 	end
 
+	local stop_watching
 	dialog = Dialog {
 		title = "Codebase Palettes",
-		onclose = function() remember_position(dialog, "palettes_codebase_position") end,
+		onclose = function()
+			if stop_watching then stop_watching() end
+			remember_position(dialog, "palettes_codebase_position")
+		end,
 	}
 
 	dialog:combobox {
@@ -312,7 +346,7 @@ function PaletteDialogs.codebase()
 		text = "&Install to Presets",
 		onclick = function()
 			if not state.palette then return end
-			local path, err = Palettes.install(state.palette, state.entry.name)
+			local path, err = install_preset(state.palette, state.entry.name)
 			if path then
 				update_status("Installed: Palette > Presets > " .. app.fs.fileTitle(path))
 			else
@@ -326,7 +360,8 @@ function PaletteDialogs.codebase()
 		onclick = function()
 			update_status("Downloading...")
 			load_list { online = true, refresh = true }
-			show_entry { online = true, refresh = true }
+			-- Don't wait on a second timeout when the list couldn't be downloaded.
+			show_entry { online = not state.list_info.error, refresh = true }
 		end,
 	}
 	dialog:button {
@@ -337,11 +372,13 @@ function PaletteDialogs.codebase()
 	load_list()
 	show_entry()
 	show_remembered(dialog, "palettes_codebase_position")
+	stop_watching = watch_site(update_controls)
 
 	defer(function()
 		update_status("Checking for updates...")
 		load_list { online = true }
-		show_entry { online = true }
+		-- A failed list download means the network is down or hanging: don't freeze again.
+		show_entry { online = not state.list_info.error }
 	end)
 
 	PaletteDialogs.codebase_state = state
@@ -364,6 +401,8 @@ function PaletteDialogs.from_dmi()
 		local first = state.paths[1]
 		return first and app.fs.fileTitle(first) or "DMI palette"
 	end
+
+	local update_controls
 
 	local function update()
 		state.palette, state.counts, state.error = nil, nil, nil
@@ -399,10 +438,13 @@ function PaletteDialogs.from_dmi()
 		state.summary = summary
 		dialog:modify { id = "summary", text = summary }
 		dialog:modify { id = "name", text = dialog.data.name ~= "" and dialog.data.name or default_name() }
-		dialog:modify { id = "apply", enabled = state.palette ~= nil and app.sprite ~= nil }
-		dialog:modify { id = "install", enabled = state.palette ~= nil }
+		update_controls()
 		dialog:modify { id = "save", enabled = state.palette ~= nil }
 		dialog:repaint()
+	end
+
+	update_controls = function()
+		update_sprite_controls(dialog, state)
 	end
 
 	local function add(path)
@@ -419,9 +461,13 @@ function PaletteDialogs.from_dmi()
 		return state.palette
 	end
 
+	local stop_watching
 	dialog = Dialog {
 		title = "Palette from DMI",
-		onclose = function() remember_position(dialog, "palettes_from_dmi_position") end,
+		onclose = function()
+			if stop_watching then stop_watching() end
+			remember_position(dialog, "palettes_from_dmi_position")
+		end,
 	}
 
 	dialog:file {
@@ -458,7 +504,7 @@ function PaletteDialogs.from_dmi()
 		id = "all_states",
 		text = "Apply to all open states of this DMI",
 		selected = prefs.palettes_all_states ~= false,
-		visible = state_sprite_of(app.sprite) ~= nil,
+		visible = Palettes.state_sprite_of(app.sprite) ~= nil,
 		onclick = function() prefs.palettes_all_states = dialog.data.all_states end,
 	}
 	dialog:file {
@@ -491,7 +537,7 @@ function PaletteDialogs.from_dmi()
 		text = "&Install to Presets",
 		onclick = function()
 			if not state.palette then return end
-			local path, err = Palettes.install(named_palette())
+			local path, err = install_preset(named_palette())
 			dialog:modify { id = "summary", text = path and ("Installed: Palette > Presets > " .. app.fs.fileTitle(path)) or err }
 		end,
 	}
@@ -509,9 +555,10 @@ function PaletteDialogs.from_dmi()
 		onclick = function() dialog:close() end,
 	}
 
-	local state_sprite = state_sprite_of(app.sprite)
+	-- The open DMI as saved on disk; an unsaved new DMI has no file yet.
+	local state_sprite = Palettes.state_sprite_of(app.sprite)
 	if state_sprite then
-		add(state_sprite.editor:path())
+		add(state_sprite.editor.save_path or state_sprite.editor.open_path)
 	elseif app.sprite then
 		local extension = app.fs.fileExtension(app.sprite.filename):lower()
 		if extension == "dmi" or extension == "png" then
@@ -520,6 +567,7 @@ function PaletteDialogs.from_dmi()
 	end
 	update()
 	show_remembered(dialog, "palettes_from_dmi_position")
+	stop_watching = watch_site(update_controls)
 
 	PaletteDialogs.from_dmi_state = state
 	return dialog

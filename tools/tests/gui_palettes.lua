@@ -7,10 +7,13 @@ T.async()
 
 local path = T.path("lib", "tests", "assets", "anomaly.dmi")
 
--- Serve this repo's registry URLs from the bundled copy; anything else fails.
+-- Serve this repo's registry URLs from the bundled copy; anything else fails, and everything
+-- fails while `offline`.
 local downloads = {}
+local offline = false
 Registry.download = function(url, dest)
 	table.insert(downloads, url)
+	if offline then return nil, "timed out (test stub)" end
 	local source = Registry.bundled_path(url)
 	local input = source and io.open(source, "rb")
 	if not input then return nil, "404 (test stub)" end
@@ -44,9 +47,35 @@ T.steps {
 		T.wait_until(function() return #editor.open_sprites >= 2 and app.sprite end, next, { what = "state sprites" })
 	end,
 
-	-- Codebase Palettes: opens from the bundled copy, then the deferred refresh "downloads".
+	-- Offline: the list download fails, so the palette isn't fetched (no second timeout) and
+	-- comes from the bundled copy.
 	function(next, s)
 		sprite = s
+		offline = true
+		dialog = PaletteDialogs.codebase()
+		T.eq(#downloads, 0, "nothing downloaded before the dialog shows")
+		T.wait_until(function() return PaletteDialogs.codebase_state.list_info.error end, next,
+			{ what = "failed refresh" })
+	end,
+	function(next)
+		local state = PaletteDialogs.codebase_state
+		T.after(0.3, function()
+			T.eq(#downloads, 1, "only the list download was tried")
+			T.eq(state.list_info.source, "bundled", "bundled list")
+			T.eq(state.palette_info.source, "bundled", "bundled palette")
+			T.eq(#state.palette.colors, 78)
+			dialog:close()
+			-- Back online, past the retry back-off.
+			offline = false
+			local real_now = Registry.now
+			Registry.now = function() return real_now() + Registry.RETRY_AFTER end
+			next()
+		end)
+	end,
+
+	-- Codebase Palettes: opens from the bundled copy, then the deferred refresh "downloads".
+	function(next)
+		downloads = {}
 		dialog = PaletteDialogs.codebase()
 		T.ok(dialog, "codebase dialog")
 		T.eq(#downloads, 0, "nothing downloaded before the dialog shows")
@@ -81,14 +110,31 @@ T.steps {
 		T.eq(state.hovered and state.hovered.name, "Steel-1", "first swatch hovered")
 		T.screenshot("codebase_hover", next)
 	end,
+	-- Controls follow the active sprite (sitechange): no "all open states" on a non-DMI sprite.
 	function(next)
 		local state = PaletteDialogs.codebase_state
+		T.eq(state.shows_all_states, true, "state sprite active")
+		local outsider = Sprite(8, 8)
+		T.wait_until(function() return state.shows_all_states == false end, function()
+			T.eq(state.can_apply, true, "Apply still enabled for the other sprite")
+			outsider:close()
+			app.sprite = sprite
+			T.wait_until(function() return state.shows_all_states == true end, next,
+				{ what = "controls back for the state sprite" })
+		end, { what = "controls updated for a non-DMI sprite" })
+	end,
+	-- A closed state tab isn't touched when applying to all open states.
+	function(next)
+		local state = PaletteDialogs.codebase_state
+		T.eq(#Palettes.target_sprites(sprite, true), 2, "all open states of the DMI")
+		local other = editor.open_sprites[1].sprite == sprite and editor.open_sprites[2].sprite
+			or editor.open_sprites[1].sprite
+		other:close()
+		app.sprite = sprite
 		local targets = Palettes.target_sprites(sprite, true)
-		T.eq(#targets, 2, "all open states of the DMI")
+		T.eq(#targets, 1, "closed state skipped")
 		Palettes.apply(targets, state.palette)
-		for _, target in ipairs(targets) do
-			T.eq(#target.palettes[1], 78, "goon palette applied")
-		end
+		T.eq(#sprite.palettes[1], 78, "goon palette applied")
 		dialog:close()
 		next()
 	end,

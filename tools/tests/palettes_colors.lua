@@ -77,6 +77,31 @@ T.eq(installed, app.fs.joinPath(app.fs.userConfigPath, "palettes", "Test Codebas
 T.eq(Palettes.read(installed), palette, "installed preset")
 T.ok(Palette { fromResource = "Test Codebase" }, "Aseprite finds the preset by name")
 
+local function slurp(path)
+	local file = assert(io.open(path, "rb"))
+	local text = file:read("a")
+	file:close()
+	return text
+end
+
+-- Installing again replaces our own earlier copy without asking...
+local recolored = { name = "Round Trip", colors = { { r = 1, g = 1, b = 1, a = 255, name = "One-1" } } }
+local again, again_err, again_exists = Palettes.install(recolored, "Test Codebase")
+T.eq(again, installed, "reinstall replaces our preset: " .. tostring(again_err))
+T.eq(again_exists, nil)
+T.eq(Palettes.read(installed).colors, recolored.colors, "replaced")
+-- ...but a preset the user made is only replaced when asked to.
+local user_preset = Palettes.preset_path("My Preset")
+T.ok(Palettes.write_gpl(palette, user_preset), "user preset written")
+local user_before = slurp(user_preset)
+local refused, refused_err, exists = Palettes.install(recolored, "My Preset")
+T.eq(refused, nil, "user preset not overwritten")
+T.eq(exists, true, "caller told to ask")
+T.ok(refused_err and refused_err:find("My Preset", 1, true), tostring(refused_err))
+T.eq(slurp(user_preset), user_before, "user preset untouched")
+T.eq(Palettes.install(recolored, "My Preset", true), user_preset, "replace when confirmed")
+T.eq(Palettes.read(user_preset).colors, recolored.colors)
+
 -- Image palette: unique colors in reading order, transparent skipped.
 local strip = Image(4, 2, ColorMode.RGB)
 strip:clear(pc.rgba(0, 0, 0, 0))
@@ -209,6 +234,28 @@ gray.cels[1].image = gray_image
 local gray_report = Palettes.check(gray, { colors = { { r = 255, g = 255, b = 255, a = 255 } } })
 T.eq(gray_report.colors, 2, "grayscale colors")
 T.eq(gray_report.off_palette, { { r = 17, g = 17, b = 17, a = 255, count = 1 } }, "grayscale off-palette")
+
+-- Closed state tabs: their deleted sprites are skipped, not touched (setPalette on a deleted
+-- sprite raises). A fake editor using the real Editor methods.
+local saved_editors = open_editors
+local state_a, state_b, outsider = Sprite(2, 2), Sprite(2, 2), Sprite(2, 2)
+local editor = setmetatable({ closed = false, open_sprites = {} }, Editor)
+editor.open_sprites = { { sprite = state_a, editor = editor }, { sprite = state_b, editor = editor } }
+open_editors = { editor }
+T.eq(#Palettes.target_sprites(state_a, true), 2, "both states")
+T.ok(Palettes.target_sprites(state_a, false)[1] == state_a, "only the sprite")
+T.ok(Palettes.target_sprites(outsider, true)[1] == outsider, "not a state sprite")
+state_b:close()
+local targets = Palettes.target_sprites(state_a, true)
+T.eq(#targets, 1, "closed state tab skipped")
+T.ok(targets[1] == state_a)
+Palettes.apply(targets, palette)
+T.eq(#state_a.palettes[1], 3, "applied to the open state")
+T.ok(Palettes.state_sprite_of(outsider) == nil, "outsider has no state sprite")
+T.ok(Palettes.state_sprite_of(nil) == nil)
+open_editors = saved_editors
+state_a:close()
+outsider:close()
 
 sprite:close()
 offset_sprite:close()
