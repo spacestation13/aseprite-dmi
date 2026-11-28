@@ -66,10 +66,6 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
     exports.set("open_dialog", lua.create_function(safe!(open_dialog))?)?;
     exports.set("import_png", lua.create_function(safe!(import_png))?)?;
     exports.set("download", lua.create_function(safe!(download))?)?;
-    exports.set(
-        "collect_colors",
-        lua.create_function(safe!(collect_colors))?,
-    )?;
 
     Ok(exports)
 }
@@ -493,26 +489,6 @@ fn download(_: &Lua, (url, dest, timeout_secs): (String, String, Option<f64>)) -
     let timeout = std::time::Duration::from_secs_f64(timeout_secs.unwrap_or(5.0).clamp(0.5, 60.0));
     crate::utils::download_registry_file(&url, Path::new(&dest), timeout)
         .map_err(|err| LuaError::external(format!("{err:#}")))
-}
-
-/// Colors of .dmi/.png files, most used first: `{ {r, g, b, a, count}, ... }` (alpha 0 skipped).
-fn collect_colors(lua: &Lua, paths: Vec<String>) -> LuaResult<LuaTable> {
-    let colors = crate::colors::collect_colors(&paths)
-        .map_err(|err| LuaError::external(format!("{err:#}")))?;
-
-    let table = lua.create_table_with_capacity(colors.len(), 0)?;
-    for color in colors {
-        let [r, g, b, a] = color.rgba;
-        let entry = lua.create_table_with_capacity(0, 5)?;
-        entry.set("r", r)?;
-        entry.set("g", g)?;
-        entry.set("b", b)?;
-        entry.set("a", a)?;
-        entry.set("count", color.count)?;
-        table.push(entry)?;
-    }
-
-    Ok(table)
 }
 
 fn import_png(lua: &Lua, (dmi_table, filepath): (LuaTable, String)) -> LuaResult<LuaTable> {

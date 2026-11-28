@@ -832,7 +832,6 @@ Version = nil
 --- @field exists fun(path: string): boolean Returns true if the path points at an existing entity.
 --- @field check_update fun(): boolean? Starts a background update check; returns nil until it finishes, then true if an update is available.
 --- @field download fun(url: string, dest: string, timeout_secs?: number): number?, string? Downloads a file of this repository (https://raw.githubusercontent.com/spacestation13/aseprite-dmi/..., in normal form; anything else is refused, redirects only within it) to a file (parent directories created, written atomically, non-2xx is an error, timeout defaults to 5 s). Returns the bytes written or nil and an error message.
---- @field collect_colors fun(paths: string[]): {r: number, g: number, b: number, a: number, count: number}[]?, string? Colors of .dmi/.png files by pixel count, most used first (alpha 0 skipped). If fails, returns nil and an error message.
 --- @field instances fun(): number?, string? Return the number of Aseprite instances running.
 --- @field save_dialog fun(title: string, filename: string, location: string): string?, string? Shows a save dialog. Returns the path of the file to save or empty string if the user cancels the dialog.
 --- @field open_dialog fun(title: string, location: string, extension: string): string?, string? Shows an open dialog filtered by extension. Returns the path of the selected file or empty string if the user cancels the dialog.
