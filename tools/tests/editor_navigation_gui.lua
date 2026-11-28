@@ -51,25 +51,20 @@ T.wait_until(function() return libdmi and open_editors end, function()
 		T.eq(editor:cursor_index(), EditorNav.find_next(names, target:sub(1, 1), 0), "type-ahead jumps")
 		-- (F2 rename is unchanged; not pressed here because the properties dialog is modal.)
 		T.after(0.3, function()
-			-- Ctrl+F find
-			-- Editor at the right edge: Find goes to its left, inside the main window.
-			local eb = editor.dialog.bounds
-			editor.dialog.bounds = Rectangle(app.window.width - eb.width - 5, 20, eb.width, eb.height)
-			eb = editor.dialog.bounds
+			-- Ctrl+F starts the filter bar.
 			key(editor, "KeyF", "f", { ctrlKey = true })
-			T.ok(editor.find_dialog, "find dialog opened")
-			local fb = editor.find_dialog.bounds
-			T.detail("find_bounds", tostring(fb))
-			T.ok(fb.x >= 0 and fb.x + fb.width <= eb.x, "Find left of an editor at the right edge")
+			T.ok(editor.filter_editing, "Ctrl+F starts the filter")
+			T.ok(editor:filter_bar_height() > 0, "the filter bar takes room above the grid")
 			editor:set_filter("a")
 			local expected = {}
 			for _, name in ipairs(names) do
 				if name:lower():find("a", 1, true) then table.insert(expected, name) end
 			end
-			T.eq(editor:state_names(), expected, "find filters the grid")
+			T.eq(editor:state_names(), expected, "the filter shows only the matches")
 			T.detail("shown", table.concat(editor:state_names(), ","))
-			editor.find_dialog:close()
-			T.eq(#editor:visible_states(), #names, "closing Find restores the grid")
+			key(editor, "Escape")
+			T.ok(not editor.filter_editing and editor:filter_bar_height() == 0, "Esc hides the bar")
+			T.eq(#editor:visible_states(), #names, "Esc restores the grid")
 			T.after(1, T.done)
 		end)
 	end, { what = "DMI Editor to open" })

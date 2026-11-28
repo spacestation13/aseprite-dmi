@@ -173,27 +173,6 @@ function EditorNav.key_passes_through(ev)
 	return true
 end
 
---- Position for a `size` window next to `anchor` inside `area`: right of it, else left of it,
---- else overlapping it, always clamped into `area`.
---- @param anchor table {x, y, width, height}
---- @param size table {width, height}
---- @param area table {x, y, width, height}
---- @return number x
---- @return number y
-function EditorNav.place_beside(anchor, size, area)
-	local x
-	if anchor.x + anchor.width + size.width <= area.x + area.width then
-		x = anchor.x + anchor.width
-	elseif anchor.x - size.width >= area.x then
-		x = anchor.x - size.width
-	else
-		x = anchor.x + anchor.width - size.width
-	end
-	x = math.max(area.x, math.min(x, area.x + area.width - size.width))
-	local y = math.max(area.y, math.min(anchor.y, area.y + area.height - size.height))
-	return x, y
-end
-
 --- The states in the grid's slots (slot i is drawn at box_bounds(i)): every state, or only the Find
 --- filter's matches. Layout, scrolling and keyboard navigation index this, never `dmi.states`.
 --- @return State[]
@@ -254,7 +233,7 @@ end
 
 --- Filters the grid to the states whose name contains `query` (case-insensitive; "" shows them all).
 --- The selection keeps only the states still shown, so actions on it never touch hidden states,
---- and the cursor stays in view. Updates the title ("12 of 143 states") and the Find box.
+--- and the cursor stays in view. Updates the title ("12 of 143 states") and the filter bar.
 --- @param query string
 function Editor:set_filter(query)
 	if query == self.filter_query then return end
@@ -274,10 +253,6 @@ function Editor:set_filter(query)
 	self.scroll = cursor and EditorNav.scroll_to_show(cursor, self.scroll, self.max_in_a_row, self.max_in_a_column,
 		EditorNav.max_scroll(#visible, self.max_in_a_row, self.max_in_a_column)) or 0
 	self:repaint_states()
-	if self.find_dialog then
-		self.find_dialog:modify { id = "result", text = self:filter_status() }
-		self.find_dialog:repaint()
-	end
 end
 
 --- Keeps a state just created or renamed in the filtered grid, whatever its name, until the query changes.
@@ -286,14 +261,7 @@ function Editor:keep_visible(state)
 	if self.filter_query ~= "" then self.filter_keep[state] = true end
 end
 
---- "12 of 143 states" while the grid is filtered, else "".
---- @return string
-function Editor:filter_status()
-	if not self.dmi or self.filter_query == "" then return "" end
-	return #self:visible_states() .. " of " .. #self.dmi.states .. " states"
-end
-
---- Find box text editing: the new query for a key, or nil if the key doesn't edit text.
+--- Text editing of the filter bar: the new query for a key, or nil if the key doesn't edit text.
 --- @param query string
 --- @param code string KeyEvent code.
 --- @param char string|nil KeyEvent key (typed character).
@@ -309,78 +277,67 @@ function EditorNav.edit_query(query, code, char)
 	return nil
 end
 
---- Opens the non-modal Find States dialog (Ctrl+F or /), or focuses it if open: as you type, the grid
---- shows only the states whose name contains the text (see Editor:set_filter). Enter closes it and
---- keeps the filter, with the grid's cursor on the first match; Esc, Close or closing the window
---- clear the filter. Reopening it shows the current filter's text.
---- The text box is a canvas so Esc/Enter/Delete are handled here and never reach Aseprite's
---- shortcuts (an entry in a non-modal dialog lets Esc run Cancel, deselecting the active sprite).
-function Editor:open_find_dialog()
-	if self.find_dialog then
-		self.find_dialog:modify { id = "query", focus = true }
-		return
-	end
-	local dialog
-	local keep_filter = false
-	dialog = Dialog {
-		title = "Find States",
-		onclose = function()
-			if self.find_dialog ~= dialog then return end
-			self.find_dialog = nil
-			if not keep_filter then self:set_filter("") end
-		end
-	}
-	local function close(keep)
-		keep_filter = keep
-		dialog:close()
-		self:refocus_grid()
-	end
-	dialog:canvas {
-		id = "query",
-		label = "Name contains",
-		width = 120,
-		height = 18,
-		focus = true,
-		onpaint = function(ev)
-			local ctx = ev.context
-			ctx:drawThemeRect("sunken_focused", Rectangle(0, 0, ctx.width, ctx.height))
-			local text = self.filter_query .. "|"
-			local size = ctx:measureText(text)
-			ctx.color = app.theme.color.text
-			ctx:fillText(text, 4, (ctx.height - size.height) / 2)
-		end,
-		onkeydown = function(ev)
-			if ev.code == "Escape" then
-				close(false)
-			elseif ev.code == "Enter" or ev.code == "NumpadEnter" then
-				-- No match: stay open so the query can be fixed instead of leaving an empty grid.
-				if self.filter_query ~= "" and #self:visible_states() == 0 then
-					ev:stopPropagation()
-					return
-				end
-				-- Arrows and Enter on the grid go on from the first match.
-				if self.filter_query ~= "" and #self.selected_states == 0 then self:select_index(1) end
-				close(true)
-			elseif not (ev.ctrlKey or ev.altKey or ev.metaKey) then
-				local query = EditorNav.edit_query(self.filter_query, ev.code, ev.key)
-				if query then self:set_filter(query) end
-			end
-			ev:stopPropagation()
-		end
-	}
-	dialog:label { id = "result", text = self:filter_status() }
-	dialog:button { text = "Clear", onclick = function()
+--- Whether the filter bar, a strip under the window title, is shown: while typing a filter or
+--- while one is on. The grid is laid out below it (see Editor:filter_bar_height).
+--- @return boolean
+function Editor:filter_bar_visible()
+	return self.filter_editing or self.filter_query ~= ""
+end
+
+--- Starts typing a filter (Ctrl+F, `/`, the context menu or a click on the bar): the bar drops
+--- down from the title and the grid shows only the states whose name contains what is typed (see
+--- Editor:set_filter). Typing is on the grid itself, so Esc, Enter and Backspace never reach Aseprite.
+--- Enter stops typing and keeps the filter with the cursor on the first match; Esc or the bar's x
+--- clears it. Ctrl+F or `/` again continues with the current text.
+function Editor:start_filter()
+	if self.filter_editing or not self.dmi then return end
+	local was_visible = self:filter_bar_visible()
+	self.filter_editing = true
+	self:reset_typeahead()
+	if was_visible then self:repaint() else self:repaint_states() end
+end
+
+--- Stops typing, keeping the filter on if there is text.
+function Editor:stop_filter_editing()
+	if not self.filter_editing then return end
+	local was_visible = self:filter_bar_visible()
+	self.filter_editing = false
+	if was_visible ~= self:filter_bar_visible() then self:repaint_states() else self:repaint() end
+end
+
+--- Clears the filter and hides the bar.
+function Editor:clear_filter()
+	local was_visible = self:filter_bar_visible()
+	self.filter_editing = false
+	if self.filter_query ~= "" then
 		self:set_filter("")
-		dialog:modify { id = "query", focus = true } -- keep typing in the box, not on the button
-	end }
-	dialog:button { text = "Close", onclick = function() close(false) end }
-	self.find_dialog = dialog
-	dialog:show { wait = false }
-	-- Beside the editor (right, else left, else overlapping) so it doesn't cover the grid.
-	local bounds = dialog.bounds
-	local x, y = EditorNav.place_beside(self.dialog.bounds, bounds, app.window and
-		Rectangle(0, 0, app.window.width, app.window.height) or self.dialog.bounds)
-	dialog.bounds = Rectangle(x, y, bounds.width, bounds.height)
+	elseif was_visible then
+		self:repaint_states()
+	end
+end
+
+--- Keys while typing in the filter bar. Returns true if the key was used; arrows, Page keys, Home/End
+--- and the rest go on to the grid, so you can type a filter and move through the matches.
+--- @param ev KeyEvent Without Ctrl/Alt/Cmd.
+--- @return boolean
+function Editor:handle_filter_key(ev)
+	local code = ev.code
+	if code == "Escape" then
+		self:clear_filter()
+	elseif code == "Enter" or code == "NumpadEnter" then
+		-- No match: keep typing so the query can be fixed instead of leaving an empty grid.
+		if self.filter_query ~= "" and #self:visible_states() == 0 then return true end
+		-- Arrows and Enter on the grid go on from the first match.
+		if self.filter_query ~= "" and #self.selected_states == 0 then self:select_index(1) end
+		self:stop_filter_editing()
+	elseif code == "Backspace" and self.filter_query == "" then
+		self:stop_filter_editing()
+	else
+		local query = EditorNav.edit_query(self.filter_query, code, ev.key)
+		if not query then return false end
+		self:set_filter(query)
+	end
+	return true
 end
 
 --- Handles grid navigation keys. Returns true if the key was used.
@@ -402,8 +359,10 @@ function Editor:handle_navigation_key(ev)
 		return not EditorNav.key_passes_through(ev)
 	end
 
+	-- Typing a filter: its keys come before everything else so `/` and Space are characters.
+	if self.filter_editing and not modified and self:handle_filter_key(ev) then return true end
 	if ((ev.ctrlKey or ev.metaKey) and code == "KeyF") or (ev.key == "/" and not modified) then
-		self:open_find_dialog()
+		self:start_filter()
 		return true
 	end
 	if (ev.ctrlKey or ev.metaKey) and not ev.altKey then
@@ -456,9 +415,9 @@ function Editor:handle_navigation_key(ev)
 		end
 		self:refocus_grid()
 	elseif code == "Escape" then
-		-- Esc deselects; with nothing selected, it drops the Find filter.
+		-- Esc deselects; with nothing selected, it drops the filter.
 		if #self.selected_states == 0 then
-			self:set_filter("")
+			self:clear_filter()
 		end
 		self.selected_states = {}
 		self.nav_anchor = nil

@@ -173,7 +173,7 @@ T.steps {
 		T.input({ { wait = 1.2 }, { key = "Ctrl+F" }, { wait = 0.4 } }, next)
 	end,
 	function(next)
-		T.ok(editor.find_dialog, "Ctrl+F opened Find States")
+		T.ok(editor.filter_editing, "Ctrl+F started the filter")
 		sprite_untouched("after Ctrl+F")
 		T.input({ { text = "carp" }, { wait = 0.3 } }, next)
 	end,
@@ -183,19 +183,18 @@ T.steps {
 		T.screenshot("find_ctrl_f", next)
 	end,
 	function(next)
-		-- Closing Find hands keyboard focus back to the grid: no click needed.
+		-- Esc clears the filter, and the grid keeps the keyboard focus: no click needed.
 		T.input({ { key = "Escape" }, { wait = 0.3 }, { text = "/" }, { wait = 0.4 } }, next)
 	end,
 	function(next)
 		T.screenshot("slash", next)
 	end,
 	function(next)
-		T.ok(editor.find_dialog, "/ opened Find States")
-		-- Esc closes Find and (focus back on the grid) clears the grid selection; the canvas consumes
-		-- it, so Aseprite's Cancel doesn't drop the active sprite's selection.
-		sprite_untouched("after Esc in Find + /")
-		editor.find_dialog:close()
-		T.eq(#editor:visible_states(), 9, "closing Find restores the grid")
+		T.ok(editor.filter_editing, "/ started the filter")
+		-- The canvas consumes Esc, so Aseprite's Cancel doesn't drop the active sprite's selection.
+		sprite_untouched("after Esc + /")
+		editor:clear_filter()
+		T.eq(#editor:visible_states(), 9, "clearing restores the grid")
 		-- Ctrl+click only toggles the selection; it doesn't open the state.
 		T.input({ { click = icon_center("anom"), dialog = dialog, mods = "Ctrl" }, { wait = 0.4 } }, next)
 	end,
@@ -244,29 +243,23 @@ T.steps {
 	function(next)
 		T.ok(not editor.context_widget, "Esc closes the context menu")
 		sprite_untouched("after Esc on the context menu")
-		-- Find: Clear keeps the focus in the query box.
+		-- The filter bar's x clears the filter.
 		T.input({ { text = "/" }, { wait = 0.4 }, { text = "bh" }, { wait = 0.2 } }, next)
 	end,
 	function(next)
-		T.eq(editor:state_names(), { "bhole2", "bhole3" }, "find bh")
-		local fb = editor.find_dialog.bounds
-		T.detail("find_bounds", tostring(fb))
-		T.ok(fb.x >= 0 and fb.y >= 0 and fb.x + fb.width <= app.window.width and fb.y + fb.height <= app.window.height,
-			"Find window inside the main window")
-		T.input({ { click = { x = 100, y = 57 }, dialog = editor.find_dialog }, { wait = 0.3 } }, next)
+		T.eq(editor:state_names(), { "bhole2", "bhole3" }, "filter bh")
+		local _, close = editor:filter_bar_bounds()
+		T.input({ { click = { x = origin.x + close.x + close.width // 2, y = origin.y + close.y + close.height // 2 },
+			dialog = dialog }, { wait = 0.3 } }, next)
 	end,
 	function(next)
-		T.eq(#editor:visible_states(), 9, "Clear restores the grid")
-		T.input({ { text = "por" }, { key = "Backspace" }, { wait = 0.3 } }, next)
+		T.eq(#editor:visible_states(), 9, "the x restores the grid")
+		T.ok(not editor:filter_bar_visible(), "the bar is hidden")
+		T.input({ { wait = 1.2 }, { text = "por" }, { key = "Backspace" }, { wait = 0.3 } }, next)
 	end,
 	function(next)
-		T.eq(editor:state_names(), { "portal", "portal1" }, "typing after Clear goes to the query box")
-		sprite_untouched("after Find Clear")
-		T.input({ { key = "Escape" }, { wait = 0.3 } }, next)
-	end,
-	function(next)
-		T.ok(not editor.find_dialog, "Esc closed Find")
-		T.eq(#editor:visible_states(), 9, "Esc in Find restores the grid")
+		T.eq(cursor_name(), "portal", "typing after the x goes to type-ahead")
+		sprite_untouched("after the filter bar x")
 		-- Delete, cancelled with Esc
 		T.input({ { key = "Home" }, { key = "Delete" }, { wait = 0.5 } }, next)
 	end,
@@ -366,19 +359,19 @@ T.steps {
 		T.input({ focus_canvas(), { wait = 0.1 }, { text = "/" }, { wait = 0.4 }, { text = "oor" }, { wait = 0.4 } }, next)
 	end,
 	function(next)
-		T.ok(editor.find_dialog, "/ opened Find States")
+		T.ok(editor.filter_editing, "/ started the filter")
 		T.eq(editor:state_names(), OOR, "the filter shows only the 12 matches")
 		local drawn = math.min(#OOR, editor.max_in_a_row * (editor.max_in_a_column + 1))
 		T.eq(icon_names(), { table.unpack(OOR, 1, drawn) }, "only matches drawn")
-		T.ok(editor.title:find("12 of 60 states", 1, true), "title shows the count: " .. editor.title)
-		sprite_untouched("typing in Find")
+		T.ok(editor:filter_bar_height() > 0, "the filter bar is shown")
+		sprite_untouched("typing the filter")
 		T.screenshot("many_filtered", next)
 	end,
 	function(next)
 		T.input({ { key = "Enter" }, { wait = 0.4 } }, next)
 	end,
 	function(next)
-		T.ok(not editor.find_dialog, "Enter closed Find")
+		T.ok(not editor.filter_editing, "Enter stopped typing")
 		T.eq(editor.filter_query, "oor", "Enter keeps the filter")
 		T.eq(cursor_name(), "Floor", "Enter put the cursor on the first match")
 		T.input({ { key = "End" }, { key = "Up" }, { key = "Right" }, { wait = 0.2 } }, next)
@@ -419,18 +412,18 @@ T.steps {
 	function(next)
 		T.eq(selected_names(), OOR, "Ctrl+A selects the matches only")
 		sprite_untouched("navigating the filtered grid")
-		-- Clearing the reopened Find box restores the grid.
+		-- Continuing a kept filter, then clearing it by backspacing.
 		T.input({ { key = "Escape" }, { key = "Ctrl+F" }, { wait = 0.4 } }, next)
 	end,
 	function(next)
-		T.ok(editor.find_dialog, "Ctrl+F reopened Find")
-		T.eq(editor.filter_query, "oor", "reopened Find keeps the query")
+		T.ok(editor.filter_editing, "Ctrl+F continues the filter")
+		T.eq(editor.filter_query, "oor", "the kept query is still there")
 		T.input({ { key = "Backspace" }, { key = "Backspace" }, { key = "Backspace" }, { wait = 0.4 } }, next)
 	end,
 	function(next)
-		T.ok(editor.find_dialog, "Find still open")
+		T.ok(editor.filter_editing, "still typing")
 		T.eq(#editor:visible_states(), 60, "clearing the query restores all 60 states")
-		T.ok(not editor.title:find(" of ", 1, true), "no count in the title: " .. editor.title)
+		T.ok(editor:filter_bar_visible(), "the bar stays while typing an empty query")
 		T.screenshot("many_restored", next)
 	end,
 	-- Grid Esc: the first deselects, the second drops a filter kept by Enter.
@@ -453,7 +446,7 @@ T.steps {
 		T.eq(app.sprite, sprite, "test sprite still active")
 		next()
 	end,
-	-- Closing Find (and any refocus of the grid) keeps a window the user resized.
+	-- Clearing the filter (and any refocus of the grid) keeps a window the user resized.
 	function(next)
 		local b = dialog.bounds
 		dialog.bounds = Rectangle(b.x, b.y, b.width + 80, b.height + 60)
@@ -464,7 +457,7 @@ T.steps {
 			{ key = "Escape" }, { wait = 0.6 } }, function() next(resized) end)
 	end,
 	function(next, resized)
-		T.eq(dialog.bounds, resized, "closing Find keeps the editor window size")
+		T.eq(dialog.bounds, resized, "the filter keeps the editor window size")
 		next()
 	end,
 	-- Space opens the state under the cursor, like Enter.

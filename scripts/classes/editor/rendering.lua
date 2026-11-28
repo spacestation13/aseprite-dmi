@@ -60,9 +60,10 @@ function Editor:onpaint(ctx)
 	local label_width = self:label_cell_width()
 	local min_width = self.dmi and (label_width + BOX_PADDING) or 1
 	local min_height = self.dmi and (cell_height + BOX_PADDING * 2 + TEXT_HEIGHT) or 1
+	local bar_height = self:filter_bar_height()
 
 	self.canvas_width = math.max(ctx.width, min_width)
-	self.canvas_height = math.max(ctx.height, min_height)
+	self.canvas_height = math.max(ctx.height, min_height + bar_height)
 
 	if TEXT_HEIGHT == 0 then
 		TEXT_HEIGHT = ctx:measureText("A").height
@@ -73,7 +74,8 @@ function Editor:onpaint(ctx)
 	end
 
 	local max_row = self.dmi and math.floor((self.canvas_width + BOX_PADDING) / min_width) or 1
-	local max_column = self.dmi and math.floor((self.canvas_height + BOX_PADDING) / min_height) or 1
+	local max_column = self.dmi and
+		math.floor((self.canvas_height - bar_height + BOX_PADDING) / min_height) or 1
 
 	if max_row ~= self.max_in_a_row or max_column ~= self.max_in_a_column then
 		self.max_in_a_row = math.max(max_row, 1)
@@ -188,6 +190,8 @@ function Editor:onpaint(ctx)
 
 	local should_animate = self:has_visible_animated_previews()
 	self:update_animation_timer(should_animate)
+
+	self:paint_filter_bar(ctx)
 
 	if self.context_widget then
 		local widget = self.context_widget --[[ @as ContextWidget ]]
@@ -372,10 +376,60 @@ function Editor:box_bounds(index)
 	return Rectangle(
 		slot_x + math.floor((label_width - cell_width) / 2),
 		(cell_height + BOX_PADDING * 2 + TEXT_HEIGHT) *
-		math.floor((row_index - 1) / self.max_in_a_row) + BOX_PADDING,
+		math.floor((row_index - 1) / self.max_in_a_row) + BOX_PADDING + self:filter_bar_height(),
 		cell_width,
 		cell_height
 	)
+end
+
+--- Height of the filter bar (see Editor:filter_bar_visible), which the grid is laid out below: 0 when hidden.
+--- @return number
+function Editor:filter_bar_height()
+	return self:filter_bar_visible() and (TEXT_HEIGHT + BOX_PADDING * 2) or 0
+end
+
+--- The filter bar, a strip across the top of the canvas, and the x button at its right end.
+--- @return Rectangle|nil bar nil when the bar is hidden.
+--- @return Rectangle|nil close
+function Editor:filter_bar_bounds()
+	local height = self:filter_bar_height()
+	if height == 0 then return nil, nil end
+	return Rectangle(0, 0, self.canvas_width, height), Rectangle(self.canvas_width - height, 0, height, height)
+end
+
+--- Draws the filter bar: the text typed so far (with a caret while typing), how many states match,
+--- and the x that clears the filter.
+--- @param ctx GraphicsContext
+function Editor:paint_filter_bar(ctx)
+	local bar, close = self:filter_bar_bounds()
+	if not bar or not close then return end
+	local editing = self.filter_editing
+
+	ctx.color = app.theme.color.text
+	ctx:drawThemeRect(editing and "sunken_focused" or "sunken_normal", bar)
+	ctx:drawThemeRect(close:contains(self.mouse.position) and "sunken_focused" or "sunken_normal", close)
+	local mark = ctx:measureText("x")
+	ctx:fillText("x", close.x + (close.width - mark.width) / 2, (bar.height - mark.height) / 2)
+
+	local right = close.x - BOX_PADDING
+	if self.filter_query ~= "" then
+		local shown = #self:visible_states()
+		local count = shown == 0 and "no matches" or (shown .. " of " .. #self.dmi.states)
+		local size = ctx:measureText(count)
+		ctx.color = shown == 0 and Color { red = 205, green = 55, blue = 55, alpha = 255 } or app.theme.color.text
+		ctx:fillText(count, right - size.width, (bar.height - size.height) / 2)
+		right = right - size.width - BOX_PADDING * 2
+	end
+
+	-- A long query shows its end, where you are typing.
+	local query, cut = self.filter_query, false
+	local function label() return 'filter: "' .. (cut and "..." or "") .. query .. (editing and "|" or "") .. '"' end
+	while #query > 0 and BOX_PADDING + ctx:measureText(label()).width > right do
+		query, cut = query:sub(2), true
+	end
+	local text = label()
+	ctx.color = app.theme.color.text
+	ctx:fillText(text, BOX_PADDING, (bar.height - ctx:measureText(text).height) / 2)
 end
 
 --- Handles the mouse down event in the editor and triggers a repaint.
@@ -396,6 +450,14 @@ function Editor:onmousedown(ev)
 
 		-- Don't do anything fancy if we're clicking on a context menu
 		if not self.context_widget then
+			-- The filter bar: the x clears the filter, the rest of the bar types in it.
+			local bar, close = self:filter_bar_bounds()
+			local point = Point(ev.x, ev.y)
+			if bar and bar:contains(point) then
+				self.filter_press = close:contains(point) and "close" or "bar" -- acts on release (Editor:onmouseup)
+				return
+			end
+
 			local clickedWidget = nil --[[ @type AnyWidget ]]
 			for _, widget in ipairs(self.widgets) do
 				if widget.type == "IconWidget" and widget.bounds:contains(Point(ev.x, ev.y)) then
@@ -449,6 +511,22 @@ end
 --- @param ev MouseEvent The mouse event object.
 function Editor:onmouseup(ev)
 	if self.closed then return end
+	-- A press on the filter bar acts on release: clearing on press would slide the icons under the
+	-- mouse, and the release would then open whichever state landed there.
+	if self.filter_press then
+		local press = self.filter_press
+		self.filter_press = nil
+		local bar, close = self:filter_bar_bounds()
+		local point = Point(ev.x, ev.y)
+		if bar and ev.button == MouseButton.LEFT then
+			if press == "close" and close:contains(point) then
+				self:clear_filter()
+			elseif press == "bar" and bar:contains(point) and not close:contains(point) then
+				self:start_filter()
+			end
+		end
+		return
+	end
 	local repaint = true
 	if ev.button == MouseButton.LEFT or ev.button == MouseButton.RIGHT then
 		if self.context_widget then
@@ -488,7 +566,7 @@ function Editor:onmouseup(ev)
 					local buttonsToAdd = {
 						{ text = "Paste",  onclick = function() self:clipboard_paste_state() end },
 						{ text = "Import", onclick = function() self:import_png() end },
-						{ text = "Find...", onclick = function() self:open_find_dialog() end },
+						{ text = "Find...", onclick = function() self:start_filter() end },
 					}
 					if #self.selected_states > 1 then
 						table.insert(buttonsToAdd,
@@ -571,6 +649,14 @@ function Editor:onmousemove(ev)
 		if widget.bounds:contains(mouse_position) then
 			table.insert(hovering_widgets, widget)
 		end
+	end
+
+	-- The filter bar's x lights up under the mouse.
+	local _, close = self:filter_bar_bounds()
+	local close_hot = close ~= nil and close:contains(mouse_position)
+	if close_hot ~= (self.filter_close_hot or false) then
+		self.filter_close_hot = close_hot
+		should_repaint = true
 	end
 
 	-- Handle dragging. Not while the Find filter is on: reordering a subset of the states is ambiguous.

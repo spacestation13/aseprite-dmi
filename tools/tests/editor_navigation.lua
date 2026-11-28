@@ -97,16 +97,6 @@ T.eq(k("KeyZ", { "ctrl", "shift" }), false, "Ctrl+Shift+Z stays on the grid")
 T.eq(k("KeyS", { "ctrl", "shift" }), false, "Ctrl+Shift+S saves the DMI too")
 T.eq(k("Tab"), true, "Tab moves dialog focus")
 
-local area = { x = 0, y = 0, width = 1000, height = 600 }
-T.eq({ M.place_beside({ x = 100, y = 50, width = 300, height = 400 }, { width = 200, height = 100 }, area) }, { 400, 50 },
-	"right of the editor")
-T.eq({ M.place_beside({ x = 700, y = 50, width = 300, height = 400 }, { width = 200, height = 100 }, area) }, { 500, 50 },
-	"left of the editor at the right edge")
-T.eq({ M.place_beside({ x = 0, y = 550, width = 900, height = 400 }, { width = 200, height = 100 }, area) }, { 700, 500 },
-	"overlapping when neither side fits, clamped")
-T.eq({ M.place_beside({ x = 100, y = 50, width = 300, height = 400 }, { width = 2000, height = 100 }, area) }, { 0, 50 },
-	"wider than the area: left edge")
-
 -- Editor navigation over a filtered grid. A stub editor (no dialog in batch): 3 columns, 2 rows.
 local grid_names = { "wall", "Floor", "door", "floor_dark", "window", "door_open", "vent", "FLOOR_alt", "pipe",
 	"trapdoor", "crate", "floor2" }
@@ -135,12 +125,10 @@ local function selected()
 end
 
 T.ok(rawequal(editor:visible_states(), all), "unfiltered: slots are the DMI's states")
-T.eq(editor:filter_status(), "", "no status unfiltered")
 editor:set_filter("oor")
 -- Slots: Floor door floor_dark / door_open FLOOR_alt trapdoor / floor2
 T.eq(editor:state_names(), { "Floor", "door", "floor_dark", "door_open", "FLOOR_alt", "trapdoor", "floor2" },
 	"filtered slots")
-T.eq(editor:filter_status(), "7 of 12 states", "filter status")
 press("ArrowRight")
 T.eq(cursor(), "Floor", "first key picks the first match")
 press("ArrowDown")
@@ -216,7 +204,6 @@ T.eq(editor:state_names()[1], "wall", "kept state shown in DMI order")
 editor:new_state()
 T.eq(#editor.dmi.states, 13, "new state added")
 T.ok(rawequal(editor:visible_states()[9], editor.dmi.states[13]), "nameless new state stays visible")
-T.eq(editor:filter_status(), "9 of 13 states", "status counts kept states")
 editor:set_filter("oo")
 T.eq(#editor:visible_states(), 7, "changing the query drops kept states")
 

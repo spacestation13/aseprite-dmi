@@ -15,7 +15,9 @@
 --- @field open_sprites (StateSprite)[] A table containing all open sprites.
 --- @field widgets (AnyWidget)[] A table containing all state widgets.
 --- @field selected_states State[] Selected icon widgets to possibly combine.
---- @field filter_query string Find filter: the grid shows only states whose name contains it ("" shows all).
+--- @field filter_query string Filter: the grid shows only states whose name contains it ("" shows all).
+--- @field filter_editing boolean Whether the filter bar is being typed in.
+--- @field filter_press "bar"|"close"|nil Where a left press on the filter bar started; it acts on release.
 --- @field filter_keep table<State, true> States created or renamed while filtered, shown whatever their name.
 --- @field context_widget ContextWidget|nil The state that is currently being right clicked
 --- @field dialog Dialog The dialog object.
@@ -54,6 +56,7 @@ function Editor.new(title, dmi)
 	self.widgets          = {}
 	self.selected_states  = {}
 	self.filter_query     = ""
+	self.filter_editing   = false
 	self.filter_keep      = {}
 	self.context_widget   = nil
 	self.save_path        = nil
@@ -136,14 +139,21 @@ function Editor:new_dialog(title)
 		onwheel = function(ev) self:onwheel(ev) end
 	}
 
+	-- A clicked button would keep the keyboard focus (Space or Enter would press it again).
 	self.dialog:button {
 		text = "Save",
-		onclick = function() self:save() end
+		onclick = function()
+			self:save()
+			self:refocus_grid()
+		end
 	}
 
 	self.dialog:button {
 		text = "Save As",
-		onclick = function() self:save_as() end
+		onclick = function()
+			self:save_as()
+			self:refocus_grid()
+		end
 	}
 end
 
@@ -172,8 +182,6 @@ function Editor:update_title()
 		else
 			title = string.format("%s (%dx%d)", name, self.dmi.width, self.dmi.height)
 		end
-		local status = self:filter_status()
-		if status ~= "" then title = title .. " - " .. status end
 	end
 
 	self.title = title
@@ -298,7 +306,6 @@ function Editor:close(event, force)
 	self.animation_timer = nil
 	self.animation_running = false
 	self:reset_typeahead()
-	if self.find_dialog then self.find_dialog:close() end
 
 	return true
 end
