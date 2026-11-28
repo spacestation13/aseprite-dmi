@@ -106,6 +106,10 @@ T.steps {
 	function(next)
 		check_installed(state.entries[2], 35)
 		same_bounds("after second install")
+		-- Clicking the list focuses it; the arrows then move the selection.
+		select_row(2, next)
+	end,
+	function(next)
 		T.input({ { key = "Up" }, { wait = 0.2 } }, next)
 	end,
 	function(next)

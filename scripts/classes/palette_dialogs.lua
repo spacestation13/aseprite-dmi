@@ -2,22 +2,18 @@
 --- @class PaletteDialogs
 PaletteDialogs = {}
 
-local PREVIEW_WIDTH = 300
-local PREVIEW_HEIGHT = 96
-local GROUP_GAP = 5
+local SIDEBAR_WIDTH = 150
+local DETAIL_WIDTH = 360
+local HEIGHT = 250
+local ROW_HEIGHT = 20
+local PAD = 4
 
---- Runs `fn` once on the next UI tick (lets a dialog appear before slow work).
-local function defer(fn)
-	local timer
-	timer = Timer {
-		interval = 0.05,
-		ontick = function()
-			timer:stop()
-			fn()
-		end,
-	}
-	timer:start()
-end
+local TITLE_HEIGHT = 20
+local SWATCHES_TOP = TITLE_HEIGHT + 2
+local SWATCHES_HEIGHT = 80
+local HOVER_TOP = SWATCHES_TOP + SWATCHES_HEIGHT + 4
+local TEXT_TOP = HOVER_TOP + 24
+local STATUS_HEIGHT = 16
 
 local GROUP_GAP = 5
 
