@@ -37,6 +37,7 @@ function Editor:duplicate_states(states)
 		local duplicate = duplicates[state]
 		if duplicate then
 			table.insert(states_with_duplicates, duplicate)
+			self:keep_visible(duplicate)
 			self.image_cache:load_state(self.dmi, duplicate)
 		end
 	end
@@ -99,6 +100,7 @@ function Editor:mass_rename_states()
 				name = name:gsub("{name}", function() return state.name end)
 				name = name:gsub("{index}", function() return tostring(start_index + index - 1) end)
 				state.name = name
+				self:keep_visible(state)
 			end
 
 			self.modified = true
@@ -141,6 +143,7 @@ function Editor:split_state(state)
 
 	for _, new_state in ipairs(new_states) do
 		table.insert(self.dmi.states, new_state)
+		self:keep_visible(new_state)
 		self.image_cache:load_state(self.dmi, new_state)
 	end
 
@@ -303,6 +306,7 @@ function Editor:performCombineStates(combinedName, combineType, frameSelType)
 	end
 
 	table.insert(self.dmi.states, combined_state)
+	self:keep_visible(combined_state)
 	self.image_cache:load_state(self.dmi, combined_state)
 	self.modified = true
 	self.selected_states = {}

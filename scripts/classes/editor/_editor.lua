@@ -15,6 +15,11 @@
 --- @field open_sprites (StateSprite)[] A table containing all open sprites.
 --- @field widgets (AnyWidget)[] A table containing all state widgets.
 --- @field selected_states State[] Selected icon widgets to possibly combine.
+--- @field filter_query string Filter: the grid shows only states whose name contains it ("" shows all).
+--- @field filter_editing boolean Whether the filter bar is being typed in.
+--- @field filter_press "bar"|"close"|nil Where a left press on the filter bar started; it acts on release.
+--- @field filter_keep table<State, true> States created or renamed while filtered, shown whatever their name.
+--- @field fit_pending boolean|nil Whether the window still has to be widened to fit the grid (once per opened file).
 --- @field context_widget ContextWidget|nil The state that is currently being right clicked
 --- @field dialog Dialog The dialog object.
 --- @field save_path string|nil The path of the file to be saved.
@@ -51,6 +56,9 @@ function Editor.new(title, dmi)
 	self.open_sprites     = {}
 	self.widgets          = {}
 	self.selected_states  = {}
+	self.filter_query     = ""
+	self.filter_editing   = false
+	self.filter_keep      = {}
 	self.context_widget   = nil
 	self.save_path        = nil
 	self.open_path        = is_filename and dmi --[[@as string]] or nil
@@ -121,6 +129,7 @@ function Editor:new_dialog(title)
 	}
 
 	self.dialog:canvas {
+		id = "canvas",
 		width = self.canvas_width,
 		height = self.canvas_height,
 		onpaint = function(ev) self:onpaint(ev.context) end,
@@ -131,14 +140,21 @@ function Editor:new_dialog(title)
 		onwheel = function(ev) self:onwheel(ev) end
 	}
 
+	-- A clicked button would keep the keyboard focus (Space or Enter would press it again).
 	self.dialog:button {
 		text = "Save",
-		onclick = function() self:save() end
+		onclick = function()
+			self:save()
+			self:refocus_grid()
+		end
 	}
 
 	self.dialog:button {
 		text = "Save As",
-		onclick = function() self:save_as() end
+		onclick = function()
+			self:save_as()
+			self:refocus_grid()
+		end
 	}
 end
 
@@ -146,6 +162,9 @@ end
 --- @param ev KeyEvent
 function Editor:onkeydown(ev)
 	if ev.code == "F2" and self:rename_selected_or_open_state() then
+		self:refocus_grid() -- the properties dialog hands focus to the sprite editor
+		ev:stopPropagation()
+	elseif self:handle_navigation_key(ev) then
 		ev:stopPropagation()
 	end
 end
@@ -287,6 +306,7 @@ function Editor:close(event, force)
 	self.open_sprites = nil
 	self.animation_timer = nil
 	self.animation_running = false
+	self:reset_typeahead()
 
 	return true
 end
@@ -333,10 +353,12 @@ function Editor:open_file(dmi)
 		end
 
 		self.loading = false
+		self.fit_pending = true
 		self:repaint_states()
 	else
 		self.dmi = dmi
 		self.loading = false
+		self.fit_pending = true
 		self:repaint_states()
 	end
 end

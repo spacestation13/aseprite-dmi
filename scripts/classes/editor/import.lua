@@ -27,7 +27,14 @@ function Editor:process_png_import(filename)
 		app.alert { title = "Error", text = { "Failed to import PNG", error or "Unknown error" } }
 		return
 	end
+	-- The imported DMI has new state tables: carry the Find filter's kept states over by position
+	-- and keep the added ones visible.
+	local old_states, old_keep = self.dmi.states, self.filter_keep
 	self.dmi = updated_dmi
+	self.filter_keep = {}
+	for i, state in ipairs(updated_dmi.states) do
+		if i > #old_states or old_keep[old_states[i]] then self:keep_visible(state) end
+	end
 	self.image_cache:clear()
 	self.modified = true
 	self:repaint_states()

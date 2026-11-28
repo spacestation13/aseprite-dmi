@@ -2,6 +2,8 @@ local TEXT_HEIGHT = 0
 local CONTEXT_BUTTON_HEIGHT = 0
 local BOX_BORDER = 4
 local BOX_PADDING = 5
+local SIDE_PADDING = BOX_PADDING -- between the window edge and the grid's first and last columns
+local FIT_COLUMNS = 4 -- columns a freshly opened window fits
 
 function Editor:max_preview_size()
 	local preview_size = self.zoom_size or (Preferences.getPreviewSize and Preferences.getPreviewSize()) or 128
@@ -34,6 +36,36 @@ function Editor:label_cell_width()
 	return math.floor(cell_width * multiplier)
 end
 
+--- Space left of the first column: at least SIDE_PADDING, more when the columns leave room over, which
+--- is split between both sides so the grid is centred instead of hugging the left edge.
+--- @return number
+function Editor:grid_left_padding()
+	local used = self.max_in_a_row * (self:label_cell_width() + BOX_PADDING) - BOX_PADDING
+	return math.max(math.floor((self.canvas_width - used) / 2), SIDE_PADDING)
+end
+
+--- Opens the window wide enough for the first columns of the grid with their side padding: the dialog
+--- opens at the width of its buttons. Once per opened file, so a size the user sets afterwards stays.
+--- @param canvas_width number Width of the canvas now.
+--- @param slot_width number Width of one column.
+function Editor:fit_window(canvas_width, slot_width)
+	self.fit_pending = false
+	local columns = math.min(FIT_COLUMNS, #self.dmi.states + 1)
+	local grow = columns * slot_width - BOX_PADDING + SIDE_PADDING * 2 - canvas_width
+	if grow <= 0 then return end
+	-- Resizing the dialog from inside its own paint is not safe: wait for the next tick.
+	self.fit_timer = Timer {
+		interval = 0.01,
+		ontick = function()
+			self.fit_timer:stop()
+			if self.closed or not self.dialog then return end
+			local bounds = self.dialog.bounds
+			self.dialog.bounds = Rectangle(bounds.x - grow // 2, bounds.y, bounds.width + grow, bounds.height)
+		end
+	}
+	self.fit_timer:start()
+end
+
 --- Repaints the editor.
 function Editor:repaint()
 	if self.dialog then
@@ -60,9 +92,10 @@ function Editor:onpaint(ctx)
 	local label_width = self:label_cell_width()
 	local min_width = self.dmi and (label_width + BOX_PADDING) or 1
 	local min_height = self.dmi and (cell_height + BOX_PADDING * 2 + TEXT_HEIGHT) or 1
+	local bar_height = self:filter_bar_height()
 
-	self.canvas_width = math.max(ctx.width, min_width)
-	self.canvas_height = math.max(ctx.height, min_height)
+	self.canvas_width = math.max(ctx.width, min_width + SIDE_PADDING * 2)
+	self.canvas_height = math.max(ctx.height, min_height + bar_height)
 
 	if TEXT_HEIGHT == 0 then
 		TEXT_HEIGHT = ctx:measureText("A").height
@@ -72,8 +105,14 @@ function Editor:onpaint(ctx)
 		CONTEXT_BUTTON_HEIGHT = TEXT_HEIGHT + BOX_PADDING * 2
 	end
 
-	local max_row = self.dmi and math.floor((self.canvas_width + BOX_PADDING) / min_width) or 1
-	local max_column = self.dmi and math.floor((self.canvas_height + BOX_PADDING) / min_height) or 1
+	if self.fit_pending and self.dmi then
+		self:fit_window(ctx.width, min_width)
+	end
+
+	local max_row = self.dmi and
+		math.floor((self.canvas_width - SIDE_PADDING * 2 + BOX_PADDING) / min_width) or 1
+	local max_column = self.dmi and
+		math.floor((self.canvas_height - bar_height + BOX_PADDING) / min_height) or 1
 
 	if max_row ~= self.max_in_a_row or max_column ~= self.max_in_a_column then
 		self.max_in_a_row = math.max(max_row, 1)
@@ -189,6 +228,8 @@ function Editor:onpaint(ctx)
 	local should_animate = self:has_visible_animated_previews()
 	self:update_animation_timer(should_animate)
 
+	self:paint_filter_bar(ctx)
+
 	if self.context_widget then
 		local widget = self.context_widget --[[ @as ContextWidget ]]
 
@@ -257,8 +298,8 @@ function Editor:onpaint(ctx)
 end
 
 --- Repaints the states in the editor.
---- Creates state widgets for each state in the DMI file and positions them accordingly.
---- Only creates state widgets for states that are currently visible based on the scroll position.
+--- Creates state widgets for the visible states (see Editor:visible_states) and positions them by slot.
+--- Only creates state widgets for slots that are currently visible based on the scroll position.
 --- Calls the repaint function to update the editor display.
 function Editor:repaint_states()
 	self:update_title()
@@ -270,10 +311,15 @@ function Editor:repaint_states()
 	end
 
 	local preview_width, preview_height = self:preview_dimensions()
-	local duplicates = {}
+	-- A name is a duplicate on every state after the first one using it, hidden or not.
+	local first_named = {}
+	for _, state in ipairs(self.dmi.states) do
+		first_named[state.name] = first_named[state.name] or state
+	end
+	local states = self:visible_states()
 	local min_index = (self.max_in_a_row * self.scroll)
 	local max_index = min_index + self.max_in_a_row * (self.max_in_a_column + 1)
-	for index, state in ipairs(self.dmi.states) do
+	for index, state in ipairs(states) do
 		-- TODO: fix bug here and in box_bounds below where you can have
 		-- index = 7, min_index = 9, max_index = 10, max_in_a_row = 9
 		-- and we don't render anything despite there being no more
@@ -286,15 +332,8 @@ function Editor:repaint_states()
 				text_color = Color { red = 205, green = 55, blue = 55, alpha = 255 }
 			end
 
-			if duplicates[state.name] then
+			if first_named[state.name] ~= state then
 				text_color = Color { red = 230, green = 69, blue = 69, alpha = 255 }
-			else
-				for _, state_ in ipairs(self.dmi.states) do
-					if state.name == state_.name then
-						duplicates[state.name] = true
-						break
-					end
-				end
 			end
 
 			self.image_cache:ensure_state(self.dmi, state)
@@ -340,8 +379,8 @@ function Editor:repaint_states()
 		end
 	end
 
-	if #self.dmi.states < max_index then
-		local index = #self.dmi.states + 1
+	if #states < max_index then
+		local index = #states + 1
 		local bounds = self:box_bounds(index)
 
 		table.insert(self.widgets, ThemeWidget.new(
@@ -372,12 +411,63 @@ function Editor:box_bounds(index)
 	local label_width = self:label_cell_width()
 	local slot_x = (label_width + BOX_PADDING) * ((row_index - 1) % self.max_in_a_row)
 	return Rectangle(
-		slot_x + math.floor((label_width - cell_width) / 2),
+		self:grid_left_padding() + slot_x + math.floor((label_width - cell_width) / 2),
 		(cell_height + BOX_PADDING * 2 + TEXT_HEIGHT) *
-		math.floor((row_index - 1) / self.max_in_a_row) + BOX_PADDING,
+		math.floor((row_index - 1) / self.max_in_a_row) + BOX_PADDING + self:filter_bar_height(),
 		cell_width,
 		cell_height
 	)
+end
+
+--- Height of the filter bar (see Editor:filter_bar_visible), which the grid is laid out below: 0 when hidden.
+--- @return number
+function Editor:filter_bar_height()
+	return self:filter_bar_visible() and (TEXT_HEIGHT + BOX_PADDING * 2) or 0
+end
+
+--- The filter bar, a strip across the top of the canvas, and the x button at its right end.
+--- @return Rectangle|nil bar nil when the bar is hidden.
+--- @return Rectangle|nil close
+function Editor:filter_bar_bounds()
+	local height = self:filter_bar_height()
+	if height == 0 then return nil, nil end
+	return Rectangle(0, 0, self.canvas_width, height), Rectangle(self.canvas_width - height, 0, height, height)
+end
+
+--- Draws the filter bar: the text typed so far, how many states match,
+--- and the x that clears the filter.
+--- @param ctx GraphicsContext
+function Editor:paint_filter_bar(ctx)
+	local bar, close = self:filter_bar_bounds()
+	if not bar or not close then return end
+	local editing = self.filter_editing
+
+	ctx.color = app.theme.color.text
+	ctx:drawThemeRect(editing and "sunken_focused" or "sunken_normal", bar)
+	ctx:drawThemeRect(close:contains(self.mouse.position) and "sunken_focused" or "sunken_normal", close)
+	local mark = ctx:measureText("x")
+	ctx:fillText("x", close.x + (close.width - mark.width) / 2, (bar.height - mark.height) / 2)
+
+	local right = close.x - BOX_PADDING
+	if self.filter_query ~= "" then
+		local shown = #self:visible_states()
+		local count = shown == 0 and "no matches" or (shown .. " of " .. #self.dmi.states)
+		local size = ctx:measureText(count)
+		ctx.color = shown == 0 and Color { red = 205, green = 55, blue = 55, alpha = 255 } or app.theme.color.text
+		ctx:fillText(count, right - size.width, (bar.height - size.height) / 2)
+		right = right - size.width - BOX_PADDING * 2
+	end
+
+	-- A long query shows its end, where you are typing.
+	local text, cut = self.filter_query, false
+	local function label() return (cut and "..." or "") .. text end
+	while #text > 0 and BOX_PADDING + ctx:measureText(label()).width > right do
+		text, cut = text:sub(2), true
+	end
+	if text == "" then return end
+	local shown_text = label()
+	ctx.color = app.theme.color.text
+	ctx:fillText(shown_text, BOX_PADDING, (bar.height - ctx:measureText(shown_text).height) / 2)
 end
 
 --- Handles the mouse down event in the editor and triggers a repaint.
@@ -398,6 +488,14 @@ function Editor:onmousedown(ev)
 
 		-- Don't do anything fancy if we're clicking on a context menu
 		if not self.context_widget then
+			-- The filter bar: the x clears the filter, the rest of the bar types in it.
+			local bar, close = self:filter_bar_bounds()
+			local point = Point(ev.x, ev.y)
+			if bar and close and bar:contains(point) then
+				self.filter_press = close:contains(point) and "close" or "bar" -- acts on release (Editor:onmouseup)
+				return
+			end
+
 			local clickedWidget = nil --[[ @type AnyWidget ]]
 			for _, widget in ipairs(self.widgets) do
 				if widget.type == "IconWidget" and widget.bounds:contains(Point(ev.x, ev.y)) then
@@ -427,6 +525,8 @@ function Editor:onmousedown(ev)
 				-- Selection mode with just Ctrl
 				if ev.ctrlKey then
 					self:toggle_state_selection(clickedWidget.iconstate)
+					-- Shift+arrows extend from the last Ctrl+clicked state.
+					self.nav_anchor = clickedWidget.iconstate
 					self:repaint()
 					return
 				end
@@ -449,6 +549,22 @@ end
 --- @param ev MouseEvent The mouse event object.
 function Editor:onmouseup(ev)
 	if self.closed then return end
+	-- A press on the filter bar acts on release: clearing on press would slide the icons under the
+	-- mouse, and the release would then open whichever state landed there.
+	if self.filter_press then
+		local press = self.filter_press
+		self.filter_press = nil
+		local bar, close = self:filter_bar_bounds()
+		local point = Point(ev.x, ev.y)
+		if bar and close and ev.button == MouseButton.LEFT then
+			if press == "close" and close:contains(point) then
+				self:clear_filter()
+			elseif press == "bar" and bar:contains(point) and not close:contains(point) then
+				self:start_filter()
+			end
+		end
+		return
+	end
 	local repaint = true
 	if ev.button == MouseButton.LEFT or ev.button == MouseButton.RIGHT then
 		if self.context_widget then
@@ -472,7 +588,10 @@ function Editor:onmouseup(ev)
 				if is_mouse_over then
 					if ev.button == MouseButton.LEFT and widget.onleftclick then
 						triggered = true
-						widget.onleftclick(ev)
+						-- Ctrl(+Shift)+click on a preview only changes the selection (see onmousedown).
+						if not (ev.ctrlKey and widget.type == "IconWidget") then
+							widget.onleftclick(ev)
+						end
 					elseif ev.button == MouseButton.RIGHT and widget.onrightclick then
 						triggered = true
 						widget.onrightclick(ev)
@@ -485,6 +604,7 @@ function Editor:onmouseup(ev)
 					local buttonsToAdd = {
 						{ text = "Paste",  onclick = function() self:clipboard_paste_state() end },
 						{ text = "Import", onclick = function() self:import_png() end },
+						{ text = "Find...", onclick = function() self:start_filter() end },
 					}
 					if #self.selected_states > 1 then
 						table.insert(buttonsToAdd,
@@ -508,39 +628,23 @@ function Editor:onmouseup(ev)
 		end
 		-- Add logic to finalize drag-and-drop or click actions
 		if ev.button == MouseButton.LEFT then
+			-- Drag-reorder only starts unfiltered (see onmousemove), where slots are DMI indices.
 			if self.dragging and self.drag_widget and self.drop_index and self.dmi then
-				-- Find source state index using widget index and scroll offset
-				local source_index = nil
-				local min_index = self.max_in_a_row * self.scroll
-
-				for i, widget in ipairs(self.widgets) do
-					if widget == self.drag_widget then
-						-- Calculate actual state index from widget position
-						local widget_pos = math.floor((i - 1) / 2) + 1 -- Account for text widgets
-						source_index = widget_pos + min_index
-						break
-					end
-				end
+				local source_index = table.index_of(self.dmi.states, self.drag_widget.iconstate)
 
 				-- Ensure we don't drop past the last valid position
 				local target_index = math.min(self.drop_index or #self.dmi.states, #self.dmi.states)
 
-				if source_index and source_index <= #self.dmi.states then
+				if source_index > 0 then
 					-- Only move if target is different and valid
 					if source_index ~= target_index then
 						local state = table.remove(self.dmi.states, source_index)
 						table.insert(self.dmi.states, target_index, state)
 
-						-- Calculate new scroll position to keep the moved item visible
-						local target_row = math.floor((target_index - 1) / self.max_in_a_row)
-						local visible_rows = self.max_in_a_column
-
-						-- Adjust scroll to ensure target row is visible
-						if target_row < self.scroll then
-							self.scroll = target_row
-						elseif target_row >= self.scroll + visible_rows then
-							self.scroll = target_row - visible_rows + 1
-						end
+						-- Keep the moved item visible
+						self.scroll = EditorNav.scroll_to_show(target_index, self.scroll, self.max_in_a_row,
+							self.max_in_a_column,
+							EditorNav.max_scroll(#self.dmi.states, self.max_in_a_row, self.max_in_a_column))
 
 						-- Reset selected states since we've moved around states (and thus idx)
 						self.selected_states = {}
@@ -585,8 +689,16 @@ function Editor:onmousemove(ev)
 		end
 	end
 
-	-- Handle dragging
-	if (ev.button == MouseButton.LEFT) and self.drag_widget and not self.dragging then
+	-- The filter bar's x lights up under the mouse.
+	local _, close = self:filter_bar_bounds()
+	local close_hot = close ~= nil and close:contains(mouse_position)
+	if close_hot ~= (self.filter_close_hot or false) then
+		self.filter_close_hot = close_hot
+		should_repaint = true
+	end
+
+	-- Handle dragging. Not while the Find filter is on: reordering a subset of the states is ambiguous.
+	if (ev.button == MouseButton.LEFT) and self.drag_widget and not self.dragging and self.filter_query == "" then
 		-- Start drag after small delay/movement
 		if os.clock() - self.drag_start_time > 0.1 then
 			self.dragging = true
@@ -693,18 +805,9 @@ function Editor:onwheel(ev)
 	end
 
 	-- Normal wheel: scroll
-	local overflow = (#self.dmi.states + 1) - self.max_in_a_row * self.max_in_a_column
+	local max_scroll = EditorNav.max_scroll(#self:visible_states(), self.max_in_a_row, self.max_in_a_column)
+	if max_scroll <= 0 then return end
 
-	if overflow <= 0 then return end
-
-	local last_digit = overflow % self.max_in_a_row
-	local rounded = overflow - last_digit
-
-	if last_digit > 0 then
-		rounded = rounded + self.max_in_a_row
-	end
-
-	local max_scroll = math.floor(rounded / self.max_in_a_row)
 	local new_scroll = math.min(math.max(self.scroll + (ev.deltaY > 0 and 1 or -1), 0), max_scroll)
 
 	if new_scroll ~= self.scroll then
