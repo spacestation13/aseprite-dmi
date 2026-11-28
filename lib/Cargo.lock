@@ -69,6 +69,7 @@ dependencies = [
  "serde_json",
  "sysinfo",
  "thiserror",
+ "url",
 ]
 
 [[package]]

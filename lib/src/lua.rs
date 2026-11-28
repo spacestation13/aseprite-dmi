@@ -487,10 +487,11 @@ fn open_repo(_: &Lua, path: Option<String>) -> LuaResult<LuaValue> {
     Ok(LuaValue::Nil)
 }
 
-/// Downloads an http(s) URL to a file. Returns the number of bytes written.
+/// Downloads a file of this repository's registry (any other URL is refused, see
+/// `utils::registry_url`). Returns the number of bytes written.
 fn download(_: &Lua, (url, dest, timeout_secs): (String, String, Option<f64>)) -> LuaResult<u64> {
     let timeout = std::time::Duration::from_secs_f64(timeout_secs.unwrap_or(5.0).clamp(0.5, 60.0));
-    crate::utils::download(&url, Path::new(&dest), timeout)
+    crate::utils::download_registry_file(&url, Path::new(&dest), timeout)
         .map_err(|err| LuaError::external(format!("{err:#}")))
 }
 

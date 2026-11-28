@@ -155,6 +155,17 @@ local refused = {
 	"https://raw.githubusercontent.com/spacestation13/aseprite-dmi/../../example/codebase/master/x.gpl",
 	"https://raw.githubusercontent.com/spacestation13/aseprite-dmi/%2e%2e/%2e%2e/example/x.gpl",
 	"https://example.com/https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/x.gpl",
+	-- URL parsers drop tabs/CR/LF: `.\t.` would become `..` and leave the repository.
+	"https://raw.githubusercontent.com/spacestation13/aseprite-dmi/.\t./.\t./evil/repo/main/x.gpl",
+	"https://raw.githubusercontent.com/spacestation13/aseprite-dmi/.\n./.\r./evil/repo/main/x.gpl",
+	"https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/x .gpl",
+	"https://raw.githubusercontent.com/spacestation13/aseprite-dmi/.%2E/x.gpl",
+	"https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/./x.gpl",
+	"https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main//x.gpl",
+	"https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main\\x.gpl",
+	"https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/x.gpl?token=1",
+	"https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/x.gpl#frag",
+	"https://raw.githubusercontent.com/spacestation13/aseprite-dmi/",
 }
 local calls_before = #calls
 for _, url in ipairs(refused) do
@@ -169,8 +180,10 @@ for _, url in ipairs(refused) do
 	end
 end
 T.eq(#calls, calls_before, "refused URLs are never downloaded")
-T.ok(Registry.is_allowed("https://raw.githubusercontent.com/spacestation13/aseprite-dmi/some-branch/registry/x.gpl"),
+T.ok(Registry.is_allowed("https://raw.githubusercontent.com/spacestation13/aseprite-dmi/some-branch/registry/x_v2.gpl"),
 	"any branch of this repo")
+T.ok(Registry.is_allowed("https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/registry/..hidden.gpl"),
+	"dots inside a name are fine")
 T.ok(Registry.is_allowed(Registry.BASE_URL .. "palettes.json"), "registry index allowed")
 T.eq(Registry.is_allowed(nil), false, "nil url")
 
@@ -187,10 +200,14 @@ T.eq(listed[1].id, "ours")
 T.eq(Registry.bundled_path(Registry.BASE_URL .. "../secret.txt"), nil, "no path traversal")
 T.eq(Registry.bundled_path("https://example.com/palettes.json"), nil, "foreign URL not bundled")
 
--- The real libdmi.download refuses non-http URLs without touching the network.
-local bytes, err = real_download("file:///C:/Windows/win.ini", app.fs.joinPath(T.tmp, "x"), 1)
-T.eq(bytes, nil)
-T.ok(err and err:find("http", 1, true), "libdmi.download error: " .. tostring(err))
+-- The real libdmi.download enforces the same rule on the parsed URL (no network needed: every
+-- one of these is refused before connecting).
+for _, url in ipairs({ "file:///C:/Windows/win.ini", "https://example.com/x.gpl", refused[8], refused[9] }) do
+	local bytes, err = real_download(url, app.fs.joinPath(T.tmp, "x"), 1)
+	T.eq(bytes, nil, "libdmi.download refused " .. url)
+	T.ok(err and err:find("Refused", 1, true), "libdmi.download error: " .. tostring(err))
+	T.ok(not app.fs.isFile(app.fs.joinPath(T.tmp, "x")), "nothing written")
+end
 
 -- The shipped registry: palettes.json + goonstation.gpl, offline.
 Registry.download = function() T.fail("network used") end

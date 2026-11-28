@@ -147,13 +147,26 @@ local function update_meta(key, fields)
 	write_file(meta_path(), json.encode(meta))
 end
 
---- Whether a URL may be fetched: inside this repository (`ALLOWED_PREFIX`), without `..`,
---- backslashes or percent-escapes that could lead out of it.
+--- Whether a URL may be fetched: inside this repository (`ALLOWED_PREFIX`), and the rest is a
+--- plain path: only letters, digits and `-_~/.`, no empty, `.` or `..` segments. Anything else
+--- (whitespace, which URL parsers drop, `%` escapes, `\`, `?`, `#`) could lead out of it.
+--- libdmi.download enforces the same rule on the parsed URL.
 --- @param url string
 --- @return boolean
 function Registry.is_allowed(url)
-	return type(url) == "string" and url:starts_with(Registry.ALLOWED_PREFIX)
-		and not url:find("..", 1, true) and not url:find("[\\%%]")
+	if type(url) ~= "string" or not url:starts_with(Registry.ALLOWED_PREFIX) then
+		return false
+	end
+	local path = url:sub(#Registry.ALLOWED_PREFIX + 1)
+	if not path:match("^[%w%-_~/%.]+$") then
+		return false
+	end
+	for segment in (path .. "/"):gmatch("([^/]*)/") do
+		if segment == "" or segment == "." or segment == ".." then
+			return false
+		end
+	end
+	return true
 end
 
 --- The error for a URL outside this repository.

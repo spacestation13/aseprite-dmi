@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use dmi::download;
+use dmi::{download, download_registry_file, registry_url};
 
 const BODY: &str = "GIMP Palette\nName: Test\n255   0   0\tRed\n";
 
@@ -108,11 +108,59 @@ fn rejects_other_schemes() {
 }
 
 #[test]
+fn registry_urls_stay_in_this_repository() {
+    for ok in [
+        "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/registry/palettes.json",
+        "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/some-branch/registry/palettes/goon_v2.gpl",
+    ] {
+        assert!(registry_url(ok).is_ok(), "{ok}");
+    }
+    for refused in [
+        // URL parsers drop tabs/CR/LF: `.\t.` would become `..` and leave the repository.
+        "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/.\t./.\t./evil/repo/main/x.gpl",
+        "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/.\n./.\r./evil/repo/main/x.gpl",
+        "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/x .gpl",
+        "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/.%2E/.%2e/evil/repo/main/x.gpl",
+        "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/../../evil/repo/main/x.gpl",
+        "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/./x.gpl",
+        "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main//x.gpl",
+        "https://raw.githubusercontent.com/spacestation13/aseprite-dmi\\main\\x.gpl",
+        "https://raw.githubusercontent.com/spacestation13/aseprite-dmi-evil/main/x.gpl",
+        "https://raw.githubusercontent.com/example/codebase/master/.github/palette.png",
+        "http://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/x.gpl",
+        "https://raw.githubusercontent.com:8443/spacestation13/aseprite-dmi/main/x.gpl",
+        "https://user@raw.githubusercontent.com/spacestation13/aseprite-dmi/main/x.gpl",
+        "https://raw.githubusercontent.com.evil.example/spacestation13/aseprite-dmi/main/x.gpl",
+        "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/x.gpl?token=1",
+        "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/x.gpl#frag",
+        "https://example.com/spacestation13/aseprite-dmi/main/x.gpl",
+        "not a url",
+    ] {
+        assert!(registry_url(refused).is_err(), "{refused:?}");
+    }
+}
+
+#[test]
+fn registry_download_refuses_other_urls_without_connecting() {
+    // A local server is a valid http URL, but not the registry: refused before any request.
+    let base = serve();
+    let dir = temp_dir("download-registry-refused");
+    let dest = dir.join("x.gpl");
+    let err =
+        download_registry_file(&format!("{base}/ok"), &dest, Duration::from_secs(5)).unwrap_err();
+    assert!(err.to_string().contains("Refused"), "{err}");
+    assert!(!dest.exists());
+    let tab = "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/.\t./x.gpl";
+    assert!(download_registry_file(tab, &dest, Duration::from_secs(1)).is_err());
+    assert!(!dest.exists());
+}
+
+#[test]
 #[ignore = "needs internet"]
 fn downloads_the_github_registry() {
     let dir = temp_dir("download-github");
     let dest = dir.join("palettes.json");
-    download(
+    download_registry_file(
         "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/registry/palettes.json",
         &dest,
         Duration::from_secs(10),
