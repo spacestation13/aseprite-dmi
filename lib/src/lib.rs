@@ -5,4 +5,4 @@ mod macros;
 mod utils;
 
 pub use dmi::*;
-pub use utils::check_latest_version;
+pub use utils::{check_latest_version, download, download_registry_file, registry_url};

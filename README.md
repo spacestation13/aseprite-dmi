@@ -26,14 +26,14 @@ The plugin will also prompt you to download an update when a new version is rele
 ### Features
 
 - Edit and manage BYOND DMI icon files directly in Aseprite
-- Change icon state properties (name, directions, frames, etc.) via right-click or by clicking below the state
+- Change icon state properties (name, directions, frames, etc.) via right-click or clicking the name
 - Copy and paste icon states using the context menu (states are copied as JSON with embedded PNG images)
 - Expand, resize, or crop DMI files from the `File > DMI Editor` menu
 - Split/combine icon states in multiple ways
-- `Ctrl`+click toggles a state in the selection and `Ctrl+Shift`+click selects a range, without opening the state
-- Keyboard navigation in the state grid (click the grid first): arrow keys move the selection, `Shift`+arrows extend it, `Home`/`End`/`PageUp`/`PageDown` jump, `Enter` opens the state, `Delete` removes the selection (after confirming), `F2` edits properties, `Ctrl+A` selects all, `Ctrl+C`/`Ctrl+V` copy/paste states, `Esc` deselects (or closes the right-click menu). While the grid has focus, keys without `Ctrl`/`Alt` never reach the sprite you have open, and neither do `Ctrl+Z`/`Y`/`X`/`D`/`Delete`/`Backspace`; other shortcuts (`Ctrl+S`, `Alt` menus...) still work
-- Type-ahead: type a state name to jump to it (names starting with the typed text first, then names containing it; the typed text resets after 1 second; pressing the same letter again cycles through states starting with it; `Backspace` removes the last typed character)
-- `Ctrl+F`, `/` or right-click empty space > Find... opens Find States: as you type, the grid shows only the states whose name contains the text (case-insensitive), with the count in the editor's title (`12 of 143 states`). Arrows, type-ahead, `Ctrl+A` (select all matches) and the other grid keys work on the shown states, and the selection never keeps hidden ones. `Enter` closes Find and keeps the filter, with the cursor on the first match; `Esc`, Close, or clearing the text shows every state again, and so does `Esc` on the grid when nothing is selected (`Ctrl+F` reopens Find with the current text). States you add (new, paste, duplicate, split, combine, import) or rename while filtered stay shown until the text changes. Drag-reordering is off while filtered
+- <kbd>Ctrl+click</kbd> toggles a state in the selection and <kbd>Ctrl+Shift+click</kbd> selects a range
+- Keyboard navigation in the state grid
+- Type a state name to jump to it (names starting with the typed text first, then names containing it)
+- <kbd>Ctrl+F</kbd>, <kbd>/</kbd> or right-click empty space > Find... filters the DMI by your search
 - Access plugin preferences under `File > DMI Editor > Preferences`
 
 ### Platforms

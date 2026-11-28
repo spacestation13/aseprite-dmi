@@ -52,6 +52,7 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
         lua.create_function(safe!(combine_states))?,
     )?;
     exports.set("copy_states", lua.create_function(safe!(copy_states))?)?;
+    exports.set("copy_text", lua.create_function(safe!(copy_text))?)?;
     exports.set("paste_states", lua.create_function(safe!(paste_states))?)?;
     exports.set("resize", lua.create_function(safe!(resize))?)?;
     exports.set("crop", lua.create_function(safe!(crop))?)?;
@@ -61,10 +62,12 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
     exports.set("exists", lua.create_function(safe!(exists))?)?;
     exports.set("check_update", lua.create_function(safe!(check_update))?)?;
     exports.set("open_repo", lua.create_function(safe!(open_repo))?)?;
+    exports.set("open_url", lua.create_function(safe!(open_url))?)?;
     exports.set("instances", lua.create_function(safe!(instances))?)?;
     exports.set("save_dialog", lua.create_function(safe!(save_dialog))?)?;
     exports.set("open_dialog", lua.create_function(safe!(open_dialog))?)?;
     exports.set("import_png", lua.create_function(safe!(import_png))?)?;
+    exports.set("download", lua.create_function(safe!(download))?)?;
 
     Ok(exports)
 }
@@ -178,6 +181,13 @@ fn copy_states(_: &Lua, (states, temp): (Vec<LuaTable>, String)) -> LuaResult<Lu
 
     let json = serde_json::to_string(&clipboard_states).map_err(ExternalError::Serde)?;
     with_clipboard(|clipboard| clipboard.set_text(json))?;
+
+    Ok(LuaValue::Nil)
+}
+
+/// Puts plain text on the system clipboard.
+fn copy_text(_: &Lua, text: String) -> LuaResult<LuaValue> {
+    with_clipboard(|clipboard| clipboard.set_text(text))?;
 
     Ok(LuaValue::Nil)
 }
@@ -480,6 +490,26 @@ fn open_repo(_: &Lua, path: Option<String>) -> LuaResult<LuaValue> {
     }
 
     Ok(LuaValue::Nil)
+}
+
+/// Opens an https URL in the default browser
+fn open_url(_: &Lua, url: String) -> LuaResult<LuaValue> {
+    if !url.starts_with("https://") || url.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err("Only https URLs can be opened".to_string()).into_lua_err();
+    }
+    if open::that(&url).is_err() {
+        return Err("Failed to open browser".to_string()).into_lua_err();
+    }
+
+    Ok(LuaValue::Nil)
+}
+
+/// Downloads a file of this repository's registry (any other URL is refused, see
+/// `utils::registry_url`). Returns the number of bytes written.
+fn download(_: &Lua, (url, dest, timeout_secs): (String, String, Option<f64>)) -> LuaResult<u64> {
+    let timeout = std::time::Duration::from_secs_f64(timeout_secs.unwrap_or(5.0).clamp(0.5, 60.0));
+    crate::utils::download_registry_file(&url, Path::new(&dest), timeout)
+        .map_err(|err| LuaError::external(format!("{err:#}")))
 }
 
 fn import_png(lua: &Lua, (dmi_table, filepath): (LuaTable, String)) -> LuaResult<LuaTable> {

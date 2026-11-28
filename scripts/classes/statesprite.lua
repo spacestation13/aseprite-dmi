@@ -26,17 +26,114 @@ function StateSprite.new(editor, dmi, state, sprite, transparentColor)
 	return self
 end
 
+--- Image layers inside a group, bottom-up, nested groups included.
+--- @param group Layer
+--- @param out Layer[]
+--- @return Layer[]
+local function image_descendants(group, out)
+	for _, layer in ipairs(group.layers) do
+		if layer.isGroup then
+			image_descendants(layer, out)
+		elseif layer.isImage and not layer.isTilemap then
+			table.insert(out, layer)
+		end
+	end
+	return out
+end
+
+--- Whether any layer (or a layer inside a group) is a tilemap.
+--- @param layers Layer[]
+--- @return boolean
+local function has_tilemap(layers)
+	for _, layer in ipairs(layers) do
+		if layer.isTilemap or (layer.isGroup and has_tilemap(layer.layers)) then
+			return true
+		end
+	end
+	return false
+end
+
+--- Layers that auto-flatten merges into each direction layer on save: every top-level
+--- non-direction layer merges down into the nearest direction layer below it, bottom-up (see
+--- the flatten in StateSprite:save). A group counts as the image layers inside it, in order:
+--- Aseprite renders a group's layers as siblings (no group opacity or blend mode) and Save
+--- moves them out of the group before merging. Empty when auto-flatten is off.
+--- @param sprite Sprite
+--- @return table<string, Layer[]> sources Direction name -> layers merged into it, bottom-up.
+--- @return table<string, Layer> targets Direction name -> the direction layer they merge into.
+function StateSprite.flatten_sources(sprite)
+	local sources, targets = {}, {}
+	if not Preferences.getAutoFlatten() then return sources, targets end
+	local current = nil
+	for _, layer in ipairs(sprite.layers) do
+		if table.index_of(DIRECTION_NAMES, layer.name) > 0 then
+			current = {}
+			if not sources[layer.name] then
+				sources[layer.name], targets[layer.name] = current, layer
+			end
+		elseif current then
+			if layer.isGroup then
+				image_descendants(layer, current)
+			else
+				table.insert(current, layer)
+			end
+		end
+	end
+	return sources, targets
+end
+
+--- Why auto-flatten can't run, checked before the sprite is touched: every direction layer
+--- receiving merges must be a regular image layer, and no layer inside a merged group may
+--- be named after a direction (it would become one once moved out of the group).
+--- @param sprite Sprite
+--- @return string|nil error
+local function flatten_error(sprite)
+	local sources, targets = StateSprite.flatten_sources(sprite)
+	for name, merged in pairs(sources) do
+		local target = targets[name]
+		if #merged > 0 and (not target.isImage or target.isTilemap) then
+			return "Layers above \"" .. name .. "\" can't be merged into it: direction layers must be regular image layers, not groups."
+		end
+		for _, layer in ipairs(merged) do
+			if table.index_of(DIRECTION_NAMES, layer.name) > 0 then
+				return "The layer \"" .. layer.name .. "\" inside a group is named like a direction: rename it or move it out of the group."
+			end
+		end
+	end
+end
+
+--- Moves the image layers of every group above a direction layer out to the group's place
+--- (bottom-up) and deletes the group, so Merge Down merges each of them like a top-level
+--- layer (it can't merge groups). Call inside a transaction.
+--- @param sprite Sprite
+local function ungroup_merged_groups(sprite)
+	local groups = {}
+	local above_direction = false
+	for _, layer in ipairs(sprite.layers) do
+		if table.index_of(DIRECTION_NAMES, layer.name) > 0 then
+			above_direction = true
+		elseif above_direction and layer.isGroup then
+			table.insert(groups, layer)
+		end
+	end
+	for _, group in ipairs(groups) do
+		for _, layer in ipairs(image_descendants(group, {})) do
+			layer.parent = sprite
+			layer.stackIndex = group.stackIndex -- below the group, above the layers moved before
+		end
+		sprite:deleteLayer(group)
+	end
+end
+
 --- Saves the state sprite by exporting each layer as a separate image file.
 --- @return boolean boolean true if the save operation is successful, false otherwise.
 function StateSprite:save()
-	for _, layer in ipairs(self.sprite.layers) do
-		if layer.isTilemap then
-			app.alert {
-				title = self.editor.title,
-				text = "Tilemap layers are not supported in DMI files. Please convert or remove them before saving."
-			}
-			return false
-		end
+	if has_tilemap(self.sprite.layers) then
+		app.alert {
+			title = self.editor.title,
+			text = "Tilemap layers are not supported in DMI files. Please convert or remove them before saving."
+		}
+		return false
 	end
 
 	if #self.sprite.layers < self.state.dirs then
@@ -105,14 +202,24 @@ function StateSprite:save()
 		end
 	end
 	if Preferences.getAutoFlatten() and hasNonDirectional then
+		-- Fail before touching the sprite: a failed flatten inside a caller's transaction
+		-- would not be rolled back.
+		local err = flatten_error(self.sprite)
+		if err then
+			app.alert { title = self.editor.title, text = { "Can't flatten the layers into directions.", err } }
+			return false
+		end
+
 		original_layers = {}
 		for _, layer in ipairs(self.sprite.layers) do
 			table.insert(original_layers, layer)
 		end
 
-		app.transaction(
+		local ok
+		ok, err = pcall(app.transaction,
 			"Flatten Layers (DMI Editor)",
 			function()
+				ungroup_merged_groups(self.sprite)
 				-- Process each directional layer, rebuilding layer list after each merge
 				local i = 1
 				while i <= #self.sprite.layers do
@@ -123,8 +230,15 @@ function StateSprite:save()
 						for j = i + 1, #self.sprite.layers do
 							local above_layer = self.sprite.layers[j]
 							if table.index_of(DIRECTION_NAMES, above_layer.name) == 0 then
+								local count = #self.sprite.layers
 								app.layer = above_layer
 								app.command.MergeDownLayer()
+								if #self.sprite.layers == count then
+									-- Merge Down refused (flatten_error should have caught why):
+									-- stop instead of retrying forever.
+									error("Can't merge \"" .. above_layer.name .. "\" into \"" ..
+										self.sprite.layers[j - 1].name .. "\".", 0)
+								end
 								merged = true
 								break
 							end
@@ -139,6 +253,10 @@ function StateSprite:save()
 				end
 			end
 		)
+		if not ok then
+			app.alert { title = self.editor.title, text = { "Auto-flatten failed.", tostring(err) } }
+			return false
+		end
 	end
 
 	self.state.frame_count = #self.sprite.frames

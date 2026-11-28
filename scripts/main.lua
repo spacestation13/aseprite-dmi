@@ -42,6 +42,7 @@ function init(plugin)
 	-- Initialize Preferences
 	Preferences.initialize(plugin)
 	RawDmi.initialize(plugin.path)
+	Registry.initialize(plugin.path) -- no network here: only on explicit user actions
 
 	-- Load the native library early so newFileFormat callbacks can use it
 	loadlib(plugin.path)
@@ -257,6 +258,19 @@ function init(plugin)
 	}
 
 	plugin:newCommand {
+		id = "dmi_codebase_palettes",
+		title = "Codebase Palettes",
+		group = "dmi_editor",
+		onclick = function()
+			PaletteDialogs.codebase()
+		end,
+	}
+
+	plugin:newMenuSeparator {
+		group = "dmi_editor",
+	}
+
+	plugin:newCommand {
 		id = "dmi_preferences",
 		title = "Preferences",
 		group = "dmi_editor",
@@ -275,11 +289,11 @@ function init(plugin)
 	}
 
 	plugin:newCommand {
-		id = "dmi_releases",
-		title = "Releases",
+		id = "dmi_credits",
+		title = "Credits",
 		group = "dmi_editor",
 		onclick = function()
-			libdmi.open_repo("releases")
+			show_credits(app.fs.joinPath(plugin.path, "CREDITS.txt"))
 		end,
 	}
 

@@ -1,0 +1,27 @@
+{
+	"version": 1,
+	"updated": "2026-11-27",
+	"palettes": [
+		{
+			"id": "goonstation",
+			"name": "Goonstation",
+			"codebase": "Goonstation",
+			"url": "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/registry/palettes/goonstation.gpl",
+			"description": "Build each sprite from a few of these ramps.\nBy Flaborized"
+		},
+		{
+			"id": "goonstation_metals",
+			"name": "Goonstation Metals",
+			"codebase": "Goonstation",
+			"url": "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/registry/palettes/goonstation_metals.gpl",
+			"description": "Use one metal ramp per material. Use the darkest for outlines.\nBy Walpvrgis"
+		},
+		{
+			"id": "paradise",
+			"name": "Paradise",
+			"codebase": "Paradise",
+			"url": "https://raw.githubusercontent.com/spacestation13/aseprite-dmi/main/registry/palettes/paradise.gpl",
+			"description": "Build each sprite from a few of these ramps.\nBy Alfie"
+		}
+	]
+}

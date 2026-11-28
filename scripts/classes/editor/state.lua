@@ -422,8 +422,10 @@ function Editor:set_state_dirs(state, directions)
 				sprite:deleteLayer(sprite:newLayer())
 			end
 			state.dirs = directions
-			state_sprite:save()
 		end)
+		-- Save outside the transaction: save() flattens in its own transaction and undoes it,
+		-- which only works (and only rolls back on failure) when it isn't nested in another.
+		state_sprite:save()
 	end
 end
 
@@ -449,8 +451,10 @@ end
 function Editor:remove_state(state)
 	for i, state_sprite in ipairs(self.open_sprites) do
 		if state_sprite.state == state then
-			state_sprite.sprite:close()
+			-- Untrack before closing: close() fires sitechange, and its listeners may look at
+			-- open_sprites, so `i` must not be used after it.
 			table.remove(self.open_sprites, i)
+			state_sprite.sprite:close()
 			break
 		end
 	end
