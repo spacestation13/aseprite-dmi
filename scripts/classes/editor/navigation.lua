@@ -14,8 +14,9 @@ EditorNav.TYPEAHEAD_TIMEOUT = 1
 --- @param columns number States per row.
 --- @param rows number Fully visible rows (page size for PageUp/PageDown).
 --- @param code string KeyEvent code (ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Home, End, PageUp, PageDown).
+--- @param first number|nil Index picked by the first arrow/page key with nothing selected (default 1).
 --- @return number|nil index The new index, or nil if `code` is not a navigation key or there are no states.
-function EditorNav.move(index, count, columns, rows, code)
+function EditorNav.move(index, count, columns, rows, code, first)
 	if count < 1 then return nil end
 	columns = math.max(columns, 1)
 	rows = math.max(rows, 1)
@@ -39,8 +40,8 @@ function EditorNav.move(index, count, columns, rows, code)
 	else
 		return nil
 	end
-	-- First key press with nothing selected picks the first state.
-	if not index then return 1 end
+	-- First key press with nothing selected picks `first`, by default the first state.
+	if not index then return first or 1 end
 	local target = index + delta
 	if code == "ArrowUp" or code == "ArrowDown" then
 		-- Stay in place when the row above/below doesn't exist; a shorter last row clamps.
@@ -154,7 +155,10 @@ end
 --- (undo/redo, cut, deselect, clear). Ctrl+A/C/V/F are the grid's own (select all, copy/paste states, find).
 EditorNav.GRID_CTRL_KEYS = {
 	KeyZ = true, KeyY = true, KeyX = true, KeyD = true, Delete = true, Backspace = true,
-	KeyA = true, KeyC = true, KeyV = true, KeyF = true,
+	KeyA = true, KeyC = true, KeyV = true, KeyF = true, KeyS = true,
+	-- Arrows, Home/End and Page keys with Ctrl would scroll or move the active sprite's view.
+	ArrowLeft = true, ArrowRight = true, ArrowUp = true, ArrowDown = true,
+	Home = true, End = true, PageUp = true, PageDown = true,
 }
 
 --- Whether a key pressed on the focused grid goes on to Aseprite's shortcuts.
@@ -163,6 +167,7 @@ EditorNav.GRID_CTRL_KEYS = {
 --- @param ev table KeyEvent-like: code, ctrlKey, altKey, metaKey.
 --- @return boolean
 function EditorNav.key_passes_through(ev)
+	if ev.code == "Tab" then return true end
 	if not (ev.ctrlKey or ev.altKey or ev.metaKey) then return false end
 	if (ev.ctrlKey or ev.metaKey) and EditorNav.GRID_CTRL_KEYS[ev.code] then return false end
 	return true
@@ -348,6 +353,11 @@ function Editor:open_find_dialog()
 			if ev.code == "Escape" then
 				close(false)
 			elseif ev.code == "Enter" or ev.code == "NumpadEnter" then
+				-- No match: stay open so the query can be fixed instead of leaving an empty grid.
+				if self.filter_query ~= "" and #self:visible_states() == 0 then
+					ev:stopPropagation()
+					return
+				end
 				-- Arrows and Enter on the grid go on from the first match.
 				if self.filter_query ~= "" and #self.selected_states == 0 then self:select_index(1) end
 				close(true)
@@ -409,20 +419,30 @@ function Editor:handle_navigation_key(ev)
 		elseif code == "KeyV" then
 			self:clipboard_paste_state()
 			self:refocus_grid()
+		elseif code == "KeyS" then
+			-- Ctrl+S / Ctrl+Shift+S save the DMI; left alone they would save the active sprite.
+			if ev.shiftKey then self:save_as() else self:save() end
+			self:refocus_grid()
 		end
 	end
-	if modified then
+	-- Tab goes on to the dialog's own focus handling.
+	if modified or code == "Tab" then
 		return not EditorNav.key_passes_through(ev)
 	end
 
-	local index = EditorNav.move(self:cursor_index(), #self:visible_states(), self.max_in_a_row, self.max_in_a_column,
-		code)
+	-- With nothing selected (after Esc, Delete or a click), the first arrow starts from what is in view
+	-- instead of jumping back to the first state.
+	local count = #self:visible_states()
+	local first_in_view = math.min(self.scroll * math.max(self.max_in_a_row, 1) + 1, math.max(count, 1))
+	local index = EditorNav.move(self:cursor_index(), count, self.max_in_a_row, self.max_in_a_column, code,
+		first_in_view)
 	if index then
 		self:select_index(index, ev.shiftKey)
 		return true
 	end
 
-	if code == "Enter" or code == "NumpadEnter" then
+	-- Space opens like Enter, so it is not a type-ahead character.
+	if code == "Enter" or code == "NumpadEnter" or code == "Space" then
 		local state = self:visible_states()[self:cursor_index() or 0]
 		if state then self:open_state(state) end
 	elseif code == "Delete" then
@@ -452,7 +472,7 @@ function Editor:handle_navigation_key(ev)
 		if found then self:select_index(found) end
 	else
 		local char = ev.key
-		if char and #char == 1 and char:match("[%w_%-%. ]") and not (char == " " and (self.typeahead_buffer or "") == "") then
+		if char and #char == 1 and char:match("[%w_%-%.]") then
 			local buffer, found = EditorNav.typeahead(self.typeahead_buffer or "", char, self:state_names(), self:cursor_index())
 			self.typeahead_buffer = buffer
 			self:restart_typeahead_timer()
@@ -470,9 +490,13 @@ end
 
 --- Gives keyboard focus back to the grid. Call after a grid key action that may show an alert or
 --- dialog: closing one hands focus to the sprite editor, so the next key would hit the active sprite.
+--- Aseprite re-lays out a dialog when a widget is modified, which resets a window the user resized
+--- to its default size, so the bounds are put back.
 function Editor:refocus_grid()
 	if self.dialog and not self.closed then
+		local bounds = self.dialog.bounds
 		self.dialog:modify { id = "canvas", focus = true }
+		if self.dialog.bounds ~= bounds then self.dialog.bounds = bounds end
 	end
 end
 

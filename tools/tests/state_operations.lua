@@ -20,6 +20,8 @@ local editor = setmetatable({
 	selected_states = {},
 	image_cache = ImageCache.new(),
 	modified = false,
+	filter_query = "", filter_keep = {},
+	scroll = 0, max_in_a_row = 4, max_in_a_column = 3,
 }, { __index = Editor })
 function editor:repaint_states() end
 

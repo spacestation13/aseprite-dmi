@@ -72,7 +72,8 @@ local function write_many_dmi()
 			T.ok(serr == nil, serr)
 			local image = Image(32, 32, ColorMode.RGB)
 			image:clear(Color { hue = (k - 1) * 36, saturation = 0.8, value = 0.4 + v * 0.1, alpha = 255 })
-			save_image_bytes(image, app.fs.joinPath(dmi.temp, state.frame_key .. ".0.bytes"))
+			local _, werr = libdmi.save_frame_bytes(app.fs.joinPath(dmi.temp, state.frame_key .. ".0.bytes"), 32, 32, image.bytes)
+			T.ok(werr == nil, werr)
 			table.insert(dmi.states, state)
 		end
 	end
@@ -450,6 +451,31 @@ T.steps {
 		T.eq(#editor:visible_states(), 60, "second Esc restores the grid")
 		sprite_untouched("after the 60-state filter")
 		T.eq(app.sprite, sprite, "test sprite still active")
+		next()
+	end,
+	-- Closing Find (and any refocus of the grid) keeps a window the user resized.
+	function(next)
+		local b = dialog.bounds
+		dialog.bounds = Rectangle(b.x, b.y, b.width + 80, b.height + 60)
+		T.after(0.5, function() next(dialog.bounds) end)
+	end,
+	function(next, resized)
+		T.input({ focus_canvas(), { wait = 0.2 }, { key = "Ctrl+F" }, { wait = 0.4 }, { text = "do" }, { wait = 0.2 },
+			{ key = "Escape" }, { wait = 0.6 } }, function() next(resized) end)
+	end,
+	function(next, resized)
+		T.eq(dialog.bounds, resized, "closing Find keeps the editor window size")
+		next()
+	end,
+	-- Space opens the state under the cursor, like Enter.
+	function(next)
+		editor:select_index(1)
+		local before = #editor.open_sprites
+		T.input({ focus_canvas(), { wait = 0.2 }, { key = "Space" }, { wait = 0.8 } }, function() next(before) end)
+	end,
+	function(next, before)
+		T.eq(#editor.open_sprites, before + 1, "Space opened a state sprite")
+		T.eq(editor.open_sprites[#editor.open_sprites].state, editor.dmi.states[1], "it is the state under the cursor")
 		next()
 	end,
 	function()

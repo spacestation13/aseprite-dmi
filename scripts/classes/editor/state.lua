@@ -457,6 +457,9 @@ function Editor:remove_state(state)
 
 	table.remove(self.dmi.states, table.index_of(self.dmi.states, state))
 	self.image_cache:remove(state.frame_key)
+	-- Fewer states can leave the grid scrolled past the end.
+	self.scroll = math.min(self.scroll,
+		EditorNav.max_scroll(#self:visible_states(), self.max_in_a_row, self.max_in_a_column))
 	self:repaint_states()
 	self:gc_open_sprites()
 end

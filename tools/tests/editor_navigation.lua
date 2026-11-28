@@ -86,14 +86,16 @@ T.eq(k("Backspace"), false, "Backspace stays on the grid")
 T.eq(k("Comma"), false, "plain keys stay on the grid")
 T.eq(k("Space"), false, "Space stays on the grid")
 T.eq(k("Equal", { "shift" }), false, "Shift combos stay on the grid")
-T.eq(k("KeyS", { "ctrl" }), true, "Ctrl+S reaches Aseprite")
 T.eq(k("KeyQ", { "ctrl" }), true, "Ctrl+Q reaches Aseprite")
 T.eq(k("KeyF", { "alt" }), true, "Alt+F (menu) reaches Aseprite")
-for _, code in ipairs({ "KeyZ", "KeyY", "KeyX", "KeyD", "Delete", "Backspace", "KeyC", "KeyV", "KeyA", "KeyF" }) do
+for _, code in ipairs({ "KeyZ", "KeyY", "KeyX", "KeyD", "Delete", "Backspace", "KeyC", "KeyV", "KeyA", "KeyF", "KeyS",
+	"ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown" }) do
 	T.eq(k(code, { "ctrl" }), false, "Ctrl+" .. code .. " stays on the grid")
 	T.eq(k(code, { "meta" }), false, "Cmd+" .. code .. " stays on the grid")
 end
 T.eq(k("KeyZ", { "ctrl", "shift" }), false, "Ctrl+Shift+Z stays on the grid")
+T.eq(k("KeyS", { "ctrl", "shift" }), false, "Ctrl+Shift+S saves the DMI too")
+T.eq(k("Tab"), true, "Tab moves dialog focus")
 
 local area = { x = 0, y = 0, width = 1000, height = 600 }
 T.eq({ M.place_beside({ x = 100, y = 50, width = 300, height = 400 }, { width = 200, height = 100 }, area) }, { 400, 50 },
@@ -113,7 +115,7 @@ local editor = setmetatable({
 	dmi = { states = states_named(grid_names), width = 32, height = 32, temp = TEMP_DIR },
 	selected_states = {}, filter_query = "", filter_keep = {}, open_sprites = {},
 	scroll = 0, max_in_a_row = 3, max_in_a_column = 2,
-	image_cache = { load_state = function() end },
+	image_cache = { load_state = function() end, remove = function() end },
 	repaint_states = function() end, repaint = function() end,
 	open_state = function(_, state) opened = state end,
 }, Editor)
@@ -170,6 +172,21 @@ T.eq(cursor(), "trapdoor", "type-ahead ignores hidden states")
 editor:reset_typeahead()
 press("Enter")
 T.ok(rawequal(opened, all[10]), "Enter opens the real state under the cursor")
+opened = nil
+press("Space", " ")
+T.ok(rawequal(opened, all[10]), "Space opens the state under the cursor like Enter")
+opened = nil
+press("t", "t")
+press("Space", " ")
+T.ok(rawequal(opened, all[10]), "Space opens even while a name is being typed")
+editor:reset_typeahead()
+
+-- With nothing selected (after Esc), the first arrow starts from the rows in view, not state 1.
+press("Escape")
+T.eq(selected(), {}, "Esc deselects")
+editor.scroll = 1
+press("ArrowDown")
+T.eq(cursor(), "door_open", "first arrow starts from the first state in view")
 
 -- Changing the query keeps only shown states selected; Esc with nothing selected clears the filter.
 press("End")
@@ -202,3 +219,10 @@ T.ok(rawequal(editor:visible_states()[9], editor.dmi.states[13]), "nameless new 
 T.eq(editor:filter_status(), "9 of 13 states", "status counts kept states")
 editor:set_filter("oo")
 T.eq(#editor:visible_states(), 7, "changing the query drops kept states")
+
+-- Removing states can't leave the grid scrolled past its end.
+editor:set_filter("")
+editor.scroll = M.max_scroll(#editor:visible_states(), 3, 2)
+T.eq(editor.scroll, 3, "scrolled to the bottom of 13 states")
+for _ = 1, 4 do editor:remove_state(editor.dmi.states[#editor.dmi.states]) end
+T.eq(editor.scroll, 2, "scroll clamped after removing states")
